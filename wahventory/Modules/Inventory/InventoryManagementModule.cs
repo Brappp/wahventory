@@ -179,74 +179,50 @@ public partial class InventoryManagementModule : IDisposable
         
         ImGui.Separator();
         
-        // Main content area with tabs
-        ImGui.BeginChild("InventoryContent", new Vector2(0, 0), false);
+        // Main content area
+        var contentHeight = ImGui.GetContentRegionAvail().Y - 60; // Leave space for bottom action bar
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(8, 8));
+        ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f));
         
-        // Tab bar for Not Filtered vs Filtered Items with inline action buttons
-        if (ImGui.BeginTabBar("InventoryTabs"))
+        ImGui.BeginChild("MainContent", new Vector2(0, contentHeight), true);
+        
+        // Tab bar with action buttons
+        DrawTabBar();
+        
+        // Content area
+        ImGui.BeginChild("ContentArea", new Vector2(0, 0), false);
+        
+        if (ImGui.BeginTabBar("InventoryTabs", ImGuiTabBarFlags.None))
         {
             // Calculate filtered items count for tab display
             var filteredItems = GetFilteredOutItems();
             
-            // Not Filtered tab (items available for discard)
-            var notFilteredTabText = $"Available Items ({_categories.Sum(c => c.Items.Count)})";
-            if (ImGui.BeginTabItem(notFilteredTabText))
+            // Available Items tab
+            var availableCount = _categories.Sum(c => c.Items.Count);
+            if (ImGui.BeginTabItem($"Available Items ({availableCount})"))
             {
                 DrawAvailableItemsTab();
                 ImGui.EndTabItem();
             }
             
-            // Filtered Items tab (items being protected)
-            var filteredTabText = $"Protected Items ({filteredItems.Count})";
-            if (ImGui.BeginTabItem(filteredTabText))
+            // Protected Items tab
+            if (ImGui.BeginTabItem($"Protected Items ({filteredItems.Count})"))
             {
                 DrawFilteredItemsTab(filteredItems);
                 ImGui.EndTabItem();
             }
             
-            // Action buttons on the right side of tab bar
-            ImGui.SameLine();
-            var availableWidth = ImGui.GetContentRegionAvail().X;
-            var buttonWidth = 80f;
-            var spacing = ImGui.GetStyle().ItemSpacing.X;
-            var totalButtonWidth = buttonWidth * 2 + spacing;
-            
-            if (availableWidth > totalButtonWidth + 20)
-            {
-                ImGui.SetCursorPosX(ImGui.GetCursorPosX() + availableWidth - totalButtonWidth);
-                
-                if (ImGui.Button("Clear", new Vector2(buttonWidth, 0)))
-                {
-                    _selectedItems.Clear();
-                    foreach (var item in _allItems)
-                    {
-                        item.IsSelected = false;
-                    }
-                }
-                
-                ImGui.SameLine();
-                
-                if (_selectedItems.Count > 0)
-                {
-                    ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.8f, 0.2f, 0.2f, 1));
-                    if (ImGui.Button($"Discard ({_selectedItems.Count})", new Vector2(buttonWidth, 0)))
-                    {
-                    PrepareDiscard();
-                    }
-                    ImGui.PopStyleColor();
-                }
-                else
-                {
-                    ImGui.BeginDisabled();
-                    ImGui.Button("Discard (0)", new Vector2(buttonWidth, 0));
-                    ImGui.EndDisabled();
-                }
-            }
-            
             ImGui.EndTabBar();
         }
         
-        ImGui.EndChild();
+        ImGui.EndChild(); // ContentArea
+        ImGui.EndChild(); // MainContent
+        
+        ImGui.PopStyleColor();
+        ImGui.PopStyleVar();
+        
+        // Bottom action bar
+        DrawBottomActionBar();
     }
     
     private void InitializeOnMainThread()

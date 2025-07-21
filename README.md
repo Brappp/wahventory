@@ -1,76 +1,71 @@
-> ⚠️ **Don't click Fork!**
-> 
-> This is a GitHub Template repo. If you want to use this for a plugin, just [use this template][new-repo] to make a new repo!
->
-> ![image](https://github.com/goatcorp/SamplePlugin/assets/16760685/d9732094-e1ed-4769-a70b-58ed2b92580c)
+# WahVentory
 
-# SamplePlugin
+Advanced inventory management plugin for Final Fantasy XIV.
 
-[![Use This Template badge](https://img.shields.io/badge/Use%20This%20Template-0?logo=github&labelColor=grey)][new-repo]
+## Features
 
+- **Smart Safety Filters** - 9 different protection types to safeguard valuable items
+- **Market Price Integration** - Real-time gil values via Universalis
+- **Bulk Discard** - Safely discard multiple items with confirmation
+- **Category Organization** - Items grouped by type with collapsible sections
+- **Search & Filter** - Find items quickly with text search and filters
+- **Gearset Protection** - Never accidentally discard gearset items
+- **Two-Tab System** - View available vs protected items separately
 
-Simple example plugin for Dalamud.
+## Safety Filters
 
-This is not designed to be the simplest possible example, but it is also not designed to cover everything you might want to do. For more detailed questions, come ask in [the Discord](https://discord.gg/holdshift).
+WahVentory includes comprehensive safety filters to protect your valuable items:
 
-## Main Points
+1. **Ultimate Tokens** - Raid tokens and preorder items
+2. **Currency Items** - Gil, tomestones, MGP, etc.
+3. **Crystals & Shards** - Crafting materials
+4. **Gearset Items** - Equipment in any gearset
+5. **Indisposable Items** - Items that cannot be discarded
+6. **High-Level Gear** - Equipment above specified item level (default: i600+)
+7. **Unique & Untradeable** - One-of-a-kind items that can't be reacquired
+8. **HQ Items** - High-quality crafted items
+9. **Collectables** - Turn-in items for scrips
 
-* Simple functional plugin
-  * Slash command
-  * Main UI
-  * Settings UI
-  * Image loading
-  * Plugin json
-* Simple, slightly-improved plugin configuration handling
-* Project organization
-  * Copies all necessary plugin files to the output directory
-    * Does not copy dependencies that are provided by dalamud
-    * Output directory can be zipped directly and have exactly what is required
-  * Hides data files from visual studio to reduce clutter
-    * Also allows having data files in different paths than VS would usually allow if done in the IDE directly
+## Usage
 
+Use `/wahventory` to open the inventory management window.
 
-The intention is less that any of this is used directly in other projects, and more to show how similar things can be done.
-
-## How To Use
-
-### Getting Started
-
-To begin, [clone this template repository][new-repo] to your own GitHub account. This will automatically bring in everything you need to get a jumpstart on development. You do not need to fork this repository unless you intend to contribute modifications to it.
-
-Be sure to also check out the [Dalamud Developer Docs][dalamud-docs] for helpful information about building your own plugin. The Developer Docs includes helpful information about all sorts of things, including [how to submit][submit] your newly-created plugin to the official repository. Assuming you use this template repository, the provided project build configuration and license are already chosen to make everything a breeze.
-
-[new-repo]: https://github.com/new?template_name=SamplePlugin&template_owner=goatcorp
-[dalamud-docs]: https://dalamud.dev
-[submit]: https://dalamud.dev/plugin-development/plugin-submission
+## Building
 
 ### Prerequisites
 
-SamplePlugin assumes all the following prerequisites are met:
+- XIVLauncher, FFXIV, and Dalamud installed
+- .NET 8 SDK
+- Visual Studio 2022 or JetBrains Rider
 
-* XIVLauncher, FINAL FANTASY XIV, and Dalamud have all been installed and the game has been run with Dalamud at least once.
-* XIVLauncher is installed to its default directories and configurations.
-  * If a custom path is required for Dalamud's dev directory, it must be set with the `DALAMUD_HOME` environment variable.
-* A .NET Core 8 SDK has been installed and configured, or is otherwise available. (In most cases, the IDE will take care of this.)
+### Build Steps
 
-### Building
+1. Clone this repository
+2. Open `wahventory.sln` in your IDE
+3. Build the solution
+4. The plugin DLL will be in `wahventory/bin/x64/Debug/wahventory.dll`
 
-1. Open up `SamplePlugin.sln` in your C# editor of choice (likely [Visual Studio 2022](https://visualstudio.microsoft.com) or [JetBrains Rider](https://www.jetbrains.com/rider/)).
-2. Build the solution. By default, this will build a `Debug` build, but you can switch to `Release` in your IDE.
-3. The resulting plugin can be found at `SamplePlugin/bin/x64/Debug/SamplePlugin.dll` (or `Release` if appropriate.)
+### Installing for Development
 
-### Activating in-game
+1. In-game, use `/xlsettings` to open Dalamud settings
+2. Go to Experimental, add the full path to `wahventory.dll` to Dev Plugin Locations
+3. Use `/xlplugins` to open Plugin Installer
+4. Go to Dev Tools > Installed Dev Plugins and enable WahVentory
 
-1. Launch the game and use `/xlsettings` in chat or `xlsettings` in the Dalamud Console to open up the Dalamud settings.
-    * In here, go to `Experimental`, and add the full path to the `SamplePlugin.dll` to the list of Dev Plugin Locations.
-2. Next, use `/xlplugins` (chat) or `xlplugins` (console) to open up the Plugin Installer.
-    * In here, go to `Dev Tools > Installed Dev Plugins`, and the `SamplePlugin` should be visible. Enable it.
-3. You should now be able to use `/pmycommand` (chat) or `pmycommand` (console)!
+## Configuration
 
-Note that you only need to add it to the Dev Plugin Locations once (Step 1); it is preserved afterwards. You can disable, enable, or load your plugin on startup through the Plugin Installer.
+Access the configuration window through the settings button in the main window. You can:
 
-### Reconfiguring for your own uses
+- Toggle individual safety filters
+- Set market price cache duration
+- Configure auto-refresh for prices
+- Adjust item level thresholds
+- Set spiritbond thresholds
 
-Basically, just replace all references to `SamplePlugin` in all of the files and filenames with your desired name, then start building the plugin of your dreams. You'll figure it out 😁
+## License
 
-Dalamud will load the JSON file (by default, `SamplePlugin/SamplePlugin.json`) next to your DLL and use it for metadata, including the description for your plugin in the Plugin Installer. Make sure to update this with information relevant to _your_ plugin!
+This project is licensed under AGPL-3.0-or-later.
+
+## Acknowledgments
+
+Based on the Dalamud plugin template and inspired by various inventory management solutions.

@@ -43,7 +43,6 @@ public partial class InventoryManagementModule
         ImGui.Text("Add New Item to Blacklist:");
         ImGui.Spacing();
         
-        // Item search input
         ImGui.SetNextItemWidth(300);
         if (ImGui.InputTextWithHint("##AddItemName", "Search item name...", ref _itemNameToAdd, 100))
         {
@@ -59,7 +58,6 @@ public partial class InventoryManagementModule
         
         ImGui.SameLine();
         
-        // Add by ID
         ImGui.Text("or ID:");
         ImGui.SameLine();
         ImGui.SetNextItemWidth(100);
@@ -71,7 +69,6 @@ public partial class InventoryManagementModule
         
         ImGui.SameLine();
         
-        // Add button
         var canAdd = _itemToAdd > 0;
         
         using (var disabled = ImRaii.Disabled(!canAdd))
@@ -357,20 +354,17 @@ public partial class InventoryManagementModule
                         }
                         else
                         {
-                            // Reserve space for missing icon
                             ImGui.Dummy(new Vector2(20, 20));
                             ImGui.SameLine(0, 5);
                         }
                     }
                     else
                     {
-                        // Reserve space for missing icon
                         ImGui.Dummy(new Vector2(20, 20));
                         ImGui.SameLine(0, 5);
                     }
                     ImGui.Text(itemName);
                     
-                    // Item Level column
                     ImGui.TableNextColumn();
                     if (itemLevel > 0)
                     {
@@ -381,11 +375,9 @@ public partial class InventoryManagementModule
                         ImGui.TextColored(ColorSubdued, "-");
                     }
                     
-                    // Category column
                     ImGui.TableNextColumn();
                     ImGui.Text(categoryName);
                     
-                    // Remove button
                     ImGui.TableNextColumn();
                     if (ImGui.SmallButton($"Remove##bl_{itemId}"))
                     {

@@ -17,7 +17,7 @@ public class MainWindow : Window, IDisposable
         SizeConstraints = new WindowSizeConstraints
         {
             MinimumSize = new Vector2(800, 400),
-            MaximumSize = new Vector2(1400, float.MaxValue) // No max height limit
+            MaximumSize = new Vector2(1400, float.MaxValue)
         };
 
         Plugin = plugin;

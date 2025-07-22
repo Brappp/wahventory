@@ -77,15 +77,12 @@ public sealed class Plugin : IDalamudPlugin
 
     private void OnCommand(string command, string args)
     {
-        // Check if 'auto' argument is provided
         if (!string.IsNullOrEmpty(args) && args.Trim().ToLower() == "auto")
         {
-            // Execute auto-discard
             InventoryModule.ExecuteAutoDiscard();
         }
         else
         {
-            // Default behavior - toggle main UI
             ToggleMainUI();
         }
     }

@@ -26,7 +26,6 @@ public class ConfigWindow : Window, IDisposable
 
     public override void Draw()
     {
-        // Safety Filters Section
         ImGui.Text("Safety Filters");
         ImGui.Separator();
         

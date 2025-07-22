@@ -58,7 +58,6 @@ public partial class InventoryManagementModule
         
         ImGui.SameLine();
         
-        // Add by ID
         ImGui.Text("or ID:");
         ImGui.SameLine();
         ImGui.SetNextItemWidth(100);
@@ -70,7 +69,6 @@ public partial class InventoryManagementModule
         
         ImGui.SameLine();
         
-        // Add button
         var canAdd = _autoDiscardItemToAdd > 0;
         
         using (var disabled = ImRaii.Disabled(!canAdd))
@@ -385,11 +383,9 @@ public partial class InventoryManagementModule
                         ImGui.TextColored(ColorSubdued, "-");
                     }
                     
-                    // Category column
                     ImGui.TableNextColumn();
                     ImGui.Text(categoryName);
                     
-                    // Remove button
                     ImGui.TableNextColumn();
                     if (ImGui.SmallButton($"Remove##ad_{itemId}"))
                     {

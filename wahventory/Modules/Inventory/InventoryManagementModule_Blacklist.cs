@@ -27,7 +27,8 @@ public partial class InventoryManagementModule
     {
         // Remove the extra child wrapper to prevent sizing issues
         // Header with explanation
-        ImGui.TextWrapped("Items in the blacklist will never be selected for discard. This is in addition to the built-in safety lists.");
+        ImGui.TextWrapped("Manage your custom blacklist. Items added here will never be selected for discard.");
+        ImGui.TextWrapped("This is in addition to the built-in safety lists shown in the Protected Items tab.");
         ImGui.Spacing();
         
         // Add item section
@@ -38,13 +39,6 @@ public partial class InventoryManagementModule
         
         // Current blacklist
         DrawCurrentBlacklist();
-        
-        // Built-in lists (read-only)
-        ImGui.Spacing();
-        ImGui.Separator();
-        ImGui.Spacing();
-        
-        DrawBuiltInLists();
     }
     
     private void DrawAddToBlacklistSection()
@@ -192,130 +186,110 @@ public partial class InventoryManagementModule
     
     private void DrawCurrentBlacklist()
     {
-        // Use TreeNodeEx for consistency with other collapsible sections
-        var nodeFlags = ImGuiTreeNodeFlags.AllowItemOverlap | ImGuiTreeNodeFlags.SpanAvailWidth | ImGuiTreeNodeFlags.DefaultOpen;
+        // Header with count
+        ImGui.Text($"Your Custom Blacklist ({Settings.BlacklistedItems.Count} items)");
         
-        ImGui.PushID("CustomBlacklist");
-        var open = ImGui.TreeNodeEx($"Custom Blacklist ({Settings.BlacklistedItems.Count} items)##CustomBlacklistHeader", nodeFlags);
-        
-        // Search filter on the same line
+        // Search filter
         ImGui.SameLine();
         var windowWidth = ImGui.GetWindowContentRegionMax().X;
         ImGui.SameLine(windowWidth - 210);
         ImGui.SetNextItemWidth(200);
         ImGui.InputTextWithHint("##BlacklistFilter", "Filter blacklist...", ref _blacklistSearchFilter, 100);
         
-        if (open)
+        ImGui.Spacing();
+        
+        if (!Settings.BlacklistedItems.Any())
         {
-            ImGui.Spacing();
+            ImGui.TextColored(ColorSubdued, "No custom blacklisted items.");
+            ImGui.TextColored(ColorInfo, "Add items using the controls above or select items in the Available Items tab and click 'Add to Blacklist'.");
+        }
+        else
+        {
+            // Filter the items if needed
+            var itemsToShow = Settings.BlacklistedItems.AsEnumerable();
             
-            if (!Settings.BlacklistedItems.Any())
+            if (!string.IsNullOrWhiteSpace(_blacklistSearchFilter))
             {
-                ImGui.TextColored(ColorSubdued, "No custom blacklisted items.");
-            }
-            else
-            {
-                // Filter the items if needed
-                var itemsToShow = Settings.BlacklistedItems.AsEnumerable();
-                
-                if (!string.IsNullOrWhiteSpace(_blacklistSearchFilter))
+                var filteredIds = new List<uint>();
+                foreach (var itemId in Settings.BlacklistedItems)
                 {
-                    var filteredIds = new List<uint>();
-                    foreach (var itemId in Settings.BlacklistedItems)
+                    // Get item info for filtering
+                    string itemName = null;
+                    lock (_itemsLock)
                     {
-                        // Get item info for filtering
-                        string itemName = null;
-                        lock (_itemsLock)
+                        var itemInfo = _allItems.FirstOrDefault(i => i.ItemId == itemId);
+                        itemName = itemInfo?.Name;
+                    }
+                    
+                    if (string.IsNullOrEmpty(itemName))
+                    {
+                        try
                         {
-                            var itemInfo = _allItems.FirstOrDefault(i => i.ItemId == itemId);
-                            itemName = itemInfo?.Name;
-                        }
-                        
-                        if (string.IsNullOrEmpty(itemName))
-                        {
-                            try
+                            var itemSheet = Plugin.DataManager.GetExcelSheet<Item>();
+                            if (itemSheet != null)
                             {
-                                var itemSheet = Plugin.DataManager.GetExcelSheet<Item>();
-                                if (itemSheet != null)
+                                var gameItem = itemSheet.GetRowOrDefault(itemId);
+                                if (gameItem != null && gameItem.Value.RowId != 0)
                                 {
-                                    var gameItem = itemSheet.GetRowOrDefault(itemId);
-                                    if (gameItem != null && gameItem.Value.RowId != 0)
-                                    {
-                                        itemName = gameItem.Value.Name.ExtractText();
-                                    }
+                                    itemName = gameItem.Value.Name.ExtractText();
                                 }
                             }
-                            catch { }
                         }
-                        
-                        itemName ??= GetItemNameFromComment(itemId);
-                        
-                        if (itemName.Contains(_blacklistSearchFilter, StringComparison.OrdinalIgnoreCase) ||
-                            itemId.ToString().Contains(_blacklistSearchFilter))
-                        {
-                            filteredIds.Add(itemId);
-                        }
+                        catch { }
                     }
-                    itemsToShow = filteredIds;
+                    
+                    itemName ??= GetItemNameFromComment(itemId);
+                    
+                    if (itemName.Contains(_blacklistSearchFilter, StringComparison.OrdinalIgnoreCase) ||
+                        itemId.ToString().Contains(_blacklistSearchFilter))
+                    {
+                        filteredIds.Add(itemId);
+                    }
+                }
+                itemsToShow = filteredIds;
+            }
+            
+            DrawCustomBlacklistTable(itemsToShow);
+            
+            ImGui.Spacing();
+            
+            // Bulk actions
+            if (ImGui.Button("Clear All Blacklisted Items"))
+            {
+                ImGui.OpenPopup("ClearBlacklistConfirm");
+            }
+            
+            if (ImGui.BeginPopupModal("ClearBlacklistConfirm"))
+            {
+                ImGui.Text("Are you sure you want to clear all custom blacklisted items?");
+                ImGui.Text($"This will remove {Settings.BlacklistedItems.Count} items from your blacklist.");
+                ImGui.Spacing();
+                
+                if (ImGui.Button("Yes, Clear All", new Vector2(120, 0)))
+                {
+                    Settings.BlacklistedItems.Clear();
+                    _plugin.Configuration.Save();
+                    RefreshInventory();
+                    ImGui.CloseCurrentPopup();
                 }
                 
-                DrawProtectedItemsTable(itemsToShow, "CustomBlacklist", true);
+                ImGui.SameLine();
+                if (ImGui.Button("Cancel", new Vector2(120, 0)))
+                {
+                    ImGui.CloseCurrentPopup();
+                }
+                
+                ImGui.EndPopup();
             }
-            
-            ImGui.TreePop();
         }
-        
-        ImGui.PopID();
-        
-        // Add small spacing between categories
-        ImGui.Spacing();
     }
     
-    private void DrawBuiltInLists()
-    {
-        ImGui.Text("Built-in Protected Lists (Read-Only):");
-        ImGui.Spacing();
-        
-        // Ultimate tokens and special items
-        var ultimateNodeFlags = ImGuiTreeNodeFlags.AllowItemOverlap | ImGuiTreeNodeFlags.SpanAvailWidth;
-        ImGui.PushID("UltimateTokens");
-        if (ImGui.TreeNodeEx($"Ultimate Tokens & Special Items ({InventoryHelpers.HardcodedBlacklist.Count} items)##UltimateTokensHeader", ultimateNodeFlags))
-        {
-            DrawProtectedItemsTable(InventoryHelpers.HardcodedBlacklist, "HardcodedList", false);
-            ImGui.TreePop();
-        }
-        ImGui.PopID();
-        
-        ImGui.Spacing();
-        
-        // Currency items
-        var currencyNodeFlags = ImGuiTreeNodeFlags.AllowItemOverlap | ImGuiTreeNodeFlags.SpanAvailWidth;
-        ImGui.PushID("CurrencyItems");
-        if (ImGui.TreeNodeEx($"Currency Items (IDs 1-99)##CurrencyItemsHeader", currencyNodeFlags))
-        {
-            ImGui.TextWrapped("All items with IDs from 1 to 99 are protected as currency items.");
-            
-            // Show a sample of currency items in table format
-            var currencyItems = new HashSet<uint>();
-            for (uint i = 1; i <= 99; i++)
-            {
-                currencyItems.Add(i);
-            }
-            DrawProtectedItemsTable(currencyItems, "CurrencyList", false);
-            ImGui.TreePop();
-        }
-        ImGui.PopID();
-        
-        ImGui.Spacing();
-    }
-    
-    private void DrawProtectedItemsTable(IEnumerable<uint> itemIds, string tableId, bool showRemoveButton)
+    private void DrawCustomBlacklistTable(IEnumerable<uint> itemIds)
     {
         ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 2)); // Compact padding
         ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(4, 2));
         
-        // Remove ScrollY to prevent table stretching
-        if (ImGui.BeginTable($"ProtectedTable_{tableId}", showRemoveButton ? 5 : 4, 
+        if (ImGui.BeginTable($"CustomBlacklistTable", 5, 
             ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
         {
             // Use dynamic widths based on content
@@ -328,10 +302,7 @@ public partial class InventoryManagementModule
             ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch | ImGuiTableColumnFlags.NoHide);
             ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed, ilvlWidth);
             ImGui.TableSetupColumn("Category", ImGuiTableColumnFlags.WidthFixed, categoryWidth);
-            if (showRemoveButton)
-            {
-                ImGui.TableSetupColumn("Actions", ImGuiTableColumnFlags.WidthFixed, actionsWidth);
-            }
+            ImGui.TableSetupColumn("Actions", ImGuiTableColumnFlags.WidthFixed, actionsWidth);
             ImGui.TableHeadersRow();
             
             foreach (var itemId in itemIds)
@@ -424,16 +395,13 @@ public partial class InventoryManagementModule
                 ImGui.TableNextColumn();
                 ImGui.Text(categoryName);
                 
-                // Remove button (only for custom blacklist)
-                if (showRemoveButton)
+                // Remove button
+                ImGui.TableNextColumn();
+                if (ImGui.SmallButton($"Remove##bl_{itemId}"))
                 {
-                    ImGui.TableNextColumn();
-                    if (ImGui.SmallButton($"Remove##bl_{itemId}"))
-                    {
-                        Settings.BlacklistedItems.Remove(itemId);
-                        _plugin.Configuration.Save();
-                        RefreshInventory();
-                    }
+                    Settings.BlacklistedItems.Remove(itemId);
+                    _plugin.Configuration.Save();
+                    RefreshInventory();
                 }
             }
             

@@ -964,60 +964,239 @@ public partial class InventoryManagementModule
     
     private void DrawFilteredItemsTab(List<InventoryItemInfo> filteredItems)
     {
+        // Section 1: Items filtered by current filter settings
+        ImGui.Text("Items Protected by Active Filters:");
+        ImGui.Spacing();
+        
         if (!filteredItems.Any())
         {
             ImGui.TextColored(new Vector4(0.6f, 0.8f, 0.6f, 1), "No items are currently being filtered out.");
             ImGui.Text("All items in your inventory are available for selection.");
-            return;
         }
-        
-        var filteredCategories = filteredItems
-            .GroupBy(i => new { i.ItemUICategory, i.CategoryName })
-            .Select(categoryGroup => new
-            {
-                CategoryId = categoryGroup.Key.ItemUICategory,
-                CategoryName = categoryGroup.Key.CategoryName,
-                Items = categoryGroup.ToList()
-            })
-            .OrderBy(c => c.CategoryName)
-            .ToList();
-        
-        foreach (var category in filteredCategories)
+        else
         {
-            var isExpanded = ExpandedCategories.GetValueOrDefault(category.CategoryId, true);
+            var filteredCategories = filteredItems
+                .GroupBy(i => new { i.ItemUICategory, i.CategoryName })
+                .Select(categoryGroup => new
+                {
+                    CategoryId = categoryGroup.Key.ItemUICategory,
+                    CategoryName = categoryGroup.Key.CategoryName,
+                    Items = categoryGroup.ToList()
+                })
+                .OrderBy(c => c.CategoryName)
+                .ToList();
             
-            // Use unique ID based on category ID and filtered prefix
-            ImGui.PushID($"FilteredCategory_{category.CategoryId}");
-            
-            var categoryHeaderText = $"{category.CategoryName} ({category.Items.Count} protected)";
-            
-            // Use TreeNodeEx for consistent behavior with Available Items - remove Framed
-            var nodeFlags = ImGuiTreeNodeFlags.AllowItemOverlap | ImGuiTreeNodeFlags.SpanAvailWidth;
-            if (isExpanded) nodeFlags |= ImGuiTreeNodeFlags.DefaultOpen;
-            
-            ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.8f, 0.6f, 0.6f, 1));
-            var headerOpen = ImGui.TreeNodeEx($"{categoryHeaderText}###{category.CategoryId}_filtered_node", nodeFlags);
-            ImGui.PopStyleColor();
-            
-            if (headerOpen)
+            foreach (var category in filteredCategories)
             {
-                ExpandedCategories[category.CategoryId] = true;
-                _expandedCategoriesChanged = true;
+                var isExpanded = ExpandedCategories.GetValueOrDefault(category.CategoryId, true);
                 
-                DrawFilteredItemsTable(category.Items);
-                ImGui.TreePop();
+                // Use unique ID based on category ID and filtered prefix
+                ImGui.PushID($"FilteredCategory_{category.CategoryId}");
+                
+                var categoryHeaderText = $"{category.CategoryName} ({category.Items.Count} protected)";
+                
+                // Use TreeNodeEx for consistent behavior with Available Items - remove Framed
+                var nodeFlags = ImGuiTreeNodeFlags.AllowItemOverlap | ImGuiTreeNodeFlags.SpanAvailWidth;
+                if (isExpanded) nodeFlags |= ImGuiTreeNodeFlags.DefaultOpen;
+                
+                ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.8f, 0.6f, 0.6f, 1));
+                var headerOpen = ImGui.TreeNodeEx($"{categoryHeaderText}###{category.CategoryId}_filtered_node", nodeFlags);
+                ImGui.PopStyleColor();
+                
+                if (headerOpen)
+                {
+                    ExpandedCategories[category.CategoryId] = true;
+                    _expandedCategoriesChanged = true;
+                    
+                    DrawFilteredItemsTable(category.Items);
+                    ImGui.TreePop();
+                }
+                else
+                {
+                    ExpandedCategories[category.CategoryId] = false;
+                    _expandedCategoriesChanged = true;
+                }
+                
+                ImGui.PopID();
+                
+                // Add small spacing between categories to prevent stretching
+                ImGui.Spacing();
             }
-            else
-            {
-                ExpandedCategories[category.CategoryId] = false;
-                _expandedCategoriesChanged = true;
-            }
-            
-            ImGui.PopID();
-            
-            // Add small spacing between categories to prevent stretching
-            ImGui.Spacing();
         }
+        
+        // Section 2: Built-in protected lists
+        ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.Spacing();
+        
+        DrawBuiltInProtectedLists();
+    }
+    
+    private void DrawBuiltInProtectedLists()
+    {
+        ImGui.Text("Built-in Protected Lists (Always Active):");
+        ImGui.Spacing();
+        
+        // Ultimate tokens and special items
+        var ultimateNodeFlags = ImGuiTreeNodeFlags.AllowItemOverlap | ImGuiTreeNodeFlags.SpanAvailWidth;
+        ImGui.PushID("UltimateTokensProtected");
+        if (ImGui.TreeNodeEx($"Ultimate Tokens & Special Items ({InventoryHelpers.HardcodedBlacklist.Count} items)##UltimateTokensProtectedHeader", ultimateNodeFlags))
+        {
+            DrawBuiltInItemsTable(InventoryHelpers.HardcodedBlacklist, "HardcodedListProtected");
+            ImGui.TreePop();
+        }
+        ImGui.PopID();
+        
+        ImGui.Spacing();
+        
+        // Currency items
+        var currencyNodeFlags = ImGuiTreeNodeFlags.AllowItemOverlap | ImGuiTreeNodeFlags.SpanAvailWidth;
+        ImGui.PushID("CurrencyItemsProtected");
+        if (ImGui.TreeNodeEx($"Currency Items (IDs 1-99)##CurrencyItemsProtectedHeader", currencyNodeFlags))
+        {
+            ImGui.TextWrapped("All items with IDs from 1 to 99 are protected as currency items.");
+            ImGui.Spacing();
+            
+            // Show a sample of currency items
+            var currencyItems = new HashSet<uint>();
+            for (uint i = 1; i <= 20; i++) // Just show first 20 as example
+            {
+                currencyItems.Add(i);
+            }
+            DrawBuiltInItemsTable(currencyItems, "CurrencyListProtected");
+            ImGui.Text("... and 79 more currency items");
+            ImGui.TreePop();
+        }
+        ImGui.PopID();
+        
+        ImGui.Spacing();
+    }
+    
+    private void DrawBuiltInItemsTable(IEnumerable<uint> itemIds, string tableId)
+    {
+        ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 2));
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(4, 2));
+        
+        if (ImGui.BeginTable($"BuiltInTable_{tableId}", 4, 
+            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
+        {
+            // Use dynamic widths based on content
+            float idWidth = ImGui.CalcTextSize("99999").X + 8;
+            float ilvlWidth = ImGui.CalcTextSize("999").X + 8;
+            float categoryWidth = ImGui.CalcTextSize("Seasonal Miscellany").X + 8;
+            
+            ImGui.TableSetupColumn("ID", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHide, idWidth);
+            ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch | ImGuiTableColumnFlags.NoHide);
+            ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed, ilvlWidth);
+            ImGui.TableSetupColumn("Category", ImGuiTableColumnFlags.WidthFixed, categoryWidth);
+            ImGui.TableHeadersRow();
+            
+            foreach (var itemId in itemIds)
+            {
+                // Try to find item info from inventory first
+                InventoryItemInfo itemInfo = null;
+                lock (_itemsLock)
+                {
+                    itemInfo = _allItems.FirstOrDefault(i => i.ItemId == itemId);
+                }
+                string itemName = itemInfo?.Name;
+                string categoryName = itemInfo?.CategoryName ?? "Unknown";
+                ushort iconId = itemInfo?.IconId ?? 0;
+                int itemLevel = (int)(itemInfo?.ItemLevel ?? 0);
+                
+                // If not in inventory, try to get from game data
+                if (string.IsNullOrEmpty(itemName))
+                {
+                    try
+                    {
+                        var itemSheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.Item>();
+                        if (itemSheet != null)
+                        {
+                            var gameItem = itemSheet.GetRowOrDefault(itemId);
+                            if (gameItem != null && gameItem.Value.RowId != 0)
+                            {
+                                itemName = gameItem.Value.Name.ExtractText();
+                                iconId = gameItem.Value.Icon;
+                                categoryName = GetItemCategoryName(gameItem.Value.ItemUICategory.RowId);
+                                itemLevel = (int)gameItem.Value.LevelItem.RowId;
+                            }
+                        }
+                    }
+                    catch { }
+                }
+                
+                // Fallback to hardcoded names for known items
+                if (string.IsNullOrEmpty(itemName))
+                {
+                    itemName = GetItemNameFromBlacklist(itemId);
+                }
+                
+                ImGui.TableNextRow();
+                
+                // ID column
+                ImGui.TableNextColumn();
+                ImGui.TextColored(ColorSubdued, itemId.ToString());
+                
+                // Name column with icon
+                ImGui.TableNextColumn();
+                if (iconId > 0)
+                {
+                    var icon = _iconCache.GetIcon(iconId);
+                    if (icon != null)
+                    {
+                        // Lower the icon to align with text baseline
+                        var startY = ImGui.GetCursorPosY();
+                        ImGui.SetCursorPosY(startY - 2);
+                        ImGui.Image(icon.ImGuiHandle, new Vector2(20, 20));
+                        ImGui.SetCursorPosY(startY);
+                        ImGui.SameLine(0, 5);
+                    }
+                    else
+                    {
+                        ImGui.Dummy(new Vector2(20, 20));
+                        ImGui.SameLine(0, 5);
+                    }
+                }
+                else
+                {
+                    ImGui.Dummy(new Vector2(20, 20));
+                    ImGui.SameLine(0, 5);
+                }
+                ImGui.Text(itemName);
+                
+                // Item Level column
+                ImGui.TableNextColumn();
+                if (itemLevel > 0)
+                {
+                    ImGui.Text(itemLevel.ToString());
+                }
+                else
+                {
+                    ImGui.TextColored(ColorSubdued, "-");
+                }
+                
+                // Category column
+                ImGui.TableNextColumn();
+                ImGui.Text(categoryName);
+            }
+            
+            ImGui.EndTable();
+        }
+        
+        ImGui.PopStyleVar(2);
+    }
+    
+    private string GetItemNameFromBlacklist(uint itemId)
+    {
+        // Helper to get item names from the comments in InventoryHelpers.cs
+        return itemId switch
+        {
+            16039 => "Ala Mhigan Earrings",
+            24589 => "Aetheryte Earrings",
+            33648 => "Menphina's Earrings",
+            41081 => "Azeyma's Earrings",
+            _ => $"Unknown Item ({itemId})"
+        };
     }
     
     private void DrawFilteredItemsTable(List<InventoryItemInfo> items)

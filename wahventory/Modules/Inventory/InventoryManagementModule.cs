@@ -205,6 +205,13 @@ public partial class InventoryManagementModule : IDisposable
                 ImGui.EndTabItem();
             }
             
+            // Blacklist Management tab
+            if (ImGui.BeginTabItem("Blacklist Management"))
+            {
+                DrawBlacklistTab();
+                ImGui.EndTabItem();
+            }
+            
             ImGui.EndTabBar();
         }
         

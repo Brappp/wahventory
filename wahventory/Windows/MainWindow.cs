@@ -17,14 +17,15 @@ public class MainWindow : Window, IDisposable
     {
         SizeConstraints = new WindowSizeConstraints
         {
-            MinimumSize = new Vector2(800, 400), // Reduced minimum height
-            MaximumSize = new Vector2(float.MaxValue, float.MaxValue)
+            MinimumSize = new Vector2(800, 400),
+            MaximumSize = new Vector2(1400, float.MaxValue) // No max height limit
         };
 
         Plugin = plugin;
         InventoryModule = inventoryModule;
         
-        Size = new Vector2(900, 500); // Reduced default height
+        // Set initial size - window will adjust based on content
+        Size = new Vector2(900, 600);
         SizeCondition = ImGuiCond.FirstUseEver;
     }
 

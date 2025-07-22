@@ -181,7 +181,18 @@ public partial class InventoryManagementModule : IDisposable
         
         ImGui.Separator();
         
-        // Tab bar - tables will size to content naturally
+        // Calculate the exact available height to fill the window
+        var windowHeight = ImGui.GetWindowHeight();
+        var currentY = ImGui.GetCursorPosY();
+        var bottomBarHeight = 42f; // Height of bottom action bar
+        var separatorHeight = ImGui.GetStyle().ItemSpacing.Y * 2 + 2; // Separator spacing
+        var tabBarHeight = ImGui.GetFrameHeight(); // Tab bar header height
+        
+        // Calculate remaining height for content, leaving room for bottom bar
+        var contentHeight = windowHeight - currentY - bottomBarHeight - separatorHeight - tabBarHeight - 10f;
+        contentHeight = Math.Max(100f, contentHeight); // Minimum height to prevent negative values
+        
+        // Tab bar with dynamically sized content
         if (ImGui.BeginTabBar("InventoryTabs", ImGuiTabBarFlags.None))
         {
             // Calculate filtered items count for tab display
@@ -199,21 +210,30 @@ public partial class InventoryManagementModule : IDisposable
             }
             if (ImGui.BeginTabItem($"Available Items ({availableCount})"))
             {
+                // Use calculated height to fill available space
+                ImGui.BeginChild("AvailableContent", new Vector2(0, contentHeight), false);
                 DrawAvailableItemsTab();
+                ImGui.EndChild();
                 ImGui.EndTabItem();
             }
             
             // Protected Items tab
             if (ImGui.BeginTabItem($"Protected Items ({filteredItems.Count})"))
             {
+                // Use calculated height to fill available space
+                ImGui.BeginChild("ProtectedContent", new Vector2(0, contentHeight), false);
                 DrawFilteredItemsTab(filteredItems);
+                ImGui.EndChild();
                 ImGui.EndTabItem();
             }
             
             // Blacklist Management tab
             if (ImGui.BeginTabItem("Blacklist Management"))
             {
+                // Use calculated height to fill available space
+                ImGui.BeginChild("BlacklistContent", new Vector2(0, contentHeight), false);
                 DrawBlacklistTab();
+                ImGui.EndChild();
                 ImGui.EndTabItem();
             }
             

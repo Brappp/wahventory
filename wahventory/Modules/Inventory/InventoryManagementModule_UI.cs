@@ -353,19 +353,21 @@ public partial class InventoryManagementModule
             categoriesCopy = new List<CategoryGroup>(_categories);
         }
         
+        // Remove the extra child wrapper which can cause sizing issues
         foreach (var category in categoriesCopy)
         {
             if (category.Items.Count == 0) continue;
             
             var isExpanded = ExpandedCategories.GetValueOrDefault(category.CategoryId, true);
             
-            ImGui.PushID(category.Name);
+            // Use a unique ID based on category ID to ensure proper state tracking
+            ImGui.PushID($"Category_{category.CategoryId}");
             
             // Create a custom header with integrated controls
             var nodeFlags = ImGuiTreeNodeFlags.Framed | ImGuiTreeNodeFlags.AllowItemOverlap;
             if (isExpanded) nodeFlags |= ImGuiTreeNodeFlags.DefaultOpen;
             
-            var open = ImGui.TreeNodeEx($"{category.Name}###{category.CategoryId}", nodeFlags);
+            var open = ImGui.TreeNodeEx($"{category.Name}###{category.CategoryId}_node", nodeFlags);
             
             // Stats on the same line
             ImGui.SameLine();
@@ -420,9 +422,10 @@ public partial class InventoryManagementModule
         ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 2)); // Reduced vertical padding
         ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(4, 2)); // Reduced vertical spacing
         
-        if (ImGui.BeginTable($"ItemTable_{category.Name}", Settings.ShowMarketPrices ? 8 : 7, 
+        // Remove ScrollY flag to prevent extra space, tables will size to content
+        if (ImGui.BeginTable($"ItemTable_{category.CategoryId}", Settings.ShowMarketPrices ? 8 : 7, 
             ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable | 
-            ImGuiTableFlags.ScrollX)) // Removed extension flags, let table size naturally
+            ImGuiTableFlags.ScrollX | ImGuiTableFlags.SizingStretchProp))
         {
             // Calculate dynamic widths based on content
             float checkboxWidth = 22;
@@ -973,7 +976,8 @@ public partial class InventoryManagementModule
         {
             var isExpanded = ExpandedCategories.GetValueOrDefault(category.CategoryId, true);
             
-            ImGui.PushID($"Filtered_{category.CategoryName}");
+            // Use unique ID based on category ID and filtered prefix
+            ImGui.PushID($"FilteredCategory_{category.CategoryId}");
             
             var categoryHeaderText = $"{category.CategoryName} ({category.Items.Count} protected)";
             
@@ -982,7 +986,7 @@ public partial class InventoryManagementModule
             if (isExpanded) nodeFlags |= ImGuiTreeNodeFlags.DefaultOpen;
             
             ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.8f, 0.6f, 0.6f, 1));
-            var headerOpen = ImGui.TreeNodeEx(categoryHeaderText, nodeFlags);
+            var headerOpen = ImGui.TreeNodeEx($"{categoryHeaderText}###{category.CategoryId}_filtered_node", nodeFlags);
             ImGui.PopStyleColor();
             
             if (headerOpen)
@@ -1008,9 +1012,10 @@ public partial class InventoryManagementModule
         ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 2)); // Reduced padding
         ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(4, 2));
         
+        // Remove unnecessary table flags that cause extra space
         if (ImGui.BeginTable("FilteredItemsTable", Settings.ShowMarketPrices ? 7 : 6, 
             ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable |
-            ImGuiTableFlags.ScrollX))
+            ImGuiTableFlags.ScrollX | ImGuiTableFlags.SizingStretchProp))
         {
             // Calculate dynamic widths based on content
             float idWidth = ImGui.CalcTextSize("99999").X + 8;

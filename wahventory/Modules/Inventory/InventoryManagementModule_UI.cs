@@ -17,12 +17,12 @@ public partial class InventoryManagementModule
 {
     private void DrawTopControls()
     {
-        // Create a styled top bar
-        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(8, 6));
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(15, 4));
+        // Create a styled top bar with better spacing
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(8, 8));
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(12, 6));
         ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f));
         
-        ImGui.BeginChild("TopBar", new Vector2(0, 36), true, ImGuiWindowFlags.NoScrollbar);
+        ImGui.BeginChild("TopBar", new Vector2(0, 42), true, ImGuiWindowFlags.NoScrollbar);
         
         // Search box with icon
         ImGui.PushFont(UiBuilder.IconFont);
@@ -30,7 +30,7 @@ public partial class InventoryManagementModule
         ImGui.PopFont();
         
         ImGui.SameLine();
-        ImGui.SetNextItemWidth(250f);
+        ImGui.SetNextItemWidth(220f);
         if (ImGui.InputTextWithHint("##Search", "Search items...", ref _searchFilter, 100))
         {
             _lastCategoryUpdate = DateTime.Now;
@@ -70,16 +70,6 @@ public partial class InventoryManagementModule
         ImGui.SameLine();
         if (ImGui.Checkbox("Show Flagged", ref _showOnlyFlagged)) UpdateCategories();
         
-        // Status info on the right
-        var statusText = $"Items: {_allItems.Count}";
-        var selectedText = $"Selected: {_selectedItems.Count}";
-        var statusWidth = ImGui.CalcTextSize(statusText).X + ImGui.CalcTextSize(selectedText).X + 30;
-        
-        ImGui.SameLine(ImGui.GetWindowWidth() - statusWidth - 15);
-        ImGui.TextColored(ColorInfo, statusText);
-        ImGui.SameLine();
-        ImGui.TextColored(ColorBlue, selectedText);
-        
         ImGui.EndChild();
         ImGui.PopStyleColor();
         ImGui.PopStyleVar(2);
@@ -103,13 +93,6 @@ public partial class InventoryManagementModule
         
         var activeCount = CountActiveFilters();
         ImGui.TextColored(ColorInfo, $"({activeCount}/9 active)");
-        
-        // Reset button on the right
-        ImGui.SameLine(ImGui.GetWindowWidth() - 80);
-        if (ImGui.SmallButton("Reset All"))
-        {
-            ResetAllFilters();
-        }
         
         ImGui.Spacing();
         
@@ -288,11 +271,11 @@ public partial class InventoryManagementModule
     
     private void DrawMarketSettingsBar()
     {
-        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(8, 6));
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(15, 4));
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(8, 8));
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(12, 6));
         ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f));
         
-        ImGui.BeginChild("MarketSettings", new Vector2(0, 36), true, ImGuiWindowFlags.NoScrollbar);
+        ImGui.BeginChild("MarketSettings", new Vector2(0, 42), true, ImGuiWindowFlags.NoScrollbar);
         
         var showPrices = Settings.ShowMarketPrices;
         if (ImGui.Checkbox("Show Prices", ref showPrices))
@@ -350,25 +333,6 @@ public partial class InventoryManagementModule
             {
                 Settings.AutoRefreshPrices = autoRefresh;
                 _plugin.Configuration.Save();
-            }
-            
-            // Status on the right
-            if (_lastRefresh != DateTime.MinValue)
-            {
-                var timeSinceRefresh = DateTime.Now - _lastRefresh;
-                var refreshText = $"Last update: {(int)timeSinceRefresh.TotalMinutes} min ago";
-                if (timeSinceRefresh.TotalMinutes < 1)
-                    refreshText = $"Last update: {(int)timeSinceRefresh.TotalSeconds}s ago";
-                
-                var nextRefreshIn = _refreshInterval - timeSinceRefresh;
-                if (nextRefreshIn.TotalSeconds > 0 && Settings.AutoRefreshPrices)
-                {
-                    refreshText += $" • Next: in {(int)nextRefreshIn.TotalSeconds}s";
-                }
-                
-                var textWidth = ImGui.CalcTextSize(refreshText).X;
-                ImGui.SameLine(ImGui.GetWindowWidth() - textWidth - 15);
-                ImGui.TextColored(new Vector4(0.6f, 0.6f, 0.6f, 1f), refreshText);
             }
         }
         
@@ -438,125 +402,9 @@ public partial class InventoryManagementModule
     
     private void DrawTabBar()
     {
-        // This is drawn inside the MainContent area but above the tab content
-        var buttonHeight = 24;
-        ImGui.SetCursorPos(new Vector2(ImGui.GetWindowWidth() - 300, 8));
-        
-        // Collapse/Expand All button
-        ImGui.PushFont(UiBuilder.IconFont);
-        if (ImGui.Button(FontAwesomeIcon.Compress.ToIconString() + "##CollapseAll", new Vector2(100, buttonHeight)))
-        {
-            foreach (var categoryId in ExpandedCategories.Keys.ToList())
-            {
-                ExpandedCategories[categoryId] = false;
-            }
-            _expandedCategoriesChanged = true;
-        }
-        ImGui.PopFont();
-        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Collapse All Categories");
-        
-        ImGui.SameLine();
-        
-        // Clear Selection button
-        if (ImGui.Button("Clear Selection", new Vector2(90, buttonHeight)))
-        {
-            _selectedItems.Clear();
-            foreach (var item in _allItems)
-            {
-                item.IsSelected = false;
-            }
-        }
-        
-        ImGui.SameLine();
-        
-        // Discard button
-        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.541f, 0.227f, 0.227f, 1f));
-        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.327f, 0.327f, 1f));
-        
-        var discardText = $"Discard ({_selectedItems.Count})";
-        
-        if (_selectedItems.Count > 0)
-        {
-            if (ImGui.Button(discardText, new Vector2(100, buttonHeight)))
-            {
-                PrepareDiscard();
-            }
-        }
-        else
-        {
-            ImGui.BeginDisabled();
-            ImGui.Button(discardText, new Vector2(100, buttonHeight));
-            ImGui.EndDisabled();
-        }
-        ImGui.PopStyleColor(2);
+        // This method is no longer used since we removed the top buttons
     }
-    
-    private void DrawBottomActionBar()
-    {
-        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(12, 8));
-        ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.165f, 0.165f, 0.165f, 1f));
-        
-        ImGui.BeginChild("ActionBar", new Vector2(0, 50), true, ImGuiWindowFlags.NoScrollbar);
-        
-        // Left side - Statistics
-        var totalValue = _categories.Sum(c => c.TotalValue ?? 0);
-        var availableItems = _categories.Sum(c => c.Items.Count);
-        var protectedItems = GetFilteredOutItems().Count;
-        
-        ImGui.Text("Total Value:");
-        ImGui.SameLine();
-        ImGui.TextColored(ColorPrice, $"{totalValue:N0} gil");
-        
-        ImGui.SameLine(200);
-        ImGui.Text("Available Items:");
-        ImGui.SameLine();
-        ImGui.TextColored(ColorSuccess, availableItems.ToString());
-        
-        ImGui.SameLine(350);
-        ImGui.Text("Protected:");
-        ImGui.SameLine();
-        ImGui.TextColored(ColorWarning, protectedItems.ToString());
-        
-        // Right side - Action buttons
-        var buttonWidth = 100f;
-        var rightOffset = ImGui.GetWindowWidth() - (buttonWidth * 2 + 20);
-        ImGui.SameLine(rightOffset);
-        
-        if (ImGui.Button("Clear All", new Vector2(buttonWidth, 0)))
-        {
-            _selectedItems.Clear();
-            foreach (var item in _allItems)
-            {
-                item.IsSelected = false;
-            }
-        }
-        
-        ImGui.SameLine();
-        
-        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.541f, 0.227f, 0.227f, 1f));
-        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.327f, 0.327f, 1f));
-        
-        var discardButtonText = $"Discard Selected ({_selectedItems.Count})";
-        
-        if (_selectedItems.Count > 0)
-        {
-            if (ImGui.Button(discardButtonText, new Vector2(buttonWidth * 1.5f, 0)))
-            {
-                PrepareDiscard();
-            }
-        }
-        else
-        {
-            ImGui.BeginDisabled();
-            ImGui.Button(discardButtonText, new Vector2(buttonWidth * 1.5f, 0));
-            ImGui.EndDisabled();
-        }
-        ImGui.PopStyleColor(2);
-        
-        ImGui.EndChild();
-        ImGui.PopStyleColor();
-        ImGui.PopStyleVar();
-    }
+
     
     private void DrawAvailableItemsTab()
     {
@@ -584,8 +432,10 @@ public partial class InventoryManagementModule
                 ImGui.TextColored(ColorPrice, $"{category.TotalValue.Value:N0} gil");
             }
             
-            // Select All button on the right
-            ImGui.SameLine(ImGui.GetWindowWidth() - 120);
+            // Select All button - positioned with better spacing
+            var selectAllWidth = 90f;
+            var windowWidth = ImGui.GetWindowContentRegionMax().X;
+            ImGui.SameLine(windowWidth - selectAllWidth - 10);
             DrawCategoryControls(category);
             
             if (open)
@@ -620,10 +470,9 @@ public partial class InventoryManagementModule
     {
         ImGui.Indent();
         
-        if (ImGui.BeginTable($"ItemTable_{category.Name}", Settings.ShowMarketPrices ? 6 : 5, 
+        if (ImGui.BeginTable($"ItemTable_{category.Name}", Settings.ShowMarketPrices ? 5 : 4, 
             ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.Resizable))
         {
-            ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed, 25); // Checkbox
             ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch);
             ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed, 50);
             ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, 120);
@@ -634,7 +483,7 @@ public partial class InventoryManagementModule
             }
             else
             {
-                ImGui.TableSetupColumn("Status", ImGuiTableColumnFlags.WidthFixed, 100);
+                ImGui.TableSetupColumn("Status", ImGuiTableColumnFlags.WidthFixed, 150);
             }
             
             ImGui.TableHeadersRow();
@@ -692,9 +541,6 @@ public partial class InventoryManagementModule
                 ImGui.SetTooltip("This category may contain valuable items. Please review carefully!");
             }
         }
-        
-        ImGui.SameLine();
-        ImGui.TextColored(ColorInfo, $"({selectedInCategory} selected)");
     }
     
     private bool IsDangerousCategory(CategoryGroup category)
@@ -714,55 +560,74 @@ public partial class InventoryManagementModule
         ImGui.TableNextRow();
         ImGui.PushID(item.GetUniqueKey());
         
-        // Apply row hover effect
-        var rowMin = ImGui.GetCursorScreenPos();
-        rowMin.Y -= ImGui.GetStyle().CellPadding.Y;
-        var rowMax = new Vector2(rowMin.X + ImGui.GetWindowWidth(), rowMin.Y + ImGui.GetTextLineHeightWithSpacing() + ImGui.GetStyle().CellPadding.Y * 2);
+        // Check if this row is selected
+        var isSelected = _selectedItems.Contains(item.ItemId);
         
-        if (ImGui.IsMouseHoveringRect(rowMin, rowMax))
+        // Apply selection background if selected
+        if (isSelected)
         {
-            ImGui.GetWindowDrawList().AddRectFilled(rowMin, rowMax, ImGui.GetColorU32(new Vector4(0.3f, 0.3f, 0.3f, 0.3f)));
+            var rowMin = ImGui.GetCursorScreenPos();
+            rowMin.Y -= ImGui.GetStyle().CellPadding.Y;
+            var rowMax = new Vector2(rowMin.X + ImGui.GetWindowWidth(), rowMin.Y + ImGui.GetTextLineHeightWithSpacing() + ImGui.GetStyle().CellPadding.Y * 2);
+            ImGui.GetWindowDrawList().AddRectFilled(rowMin, rowMax, ImGui.GetColorU32(new Vector4(0.3f, 0.5f, 0.7f, 0.3f)));
         }
         
-        // Checkbox
-        ImGui.TableNextColumn();
-        var isSelected = _selectedItems.Contains(item.ItemId);
-        if (ImGui.Checkbox($"##select_{item.GetUniqueKey()}", ref isSelected))
+        // Make the whole row clickable
+        var rowClickable = ImGui.InvisibleButton($"row_{item.GetUniqueKey()}", new Vector2(ImGui.GetContentRegionAvail().X, ImGui.GetTextLineHeightWithSpacing()));
+        if (rowClickable)
         {
             if (isSelected)
-            {
-                _selectedItems.Add(item.ItemId);
-                item.IsSelected = true;
-            }
-            else
             {
                 _selectedItems.Remove(item.ItemId);
                 item.IsSelected = false;
             }
+            else
+            {
+                _selectedItems.Add(item.ItemId);
+                item.IsSelected = true;
+            }
         }
+        
+        // Apply row hover effect
+        if (ImGui.IsItemHovered())
+        {
+            var rowMin = ImGui.GetCursorScreenPos();
+            rowMin.Y -= ImGui.GetTextLineHeightWithSpacing() - ImGui.GetStyle().CellPadding.Y;
+            var rowMax = new Vector2(rowMin.X + ImGui.GetWindowWidth(), rowMin.Y + ImGui.GetTextLineHeightWithSpacing() + ImGui.GetStyle().CellPadding.Y * 2);
+            ImGui.GetWindowDrawList().AddRectFilled(rowMin, rowMax, ImGui.GetColorU32(new Vector4(0.5f, 0.5f, 0.5f, 0.2f)));
+        }
+        
+        ImGui.SameLine(0, 0);
+        ImGui.SetCursorPosY(ImGui.GetCursorPosY() - ImGui.GetTextLineHeightWithSpacing());
         
         // Item name with icon
         ImGui.TableNextColumn();
         
-        // Always show icons using cached textures
+        // Item icon and name aligned properly
+        var iconSize = new Vector2(20, 20);
         if (item.IconId > 0)
         {
             var icon = _iconCache.GetIcon(item.IconId);
             if (icon != null)
             {
-                ImGui.Image(icon.ImGuiHandle, new Vector2(20, 20));
+                var cursorPos = ImGui.GetCursorPos();
+                ImGui.Image(icon.ImGuiHandle, iconSize);
                 ImGui.SameLine();
+                // Align text vertically with icon
+                ImGui.SetCursorPosY(cursorPos.Y + (iconSize.Y - ImGui.GetTextLineHeight()) / 2);
             }
             else
             {
-                // Debug: Icon failed to load
-                Plugin.Log.Debug($"Failed to load icon {item.IconId} for item {item.Name}");
+                // Reserve space for missing icon
+                ImGui.Dummy(iconSize);
+                ImGui.SameLine();
             }
         }
         else
         {
-            // Debug: No icon ID
-            Plugin.Log.Debug($"No icon ID for item {item.Name}");
+            // Reserve space for missing icon
+            ImGui.Dummy(iconSize);
+            ImGui.SameLine();
         }
         
         ImGui.Text(item.Name);
@@ -1286,5 +1151,68 @@ public partial class InventoryManagementModule
         }
         
         return filteredOutItems;
+    }
+    
+    private void DrawBottomActionBar()
+    {
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(10, 8));
+        ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.165f, 0.165f, 0.165f, 1f));
+        
+        ImGui.BeginChild("ActionBar", new Vector2(0, 50), true, ImGuiWindowFlags.NoScrollbar);
+        
+        // Left side - Action buttons
+        if (ImGui.Button("Clear All", new Vector2(80, 0)))
+        {
+            _selectedItems.Clear();
+            foreach (var item in _allItems)
+            {
+                item.IsSelected = false;
+            }
+        }
+        
+        ImGui.SameLine();
+        
+        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.541f, 0.227f, 0.227f, 1f));
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.327f, 0.327f, 1f));
+        var discardButtonText = $"Discard Selected ({_selectedItems.Count})";
+        
+        if (_selectedItems.Count > 0)
+        {
+            if (ImGui.Button(discardButtonText, new Vector2(150, 0)))
+            {
+                PrepareDiscard();
+            }
+        }
+        else
+        {
+            ImGui.BeginDisabled();
+            ImGui.Button(discardButtonText, new Vector2(150, 0));
+            ImGui.EndDisabled();
+        }
+        ImGui.PopStyleColor(2);
+        
+        // Center/Right side - Statistics
+        var totalValue = _categories.Sum(c => c.TotalValue ?? 0);
+        var availableItems = _categories.Sum(c => c.Items.Count);
+        var protectedItems = GetFilteredOutItems().Count;
+        
+        ImGui.SameLine(300);
+        ImGui.Text("Total Value:");
+        ImGui.SameLine();
+        ImGui.TextColored(ColorPrice, $"{totalValue:N0} gil");
+        
+        ImGui.SameLine(450);
+        ImGui.Text("Available:");
+        ImGui.SameLine();
+        ImGui.TextColored(ColorSuccess, availableItems.ToString());
+        
+        ImGui.SameLine(550);
+        ImGui.Text("Protected:");
+        ImGui.SameLine();
+        ImGui.TextColored(ColorWarning, protectedItems.ToString());
+        
+        ImGui.EndChild();
+        ImGui.PopStyleColor();
+        ImGui.PopStyleVar();
     }
 }

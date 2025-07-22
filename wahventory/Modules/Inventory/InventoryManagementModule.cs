@@ -186,10 +186,7 @@ public partial class InventoryManagementModule : IDisposable
         
         ImGui.BeginChild("MainContent", new Vector2(0, contentHeight), true);
         
-        // Tab bar with action buttons
-        DrawTabBar();
-        
-        // Content area
+        // Content area - removed DrawTabBar() call since we're removing those buttons
         ImGui.BeginChild("ContentArea", new Vector2(0, 0), false);
         
         if (ImGui.BeginTabBar("InventoryTabs", ImGuiTabBarFlags.None))

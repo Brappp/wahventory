@@ -184,13 +184,14 @@ public partial class InventoryManagementModule
         }
         
         ImGui.SameLine();
+        ImGui.AlignTextToFramePadding(); // Align text to input fields
         ImGui.Text("High Level Gear (");
         ImGui.SameLine(0, 0);
         ImGui.TextColored(ColorWarning, "i");
         ImGui.SameLine(0, 2);
         
-        // Inline editable item level with visible styling
-        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(2, 0));
+        // Inline editable item level
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(4, 1));
         ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 1);
         ImGui.PushStyleColor(ImGuiCol.Border, new Vector4(0.5f, 0.5f, 0.5f, 0.5f));
         ImGui.PushStyleColor(ImGuiCol.FrameBg, new Vector4(0.2f, 0.2f, 0.2f, 0.3f));
@@ -600,27 +601,53 @@ public partial class InventoryManagementModule
             isSelected = _selectedItems.Contains(item.ItemId);
         }
         
-        // Apply selection background using table row bg
-        if (isSelected)
+        // Check if item is blacklisted
+        bool isBlacklisted = Settings.BlacklistedItems.Contains(item.ItemId);
+        
+        // Apply selection or blacklist background using table row bg
+        if (isBlacklisted)
         {
+            // Dark red tint for blacklisted items
+            ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, ImGui.GetColorU32(new Vector4(0.3f, 0.1f, 0.1f, 0.3f)));
+        }
+        else if (isSelected)
+        {
+            // Blue tint for selected items
             ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, ImGui.GetColorU32(new Vector4(0.3f, 0.5f, 0.7f, 0.3f)));
         }
         
         // Checkbox column
         ImGui.TableNextColumn();
-        if (ImGui.Checkbox($"##check_{item.GetUniqueKey()}", ref isSelected))
+        
+        if (isBlacklisted)
         {
-            lock (_selectedItemsLock)
+            // Show disabled checkbox for blacklisted items
+            ImGui.BeginDisabled();
+            bool blacklistedCheck = false;
+            ImGui.Checkbox($"##check_{item.GetUniqueKey()}", ref blacklistedCheck);
+            ImGui.EndDisabled();
+            
+            if (ImGui.IsItemHovered())
             {
-                if (isSelected)
+                ImGui.SetTooltip("This item is blacklisted and cannot be selected");
+            }
+        }
+        else
+        {
+            if (ImGui.Checkbox($"##check_{item.GetUniqueKey()}", ref isSelected))
+            {
+                lock (_selectedItemsLock)
                 {
-                    _selectedItems.Add(item.ItemId);
-                    item.IsSelected = true;
-                }
-                else
-                {
-                    _selectedItems.Remove(item.ItemId);
-                    item.IsSelected = false;
+                    if (isSelected)
+                    {
+                        _selectedItems.Add(item.ItemId);
+                        item.IsSelected = true;
+                    }
+                    else
+                    {
+                        _selectedItems.Remove(item.ItemId);
+                        item.IsSelected = false;
+                    }
                 }
             }
         }
@@ -769,7 +796,11 @@ public partial class InventoryManagementModule
             // Status column
             ImGui.TableNextColumn();
             
-            if (!item.CanBeTraded)
+            if (isBlacklisted)
+            {
+                ImGui.TextColored(ColorError, "Blacklisted");
+            }
+            else if (!item.CanBeTraded)
             {
                 ImGui.TextColored(ColorError, "Not Tradeable");
             }
@@ -784,10 +815,6 @@ public partial class InventoryManagementModule
             else if (item.SpiritBond >= 100)
             {
                 ImGui.TextColored(ColorSuccess, "Spiritbonded");
-            }
-            else if (Settings.BlacklistedItems.Contains(item.ItemId))
-            {
-                ImGui.TextColored(ColorError, "Blacklisted");
             }
         }
         

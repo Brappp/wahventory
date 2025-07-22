@@ -569,13 +569,10 @@ public partial class InventoryManagementModule
         // Check if this row is selected
         var isSelected = _selectedItems.Contains(item.ItemId);
         
-        // Apply selection background if selected
+        // Apply selection background using table row bg
         if (isSelected)
         {
-            var rowMin = ImGui.GetCursorScreenPos();
-            rowMin.Y -= ImGui.GetStyle().CellPadding.Y;
-            var rowMax = new Vector2(rowMin.X + ImGui.GetWindowWidth(), rowMin.Y + ImGui.GetTextLineHeightWithSpacing() + ImGui.GetStyle().CellPadding.Y * 2);
-            ImGui.GetWindowDrawList().AddRectFilled(rowMin, rowMax, ImGui.GetColorU32(new Vector4(0.3f, 0.5f, 0.7f, 0.3f)));
+            ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, ImGui.GetColorU32(new Vector4(0.3f, 0.5f, 0.7f, 0.3f)));
         }
         
         // Checkbox column

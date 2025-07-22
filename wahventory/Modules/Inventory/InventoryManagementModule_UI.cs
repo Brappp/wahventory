@@ -177,12 +177,57 @@ public partial class InventoryManagementModule
         }
         
         var filterHighLevel = filters.FilterHighLevelGear;
-        if (DrawFilterItem($"High Level Gear (i{filters.MaxGearItemLevel}+)", ref filterHighLevel, 
-            $"Equipment above item level {filters.MaxGearItemLevel}", "?"))
+        if (ImGui.Checkbox($"##FilterHighLevel", ref filterHighLevel))
         {
             filters.FilterHighLevelGear = filterHighLevel;
             changed = true;
         }
+        
+        ImGui.SameLine();
+        ImGui.Text("High Level Gear (");
+        ImGui.SameLine(0, 0);
+        ImGui.TextColored(ColorWarning, "i");
+        ImGui.SameLine(0, 2);
+        
+        // Inline editable item level with visible styling
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(2, 0));
+        ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 1);
+        ImGui.PushStyleColor(ImGuiCol.Border, new Vector4(0.5f, 0.5f, 0.5f, 0.5f));
+        ImGui.PushStyleColor(ImGuiCol.FrameBg, new Vector4(0.2f, 0.2f, 0.2f, 0.3f));
+        ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, new Vector4(0.3f, 0.3f, 0.3f, 0.4f));
+        ImGui.PushStyleColor(ImGuiCol.Text, ColorWarning);
+        ImGui.SetNextItemWidth(45);
+        
+        int maxLevel = (int)filters.MaxGearItemLevel;
+        if (ImGui.InputInt("##MaxGearItemLevel", ref maxLevel, 0, 0, ImGuiInputTextFlags.CharsDecimal))
+        {
+            filters.MaxGearItemLevel = (uint)Math.Max(1, Math.Min(999, maxLevel));
+            changed = true;
+        }
+        
+        ImGui.PopStyleColor(4);
+        ImGui.PopStyleVar(2);
+        
+        ImGui.SameLine(0, 2);
+        ImGui.TextColored(ColorWarning, "+");
+        ImGui.SameLine(0, 0);
+        ImGui.Text(")");
+        
+        // Help icon
+        ImGui.SameLine();
+        ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.6f, 0.6f, 0.6f, 1f));
+        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.2f, 0.2f, 0.2f, 1f));
+        ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 8f);
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(2, 0));
+        
+        ImGui.SmallButton("?");
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.SetTooltip($"Equipment above item level {filters.MaxGearItemLevel}\nClick the number to change the threshold");
+        }
+        
+        ImGui.PopStyleVar(2);
+        ImGui.PopStyleColor(2);
         
         var filterCollectable = filters.FilterCollectables;
         if (DrawFilterItem("Collectables", ref filterCollectable, "Turn-in items", "?"))

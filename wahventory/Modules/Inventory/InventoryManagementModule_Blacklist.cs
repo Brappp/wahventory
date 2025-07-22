@@ -262,7 +262,7 @@ public partial class InventoryManagementModule
                     itemsToShow = filteredIds;
                 }
                 
-                DrawProtectedItemsTable(itemsToShow, "CustomBlacklist", true, 300);
+                DrawProtectedItemsTable(itemsToShow, "CustomBlacklist", true);
             }
             
             ImGui.TreePop();
@@ -299,21 +299,20 @@ public partial class InventoryManagementModule
             {
                 currencyItems.Add(i);
             }
-            DrawProtectedItemsTable(currencyItems, "CurrencyList", false, 150);
+            DrawProtectedItemsTable(currencyItems, "CurrencyList", false);
             ImGui.TreePop();
         }
         ImGui.PopID();
     }
     
-    private void DrawProtectedItemsTable(IEnumerable<uint> itemIds, string tableId, bool showRemoveButton, float height = 200)
+    private void DrawProtectedItemsTable(IEnumerable<uint> itemIds, string tableId, bool showRemoveButton)
     {
         ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 2)); // Compact padding
         ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(4, 2));
         
         if (ImGui.BeginTable($"ProtectedTable_{tableId}", showRemoveButton ? 5 : 4, 
             ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY |
-            ImGuiTableFlags.Resizable | ImGuiTableFlags.NoHostExtendX,
-            new Vector2(0, height)))
+            ImGuiTableFlags.Resizable))
         {
             ImGui.TableSetupColumn("ID", ImGuiTableColumnFlags.WidthFixed, 60);
             ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch); // Back to stretch

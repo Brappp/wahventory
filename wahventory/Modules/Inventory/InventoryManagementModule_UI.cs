@@ -422,7 +422,7 @@ public partial class InventoryManagementModule
         
         if (ImGui.BeginTable($"ItemTable_{category.Name}", Settings.ShowMarketPrices ? 8 : 7, 
             ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable | 
-            ImGuiTableFlags.ScrollX | ImGuiTableFlags.NoHostExtendX)) // NoHostExtendX prevents table from extending beyond content
+            ImGuiTableFlags.ScrollX)) // Removed extension flags, let table size naturally
         {
             // Calculate dynamic widths based on content
             float checkboxWidth = 22;
@@ -1010,7 +1010,7 @@ public partial class InventoryManagementModule
         
         if (ImGui.BeginTable("FilteredItemsTable", Settings.ShowMarketPrices ? 7 : 6, 
             ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable |
-            ImGuiTableFlags.ScrollX | ImGuiTableFlags.NoHostExtendX))
+            ImGuiTableFlags.ScrollX))
         {
             // Calculate dynamic widths based on content
             float idWidth = ImGui.CalcTextSize("99999").X + 8;

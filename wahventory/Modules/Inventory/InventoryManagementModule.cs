@@ -180,7 +180,7 @@ public partial class InventoryManagementModule : IDisposable
         
         ImGui.Separator();
         
-        // Tab bar with scrollable content
+        // Tab bar - let content size naturally
         if (ImGui.BeginTabBar("InventoryTabs", ImGuiTabBarFlags.None))
         {
             // Calculate filtered items count for tab display
@@ -198,19 +198,14 @@ public partial class InventoryManagementModule : IDisposable
             }
             if (ImGui.BeginTabItem($"Available Items ({availableCount})"))
             {
-                // Add scrollable region for tab content
-                ImGui.BeginChild("AvailableScroll", new Vector2(0, ImGui.GetContentRegionAvail().Y - 50), false);
                 DrawAvailableItemsTab();
-                ImGui.EndChild();
                 ImGui.EndTabItem();
             }
             
             // Protected Items tab
             if (ImGui.BeginTabItem($"Protected Items ({filteredItems.Count})"))
             {
-                ImGui.BeginChild("ProtectedScroll", new Vector2(0, ImGui.GetContentRegionAvail().Y - 50), false);
                 DrawFilteredItemsTab(filteredItems);
-                ImGui.EndChild();
                 ImGui.EndTabItem();
             }
             
@@ -224,8 +219,8 @@ public partial class InventoryManagementModule : IDisposable
             ImGui.EndTabBar();
         }
         
-        // Bottom action bar at fixed position
-        ImGui.SetCursorPosY(ImGui.GetWindowHeight() - 50);
+        // Bottom action bar follows content
+        ImGui.Separator();
         DrawBottomActionBar();
     }
     

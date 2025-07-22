@@ -18,11 +18,11 @@ public partial class InventoryManagementModule
     private void DrawTopControls()
     {
         // Create a styled top bar with better spacing
-        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(8, 8));
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(12, 6));
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(6, 4));
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(8, 4));
         ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f));
         
-        ImGui.BeginChild("TopBar", new Vector2(0, 42), true, ImGuiWindowFlags.NoScrollbar);
+        ImGui.BeginChild("TopBar", new Vector2(0, 34), true, ImGuiWindowFlags.NoScrollbar);
         
         // Search box with icon
         ImGui.PushFont(UiBuilder.IconFont);
@@ -30,7 +30,7 @@ public partial class InventoryManagementModule
         ImGui.PopFont();
         
         ImGui.SameLine();
-        ImGui.SetNextItemWidth(220f);
+        ImGui.SetNextItemWidth(180f);
         if (ImGui.InputTextWithHint("##Search", "Search items...", ref _searchFilter, 100))
         {
             _lastCategoryUpdate = DateTime.Now;
@@ -78,10 +78,10 @@ public partial class InventoryManagementModule
     private void DrawFiltersAndSettings()
     {
         // Safety Filters Section
-        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(8, 6));
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(6, 4));
         ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f));
         
-        ImGui.BeginChild("FiltersSection", new Vector2(0, 140), true);
+        ImGui.BeginChild("FiltersSection", new Vector2(0, 120), true);
         
         // Header
         ImGui.PushFont(UiBuilder.IconFont);
@@ -252,7 +252,7 @@ public partial class InventoryManagementModule
         ImGui.SameLine();
         ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.6f, 0.6f, 0.6f, 1f));
         ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.2f, 0.2f, 0.2f, 1f));
-        ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 10f);
+        ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 8f);
         ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(2, 0));
         
         ImGui.SmallButton(helpText);
@@ -271,11 +271,11 @@ public partial class InventoryManagementModule
     
     private void DrawMarketSettingsBar()
     {
-        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(8, 8));
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(12, 6));
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(6, 4));
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(8, 4));
         ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f));
         
-        ImGui.BeginChild("MarketSettings", new Vector2(0, 42), true, ImGuiWindowFlags.NoScrollbar);
+        ImGui.BeginChild("MarketSettings", new Vector2(0, 34), true, ImGuiWindowFlags.NoScrollbar);
         
         var showPrices = Settings.ShowMarketPrices;
         if (ImGui.Checkbox("Show Prices", ref showPrices))
@@ -292,7 +292,7 @@ public partial class InventoryManagementModule
             ImGui.SameLine();
             ImGui.Text("World:");
             ImGui.SameLine();
-            ImGui.SetNextItemWidth(120);
+            ImGui.SetNextItemWidth(100);
             if (ImGui.BeginCombo("##World", _selectedWorld))
             {
                 foreach (var world in _availableWorlds)
@@ -470,20 +470,24 @@ public partial class InventoryManagementModule
     {
         ImGui.Indent();
         
-        if (ImGui.BeginTable($"ItemTable_{category.Name}", Settings.ShowMarketPrices ? 5 : 4, 
-            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.Resizable))
+        // Make table more compact
+        ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 2));
+        
+        if (ImGui.BeginTable($"ItemTable_{category.Name}", Settings.ShowMarketPrices ? 6 : 5, 
+            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.Resizable))
         {
-            ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch);
-            ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed, 50);
-            ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, 120);
+            ImGui.TableSetupColumn("##checkbox", ImGuiTableColumnFlags.WidthFixed, 25);
+            ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthFixed, 250);
+            ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed, 40);
+            ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, 100);
             if (Settings.ShowMarketPrices)
             {
-                ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, 100);
-                ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed, 100);
+                ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, 80);
+                ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed, 80);
             }
             else
             {
-                ImGui.TableSetupColumn("Status", ImGuiTableColumnFlags.WidthFixed, 150);
+                ImGui.TableSetupColumn("Status", ImGuiTableColumnFlags.WidthFixed, 120);
             }
             
             ImGui.TableHeadersRow();
@@ -496,6 +500,7 @@ public partial class InventoryManagementModule
             ImGui.EndTable();
         }
         
+        ImGui.PopStyleVar(); // Pop CellPadding
         ImGui.Unindent();
     }
     
@@ -572,39 +577,27 @@ public partial class InventoryManagementModule
             ImGui.GetWindowDrawList().AddRectFilled(rowMin, rowMax, ImGui.GetColorU32(new Vector4(0.3f, 0.5f, 0.7f, 0.3f)));
         }
         
-        // Make the whole row clickable
-        var rowClickable = ImGui.InvisibleButton($"row_{item.GetUniqueKey()}", new Vector2(ImGui.GetContentRegionAvail().X, ImGui.GetTextLineHeightWithSpacing()));
-        if (rowClickable)
+        // Checkbox column
+        ImGui.TableNextColumn();
+        if (ImGui.Checkbox($"##check_{item.GetUniqueKey()}", ref isSelected))
         {
             if (isSelected)
-            {
-                _selectedItems.Remove(item.ItemId);
-                item.IsSelected = false;
-            }
-            else
             {
                 _selectedItems.Add(item.ItemId);
                 item.IsSelected = true;
             }
+            else
+            {
+                _selectedItems.Remove(item.ItemId);
+                item.IsSelected = false;
+            }
         }
-        
-        // Apply row hover effect
-        if (ImGui.IsItemHovered())
-        {
-            var rowMin = ImGui.GetCursorScreenPos();
-            rowMin.Y -= ImGui.GetTextLineHeightWithSpacing() - ImGui.GetStyle().CellPadding.Y;
-            var rowMax = new Vector2(rowMin.X + ImGui.GetWindowWidth(), rowMin.Y + ImGui.GetTextLineHeightWithSpacing() + ImGui.GetStyle().CellPadding.Y * 2);
-            ImGui.GetWindowDrawList().AddRectFilled(rowMin, rowMax, ImGui.GetColorU32(new Vector4(0.5f, 0.5f, 0.5f, 0.2f)));
-        }
-        
-        ImGui.SameLine(0, 0);
-        ImGui.SetCursorPosY(ImGui.GetCursorPosY() - ImGui.GetTextLineHeightWithSpacing());
         
         // Item name with icon
         ImGui.TableNextColumn();
         
         // Item icon and name aligned properly
-        var iconSize = new Vector2(20, 20);
+        var iconSize = new Vector2(16, 16);
         if (item.IconId > 0)
         {
             var icon = _iconCache.GetIcon(item.IconId);
@@ -972,20 +965,22 @@ public partial class InventoryManagementModule
     
     private void DrawFilteredItemsTable(List<InventoryItemInfo> items)
     {
+        ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 2));
+        
         if (ImGui.BeginTable("FilteredItemsTable", Settings.ShowMarketPrices ? 5 : 4, 
-            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
+            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingFixedFit))
         {
-            ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch);
-            ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed, 50);
-            ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, 120);
+            ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthFixed, 275);
+            ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed, 40);
+            ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, 100);
             if (Settings.ShowMarketPrices)
             {
-                ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, 100);
-                ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed, 100);
+                ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, 80);
+                ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed, 80);
             }
             else
             {
-                ImGui.TableSetupColumn("Reason", ImGuiTableColumnFlags.WidthFixed, 150);
+                ImGui.TableSetupColumn("Reason", ImGuiTableColumnFlags.WidthFixed, 120);
             }
             
             ImGui.TableHeadersRow();
@@ -997,6 +992,8 @@ public partial class InventoryManagementModule
             
             ImGui.EndTable();
         }
+        
+        ImGui.PopStyleVar(); // Pop CellPadding
     }
     
     private void DrawFilteredItemRow(InventoryItemInfo item)
@@ -1011,7 +1008,7 @@ public partial class InventoryManagementModule
             var icon = _iconCache.GetIcon(item.IconId);
             if (icon != null)
             {
-                ImGui.Image(icon.ImGuiHandle, new Vector2(20, 20));
+                ImGui.Image(icon.ImGuiHandle, new Vector2(16, 16));
                 ImGui.SameLine();
             }
         }
@@ -1155,10 +1152,10 @@ public partial class InventoryManagementModule
     
     private void DrawBottomActionBar()
     {
-        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(10, 8));
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(8, 6));
         ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.165f, 0.165f, 0.165f, 1f));
         
-        ImGui.BeginChild("ActionBar", new Vector2(0, 50), true, ImGuiWindowFlags.NoScrollbar);
+        ImGui.BeginChild("ActionBar", new Vector2(0, 42), true, ImGuiWindowFlags.NoScrollbar);
         
         // Left side - Action buttons
         if (ImGui.Button("Clear All", new Vector2(80, 0)))
@@ -1174,11 +1171,11 @@ public partial class InventoryManagementModule
         
         ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.541f, 0.227f, 0.227f, 1f));
         ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.327f, 0.327f, 1f));
-        var discardButtonText = $"Discard Selected ({_selectedItems.Count})";
+        var discardButtonText = $"Discard ({_selectedItems.Count})";
         
         if (_selectedItems.Count > 0)
         {
-            if (ImGui.Button(discardButtonText, new Vector2(150, 0)))
+            if (ImGui.Button(discardButtonText, new Vector2(80, 0)))
             {
                 PrepareDiscard();
             }
@@ -1186,7 +1183,7 @@ public partial class InventoryManagementModule
         else
         {
             ImGui.BeginDisabled();
-            ImGui.Button(discardButtonText, new Vector2(150, 0));
+            ImGui.Button(discardButtonText, new Vector2(80, 0));
             ImGui.EndDisabled();
         }
         ImGui.PopStyleColor(2);
@@ -1196,17 +1193,21 @@ public partial class InventoryManagementModule
         var availableItems = _categories.Sum(c => c.Items.Count);
         var protectedItems = GetFilteredOutItems().Count;
         
-        ImGui.SameLine(300);
+        // Right-align statistics
+        var windowWidth = ImGui.GetWindowContentRegionMax().X;
+        var statSpacing = 150f;
+        
+        ImGui.SameLine(windowWidth - statSpacing * 3);
         ImGui.Text("Total Value:");
         ImGui.SameLine();
         ImGui.TextColored(ColorPrice, $"{totalValue:N0} gil");
         
-        ImGui.SameLine(450);
+        ImGui.SameLine(windowWidth - statSpacing * 2);
         ImGui.Text("Available:");
         ImGui.SameLine();
         ImGui.TextColored(ColorSuccess, availableItems.ToString());
         
-        ImGui.SameLine(550);
+        ImGui.SameLine(windowWidth - statSpacing);
         ImGui.Text("Protected:");
         ImGui.SameLine();
         ImGui.TextColored(ColorWarning, protectedItems.ToString());

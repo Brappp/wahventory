@@ -180,14 +180,14 @@ public partial class InventoryManagementModule : IDisposable
         ImGui.Separator();
         
         // Main content area
-        var contentHeight = ImGui.GetContentRegionAvail().Y - 60; // Leave space for bottom action bar
-        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(8, 8));
+        var contentHeight = ImGui.GetContentRegionAvail().Y - 50; // Leave space for bottom action bar
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(4, 4));
         ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f));
         
-        ImGui.BeginChild("MainContent", new Vector2(0, contentHeight), true);
+        ImGui.BeginChild("MainContent", new Vector2(0, contentHeight), true, ImGuiWindowFlags.NoScrollbar);
         
         // Content area - removed DrawTabBar() call since we're removing those buttons
-        ImGui.BeginChild("ContentArea", new Vector2(0, 0), false);
+        ImGui.BeginChild("ContentArea", new Vector2(0, 0), false, ImGuiWindowFlags.NoScrollbar);
         
         if (ImGui.BeginTabBar("InventoryTabs", ImGuiTabBarFlags.None))
         {

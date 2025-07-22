@@ -9,28 +9,28 @@ using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using ImGuiNET;
-using WahVentory.External;
-using WahVentory.Helpers;
-using WahVentory.Models;
+using wahventory.External;
+using wahventory.Helpers;
+using wahventory.Models;
 using ECommons.Automation.NeoTaskManager;
 
-namespace WahVentory.Modules.Inventory;
+namespace wahventory.Modules.Inventory;
 
 public partial class InventoryManagementModule : IDisposable
 {
-    // Color constants for consistency
-    private static readonly Vector4 ColorHQItem = new(0.6f, 0.8f, 1f, 1f);        // Light blue for HQ
-    private static readonly Vector4 ColorHQName = new(0.8f, 0.8f, 1f, 1f);        // Slightly lighter blue for HQ names
-    private static readonly Vector4 ColorPrice = new(1f, 0.8f, 0.2f, 1f);         // Gold for prices
-    private static readonly Vector4 ColorNotTradeable = new(0.5f, 0.5f, 0.5f, 1f); // Gray for not tradeable
-    private static readonly Vector4 ColorLoading = new(0.8f, 0.8f, 0.2f, 1f);     // Yellow for loading
-    private static readonly Vector4 ColorError = new(0.8f, 0.2f, 0.2f, 1f);       // Red for errors
-    private static readonly Vector4 ColorSuccess = new(0.2f, 0.8f, 0.2f, 1f);     // Green for success
-    private static readonly Vector4 ColorSubdued = new(0.6f, 0.6f, 0.6f, 1f);     // Light gray for subdued text
-    private static readonly Vector4 ColorInfo = new(0.7f, 0.7f, 0.7f, 1f);        // Gray for info text
-    private static readonly Vector4 ColorWarning = new(0.9f, 0.5f, 0.1f, 1f);     // Orange for warnings
-    private static readonly Vector4 ColorCaution = new(0.9f, 0.9f, 0.2f, 1f);     // Yellow for caution
-    private static readonly Vector4 ColorBlue = new(0.3f, 0.7f, 1.0f, 1f);        // Blue for info
+    // Color constants
+    private static readonly Vector4 ColorHQItem = new(0.6f, 0.8f, 1f, 1f);
+    private static readonly Vector4 ColorHQName = new(0.8f, 0.8f, 1f, 1f);
+    private static readonly Vector4 ColorPrice = new(1f, 0.8f, 0.2f, 1f);
+    private static readonly Vector4 ColorNotTradeable = new(0.5f, 0.5f, 0.5f, 1f);
+    private static readonly Vector4 ColorLoading = new(0.8f, 0.8f, 0.2f, 1f);
+    private static readonly Vector4 ColorError = new(0.8f, 0.2f, 0.2f, 1f);
+    private static readonly Vector4 ColorSuccess = new(0.2f, 0.8f, 0.2f, 1f);
+    private static readonly Vector4 ColorSubdued = new(0.6f, 0.6f, 0.6f, 1f);
+    private static readonly Vector4 ColorInfo = new(0.7f, 0.7f, 0.7f, 1f);
+    private static readonly Vector4 ColorWarning = new(0.9f, 0.5f, 0.1f, 1f);
+    private static readonly Vector4 ColorCaution = new(0.9f, 0.9f, 0.2f, 1f);
+    private static readonly Vector4 ColorBlue = new(0.3f, 0.7f, 1.0f, 1f);
     
     private readonly Plugin _plugin;
     private readonly InventoryHelpers _inventoryHelpers;
@@ -88,16 +88,12 @@ public partial class InventoryManagementModule : IDisposable
         _plugin = plugin;
         _inventoryHelpers = new InventoryHelpers(Plugin.DataManager, Plugin.Log);
         _iconCache = new IconCache(Plugin.TextureProvider);
-        
-        // Initialize with default world name, will be recreated in Initialize()
         _universalisClient = new UniversalisClient(Plugin.Log, "Aether");
-        // TaskManager will be initialized after ECommons
         _taskManager = new TaskManager();
     }
     
     public void Initialize()
     {
-        // Don't access ClientState here - defer to first use
     }
     
     public void Update()

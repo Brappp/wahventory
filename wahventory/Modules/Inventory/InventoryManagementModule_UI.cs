@@ -7,24 +7,22 @@ using Dalamud.Interface.Utility;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using ImGuiNET;
-using WahVentory.External;
-using WahVentory.Helpers;
-using WahVentory.Models;
+using wahventory.External;
+using wahventory.Helpers;
+using wahventory.Models;
 
-namespace WahVentory.Modules.Inventory;
+namespace wahventory.Modules.Inventory;
 
 public partial class InventoryManagementModule
 {
     private void DrawTopControls()
     {
-        // Create a styled top bar with better spacing
         ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(6, 5));
         ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(8, 4));
         ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f));
         
         ImGui.BeginChild("TopBar", new Vector2(0, 36), true, ImGuiWindowFlags.NoScrollbar);
         
-        // Search box with icon
         ImGui.PushFont(UiBuilder.IconFont);
         ImGui.Text(FontAwesomeIcon.Search.ToIconString());
         ImGui.PopFont();
@@ -53,11 +51,9 @@ public partial class InventoryManagementModule
         ImGui.SameLine();
         ImGui.Text("Refresh");
         
-        // Divider
         ImGui.SameLine();
         ImGui.TextColored(new Vector4(0.3f, 0.3f, 0.3f, 1f), "|");
         
-        // Quick filters
         ImGui.SameLine();
         if (ImGui.Checkbox("Armory", ref _showArmory)) 
         {
@@ -77,13 +73,11 @@ public partial class InventoryManagementModule
     
     private void DrawFiltersAndSettings()
     {
-        // Safety Filters Section
         ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(6, 5));
         ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f));
         
         ImGui.BeginChild("FiltersSection", new Vector2(0, 140), true);
         
-        // Header
         ImGui.PushFont(UiBuilder.IconFont);
         ImGui.TextColored(ColorBlue, FontAwesomeIcon.Shield.ToIconString());
         ImGui.PopFont();
@@ -96,14 +90,12 @@ public partial class InventoryManagementModule
         
         ImGui.Spacing();
         
-        // Draw filter grid
         DrawFilterGrid();
         
         ImGui.EndChild();
         ImGui.PopStyleColor();
         ImGui.PopStyleVar();
         
-        // Market Settings Bar
         DrawMarketSettingsBar();
     }
     
@@ -1007,20 +999,39 @@ public partial class InventoryManagementModule
         ImGui.TableNextRow();
         
         ImGui.TableNextColumn();
+        
+        // Add left padding to compensate for missing checkbox column (30px)
+        ImGui.Dummy(new Vector2(30, 0));
+        ImGui.SameLine(0, 0);
+        
+        // Match the styling from available items but subdued
         ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.6f, 0.6f, 0.6f, 1));
         
+        // Icon - same as available items
+        var iconSize = new Vector2(20, 20);
         if (item.IconId > 0)
         {
             var icon = _iconCache.GetIcon(item.IconId);
             if (icon != null)
             {
-                var iconSize = new Vector2(20, 20);
                 var startY = ImGui.GetCursorPosY();
-                ImGui.SetCursorPosY(startY - 2);  // Lower the icon
+                ImGui.SetCursorPosY(startY - 2);  // Lower the icon by 2 pixels
                 ImGui.Image(icon.ImGuiHandle, iconSize);
                 ImGui.SetCursorPosY(startY);
                 ImGui.SameLine(0, 5);
             }
+            else
+            {
+                // Reserve space for missing icon
+                ImGui.Dummy(iconSize);
+                ImGui.SameLine(0, 5);
+            }
+        }
+        else
+        {
+            // Reserve space for missing icon  
+            ImGui.Dummy(iconSize);
+            ImGui.SameLine(0, 5);
         }
         
         ImGui.Text(item.Name);

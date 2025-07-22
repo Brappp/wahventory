@@ -3,9 +3,9 @@ using System.Numerics;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Windowing;
 using ImGuiNET;
-using WahVentory.Modules.Inventory;
+using wahventory.Modules.Inventory;
 
-namespace WahVentory.Windows;
+namespace wahventory.Windows;
 
 public class MainWindow : Window, IDisposable
 {
@@ -13,7 +13,7 @@ public class MainWindow : Window, IDisposable
     private InventoryManagementModule InventoryModule;
 
     public MainWindow(Plugin plugin, InventoryManagementModule inventoryModule)
-        : base("WahVentory - Inventory Manager", ImGuiWindowFlags.None)
+        : base("wahventory - Inventory Manager", ImGuiWindowFlags.None)
     {
         SizeConstraints = new WindowSizeConstraints
         {

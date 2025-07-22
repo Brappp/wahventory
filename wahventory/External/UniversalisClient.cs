@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Dalamud.Plugin.Services;
 using Newtonsoft.Json;
 
-namespace WahVentory.External;
+namespace wahventory.External;
 
 public class UniversalisClient : IDisposable
 {

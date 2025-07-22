@@ -5,10 +5,10 @@ using System.IO;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
 using ECommons;
-using WahVentory.Windows;
-using WahVentory.Modules.Inventory;
+using wahventory.Windows;
+using wahventory.Modules.Inventory;
 
-namespace WahVentory;
+namespace wahventory;
 
 public sealed class Plugin : IDalamudPlugin
 {
@@ -33,12 +33,10 @@ public sealed class Plugin : IDalamudPlugin
 
     public Plugin()
     {
-        // Initialize ECommons
         ECommonsMain.Init(PluginInterface, this);
         
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
 
-        // Initialize modules
         InventoryModule = new InventoryManagementModule(this);
         InventoryModule.Initialize();
 
@@ -57,7 +55,6 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUI;
         PluginInterface.UiBuilder.OpenMainUi += ToggleMainUI;
         
-        // Register framework update for inventory module
         Framework.Update += OnFrameworkUpdate;
 
         Log.Information($"WahVentory initialized successfully!");
@@ -75,7 +72,6 @@ public sealed class Plugin : IDalamudPlugin
 
         CommandManager.RemoveHandler(CommandName);
         
-        // Uninitialize ECommons
         ECommonsMain.Dispose();
     }
 

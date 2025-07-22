@@ -1,6 +1,6 @@
 {
-  "Author": "WahVentory Team",
-  "Name": "WahVentory",
+  "Author": "wahventory Team",
+  "Name": "wahventory",
   "Punchline": "Advanced inventory management with safety filters and auto-discard",
   "Description": "A comprehensive inventory management plugin for FFXIV featuring:\n• Smart safety filters to protect valuable items\n• Market price integration via Universalis\n• Bulk discard functionality with confirmation\n• Category grouping and search\n• Gearset protection\n\nUse /wahventory to open",
   "ApplicableVersion": "any",

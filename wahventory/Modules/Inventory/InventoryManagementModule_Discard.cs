@@ -5,53 +5,52 @@ using System.Numerics;
 using Dalamud.Interface;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using ImGuiNET;
-using WahVentory.Helpers;
-using WahVentory.Models;
+using wahventory.Helpers;
+using wahventory.Models;
 
-namespace WahVentory.Modules.Inventory;
+namespace wahventory.Modules.Inventory;
 
 public partial class InventoryManagementModule
 {
     private void DrawDiscardConfirmation()
     {
-        var windowSize = new Vector2(800, 600);
+        var windowSize = new Vector2(700, 500);
         ImGui.SetNextWindowSize(windowSize, ImGuiCond.FirstUseEver);
         ImGui.SetNextWindowPos(ImGui.GetMainViewport().GetCenter(), ImGuiCond.FirstUseEver, new Vector2(0.5f, 0.5f));
         
-        // Apply similar styling to main window
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(15, 15));
-        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(8, 6));
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(8, 8));
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(10, 10));
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(6, 5));
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(8, 6));
         
         ImGui.Begin("Confirm Discard##DiscardConfirmation", ref _isDiscarding, ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoCollapse);
         
-        // Header with warning in styled box
+        // Header with warning
         ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.541f, 0.227f, 0.227f, 0.3f));
-        ImGui.BeginChild("WarningHeader", new Vector2(0, 40), true, ImGuiWindowFlags.NoScrollbar);
-        ImGui.SetCursorPosY(ImGui.GetCursorPosY() + 8);
+        ImGui.BeginChild("WarningHeader", new Vector2(0, 36), true, ImGuiWindowFlags.NoScrollbar);
+        ImGui.SetCursorPosY(ImGui.GetCursorPosY() + 5);
         ImGui.PushFont(UiBuilder.IconFont);
         ImGui.TextColored(ColorError, FontAwesomeIcon.ExclamationTriangle.ToIconString());
         ImGui.PopFont();
         ImGui.SameLine();
-        ImGui.TextColored(new Vector4(1f, 1f, 1f, 1f), "WARNING: This will permanently delete the following items!");
+        ImGui.Text("WARNING: This will permanently delete the following items!");
         ImGui.EndChild();
         ImGui.PopStyleColor();
         
         ImGui.Spacing();
         
-        // Summary section in styled box
+        // Summary section
         ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f));
-        ImGui.BeginChild("SummarySection", new Vector2(0, 100), true);
+        ImGui.BeginChild("SummarySection", new Vector2(0, 80), true);
         DrawDiscardSummary();
         ImGui.EndChild();
         ImGui.PopStyleColor();
         
         ImGui.Spacing();
         
-        // Items table
         ImGui.Text("Items to discard:");
+        var tableHeight = windowSize.Y - 280;
         ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f));
-        ImGui.BeginChild("ItemTable", new Vector2(0, 320), true);
+        ImGui.BeginChild("ItemTable", new Vector2(0, tableHeight), true);
         DrawDiscardItemsTable();
         ImGui.EndChild();
         ImGui.PopStyleColor();
@@ -93,7 +92,6 @@ public partial class InventoryManagementModule
         var totalValue = _itemsToDiscard.Where(i => i.MarketPrice.HasValue).Sum(i => i.MarketPrice!.Value * i.Quantity);
         var totalValueFormatted = totalValue > 0 ? $"{totalValue:N0} gil" : "Unknown";
         
-        // Summary in a clean horizontal layout
         ImGui.Columns(3, "SummaryColumns", false);
         
         // Total Items
@@ -136,21 +134,22 @@ public partial class InventoryManagementModule
     
     private void DrawDiscardItemsTable()
     {
+        ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 4));
+        
         if (ImGui.BeginTable("DiscardItemsTable", Settings.ShowMarketPrices ? 5 : 4, 
-            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY | ImGuiTableFlags.SizingStretchProp))
+            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY | ImGuiTableFlags.Resizable))
         {
-            // Setup columns
             ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch);
-            ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed, 50);
-            ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, 120);
+            ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed, 40);
+            ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, 100);
             if (Settings.ShowMarketPrices)
             {
-                ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, 100);
-                ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed, 100);
+                ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, 80);
+                ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed, 80);
             }
             else
             {
-                ImGui.TableSetupColumn("Status", ImGuiTableColumnFlags.WidthFixed, 150);
+                ImGui.TableSetupColumn("Status", ImGuiTableColumnFlags.WidthFixed, 120);
             }
             
             ImGui.TableSetupScrollFreeze(0, 1);
@@ -163,6 +162,8 @@ public partial class InventoryManagementModule
             
             ImGui.EndTable();
         }
+        
+        ImGui.PopStyleVar(); // Pop CellPadding
     }
     
     private void DrawDiscardItemRow(InventoryItemInfo item)
@@ -172,31 +173,31 @@ public partial class InventoryManagementModule
         // Item name column with icon
         ImGui.TableNextColumn();
         
-        // Item icon and name aligned properly
+        // Item icon and name aligned properly  
         var iconSize = new Vector2(20, 20);
         if (item.IconId > 0)
         {
             var icon = _iconCache.GetIcon(item.IconId);
             if (icon != null)
             {
-                var cursorPos = ImGui.GetCursorPos();
+                var startY = ImGui.GetCursorPosY();
+                ImGui.SetCursorPosY(startY - 2);  // Lower the icon by 2 pixels
                 ImGui.Image(icon.ImGuiHandle, iconSize);
-                ImGui.SameLine();
-                // Align text vertically with icon
-                ImGui.SetCursorPosY(cursorPos.Y + (iconSize.Y - ImGui.GetTextLineHeight()) / 2);
+                ImGui.SetCursorPosY(startY);
+                ImGui.SameLine(0, 5);
             }
             else
             {
                 // Reserve space for missing icon
                 ImGui.Dummy(iconSize);
-                ImGui.SameLine();
+                ImGui.SameLine(0, 5);
             }
         }
         else
         {
             // Reserve space for missing icon
             ImGui.Dummy(iconSize);
-            ImGui.SameLine();
+            ImGui.SameLine(0, 5);
         }
         
         var nameColor = item.IsHQ ? ColorHQName : ImGui.GetStyle().Colors[(int)ImGuiCol.Text];
@@ -284,8 +285,8 @@ public partial class InventoryManagementModule
     
     private void DrawDiscardButtons()
     {
-        var buttonWidth = 150f;
-        var buttonHeight = 35f;
+        var buttonWidth = 120f;
+        var buttonHeight = 30f;
         var spacing = ImGui.GetStyle().ItemSpacing.X;
         var totalWidth = buttonWidth * 2 + spacing;
         var availableWidth = ImGui.GetContentRegionAvail().X;
@@ -294,17 +295,12 @@ public partial class InventoryManagementModule
         if (centerPos > 0)
             ImGui.SetCursorPosX(ImGui.GetCursorPosX() + centerPos);
         
-        // Start/Cancel button
         if (_discardProgress == 0)
         {
             ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.541f, 0.227f, 0.227f, 1f));
             ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.327f, 0.327f, 1f));
-            ImGui.PushFont(UiBuilder.IconFont);
-            var startText = FontAwesomeIcon.Trash.ToIconString() + " ";
-            ImGui.PopFont();
-            startText += "Start Discarding";
             
-            if (ImGui.Button(startText, new Vector2(buttonWidth, buttonHeight)))
+            if (ImGui.Button("Start Discarding", new Vector2(buttonWidth, buttonHeight)))
             {
                 StartDiscarding();
             }
@@ -320,11 +316,7 @@ public partial class InventoryManagementModule
         else
         {
             ImGui.BeginDisabled();
-            ImGui.PushFont(UiBuilder.IconFont);
-            var discardingText = FontAwesomeIcon.Spinner.ToIconString() + " ";
-            ImGui.PopFont();
-            discardingText += "Discarding...";
-            ImGui.Button(discardingText, new Vector2(buttonWidth, buttonHeight));
+            ImGui.Button("Discarding...", new Vector2(buttonWidth, buttonHeight));
             ImGui.EndDisabled();
             
             ImGui.SameLine();
@@ -343,19 +335,16 @@ public partial class InventoryManagementModule
     {
         Plugin.Log.Information($"PrepareDiscard called. Selected items count: {_selectedItems.Count}");
         
-        // Get the actual individual items from inventory, not the grouped/combined ones
         var actualItemsToDiscard = new List<InventoryItemInfo>();
         
         foreach (var selectedItemId in _selectedItems)
         {
-            // Find all actual inventory instances of this item ID from the original items
             var actualItems = _originalItems.Where(i => 
                 i.ItemId == selectedItemId && 
                 InventoryHelpers.IsSafeToDiscard(i, Settings.BlacklistedItems)).ToList();
                 
             Plugin.Log.Information($"Found {actualItems.Count} instances of item {selectedItemId} to discard");
             
-            // Copy over market price information from cache
             foreach (var item in actualItems)
             {
                 if (_priceCache.TryGetValue(item.ItemId, out var cached))
@@ -413,8 +402,6 @@ public partial class InventoryManagementModule
             _discardProgress++;
             Plugin.Log.Information($"Discard call completed for {item.Name}");
             
-            // Reset confirmation state for this item
-            _confirmRetryCount = 0;
             _discardStartTime = DateTime.Now;
             
             _taskManager.EnqueueDelay(500);
@@ -431,7 +418,6 @@ public partial class InventoryManagementModule
     {
         Plugin.Log.Information($"ConfirmDiscard called, looking for dialog (retry {_confirmRetryCount})");
         
-        // Check for timeout
         if (DateTime.Now - _discardStartTime > TimeSpan.FromSeconds(15))
         {
             Plugin.Log.Warning("Discard confirmation timed out");
@@ -445,7 +431,6 @@ public partial class InventoryManagementModule
         {
             Plugin.Log.Information("Found discard dialog, clicking Yes");
             
-            // Get the Yes button (should be YesButton like in ARDiscard)
             var selectYesno = (FFXIVClientStructs.FFXIV.Client.UI.AddonSelectYesno*)addon;
             if (selectYesno->YesButton != null)
             {
@@ -454,7 +439,7 @@ public partial class InventoryManagementModule
                 addon->FireCallbackInt(0);
                 
                 Plugin.Log.Information("Yes button clicked, waiting for response");
-                _confirmRetryCount = 0; // Reset retry count
+                _confirmRetryCount = 0;
                 _taskManager.EnqueueDelay(500);
                 _taskManager.Enqueue(() => WaitForDiscardComplete());
             }
@@ -476,7 +461,7 @@ public partial class InventoryManagementModule
         else
         {
             _confirmRetryCount++;
-            if (_confirmRetryCount > 50) // 5 seconds total
+            if (_confirmRetryCount > 50)
             {
                 Plugin.Log.Warning("No discard dialog found after many retries, assuming no confirmation needed");
                 _confirmRetryCount = 0;
@@ -496,7 +481,6 @@ public partial class InventoryManagementModule
     {
         Plugin.Log.Information("WaitForDiscardComplete called");
         
-        // Check if dialog is still visible
         var addon = GetDiscardAddon();
         if (addon != null)
         {
@@ -523,7 +507,6 @@ public partial class InventoryManagementModule
                 
                 if (addon->IsVisible && addon->UldManager.LoadedState == FFXIVClientStructs.FFXIV.Component.GUI.AtkLoadState.Loaded)
                 {
-                    // Check if it's a discard dialog
                     var textNode = addon->UldManager.NodeList[15]->GetAsAtkTextNode();
                     if (textNode != null)
                     {
@@ -560,7 +543,6 @@ public partial class InventoryManagementModule
         _confirmRetryCount = 0;
         _discardStartTime = DateTime.MinValue;
         
-        // Refresh inventory after discard
         RefreshInventory();
     }
 }

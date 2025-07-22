@@ -5,9 +5,9 @@ using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using Lumina.Excel.Sheets;
-using WahVentory.Models;
+using wahventory.Models;
 
-namespace WahVentory.Helpers;
+namespace wahventory.Helpers;
 
 public unsafe class InventoryHelpers
 {
@@ -17,29 +17,26 @@ public unsafe class InventoryHelpers
     // ARDiscard-level safety lists
     public static readonly HashSet<uint> HardcodedBlacklist = new()
     {
-        // Preorder earrings
         16039, // Ala Mhigan earrings
         24589, // Aetheryte earrings
         33648, // Menphina's earrings
         41081, // Azeyma's earrings
         
-        // Ultimate tokens
         21197, // UCOB token
         23175, // UWU token
         28633, // TEA token
         36810, // DSR token
         38951, // TOP token
         
-        // Special items
         10155, // Ceruleum Tank
         10373, // Magitek Repair Materials
     };
     
-    // Add currency range (1-99) to blacklist
+    // Currency range (1-99)
     public static readonly HashSet<uint> CurrencyRange = 
         Enumerable.Range(1, 99).Select(x => (uint)x).ToHashSet();
     
-    // Items that are safe to discard despite being unique/untradeable
+    // Safe unique items despite being unique/untradeable
     public static readonly HashSet<uint> SafeUniqueItems = new()
     {
         2962, // Onion Doublet

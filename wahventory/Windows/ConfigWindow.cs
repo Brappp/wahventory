@@ -3,14 +3,14 @@ using System.Numerics;
 using Dalamud.Interface.Windowing;
 using ImGuiNET;
 
-namespace WahVentory.Windows;
+namespace wahventory.Windows;
 
 public class ConfigWindow : Window, IDisposable
 {
     private Configuration Configuration;
     private Plugin Plugin;
 
-    public ConfigWindow(Plugin plugin) : base("WahVentory Configuration")
+    public ConfigWindow(Plugin plugin) : base("wahventory Configuration")
     {
         Flags = ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar |
                 ImGuiWindowFlags.NoScrollWithMouse;

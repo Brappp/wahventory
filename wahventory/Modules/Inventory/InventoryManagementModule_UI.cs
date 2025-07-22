@@ -18,11 +18,11 @@ public partial class InventoryManagementModule
     private void DrawTopControls()
     {
         // Create a styled top bar with better spacing
-        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(6, 4));
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(6, 5));
         ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(8, 4));
         ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f));
         
-        ImGui.BeginChild("TopBar", new Vector2(0, 34), true, ImGuiWindowFlags.NoScrollbar);
+        ImGui.BeginChild("TopBar", new Vector2(0, 36), true, ImGuiWindowFlags.NoScrollbar);
         
         // Search box with icon
         ImGui.PushFont(UiBuilder.IconFont);
@@ -78,10 +78,10 @@ public partial class InventoryManagementModule
     private void DrawFiltersAndSettings()
     {
         // Safety Filters Section
-        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(6, 4));
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(6, 5));
         ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f));
         
-        ImGui.BeginChild("FiltersSection", new Vector2(0, 120), true);
+        ImGui.BeginChild("FiltersSection", new Vector2(0, 125), true);
         
         // Header
         ImGui.PushFont(UiBuilder.IconFont);
@@ -271,11 +271,11 @@ public partial class InventoryManagementModule
     
     private void DrawMarketSettingsBar()
     {
-        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(6, 4));
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(6, 5));
         ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(8, 4));
         ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f));
         
-        ImGui.BeginChild("MarketSettings", new Vector2(0, 34), true, ImGuiWindowFlags.NoScrollbar);
+        ImGui.BeginChild("MarketSettings", new Vector2(0, 36), true, ImGuiWindowFlags.NoScrollbar);
         
         var showPrices = Settings.ShowMarketPrices;
         if (ImGui.Checkbox("Show Prices", ref showPrices))

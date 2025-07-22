@@ -25,8 +25,7 @@ public partial class InventoryManagementModule
     
     private void DrawBlacklistTab()
     {
-        ImGui.BeginChild("BlacklistContent", new Vector2(0, 0), false);
-        
+        // Remove the extra child wrapper to prevent sizing issues
         // Header with explanation
         ImGui.TextWrapped("Items in the blacklist will never be selected for discard. This is in addition to the built-in safety lists.");
         ImGui.Spacing();
@@ -46,8 +45,6 @@ public partial class InventoryManagementModule
         ImGui.Spacing();
         
         DrawBuiltInLists();
-        
-        ImGui.EndChild();
     }
     
     private void DrawAddToBlacklistSection()
@@ -196,7 +193,7 @@ public partial class InventoryManagementModule
     private void DrawCurrentBlacklist()
     {
         // Use TreeNodeEx for consistency with other collapsible sections
-        var nodeFlags = ImGuiTreeNodeFlags.Framed | ImGuiTreeNodeFlags.AllowItemOverlap | ImGuiTreeNodeFlags.DefaultOpen;
+        var nodeFlags = ImGuiTreeNodeFlags.AllowItemOverlap | ImGuiTreeNodeFlags.SpanAvailWidth | ImGuiTreeNodeFlags.DefaultOpen;
         
         ImGui.PushID("CustomBlacklist");
         var open = ImGui.TreeNodeEx($"Custom Blacklist ({Settings.BlacklistedItems.Count} items)##CustomBlacklistHeader", nodeFlags);
@@ -269,6 +266,9 @@ public partial class InventoryManagementModule
         }
         
         ImGui.PopID();
+        
+        // Add small spacing between categories
+        ImGui.Spacing();
     }
     
     private void DrawBuiltInLists()
@@ -277,7 +277,7 @@ public partial class InventoryManagementModule
         ImGui.Spacing();
         
         // Ultimate tokens and special items
-        var ultimateNodeFlags = ImGuiTreeNodeFlags.Framed | ImGuiTreeNodeFlags.AllowItemOverlap;
+        var ultimateNodeFlags = ImGuiTreeNodeFlags.AllowItemOverlap | ImGuiTreeNodeFlags.SpanAvailWidth;
         ImGui.PushID("UltimateTokens");
         if (ImGui.TreeNodeEx($"Ultimate Tokens & Special Items ({InventoryHelpers.HardcodedBlacklist.Count} items)##UltimateTokensHeader", ultimateNodeFlags))
         {
@@ -286,8 +286,10 @@ public partial class InventoryManagementModule
         }
         ImGui.PopID();
         
+        ImGui.Spacing();
+        
         // Currency items
-        var currencyNodeFlags = ImGuiTreeNodeFlags.Framed | ImGuiTreeNodeFlags.AllowItemOverlap;
+        var currencyNodeFlags = ImGuiTreeNodeFlags.AllowItemOverlap | ImGuiTreeNodeFlags.SpanAvailWidth;
         ImGui.PushID("CurrencyItems");
         if (ImGui.TreeNodeEx($"Currency Items (IDs 1-99)##CurrencyItemsHeader", currencyNodeFlags))
         {
@@ -303,6 +305,8 @@ public partial class InventoryManagementModule
             ImGui.TreePop();
         }
         ImGui.PopID();
+        
+        ImGui.Spacing();
     }
     
     private void DrawProtectedItemsTable(IEnumerable<uint> itemIds, string tableId, bool showRemoveButton)
@@ -310,19 +314,24 @@ public partial class InventoryManagementModule
         ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 2)); // Compact padding
         ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(4, 2));
         
+        // Remove ScrollY to prevent table stretching
         if (ImGui.BeginTable($"ProtectedTable_{tableId}", showRemoveButton ? 5 : 4, 
-            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY |
-            ImGuiTableFlags.Resizable))
+            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
         {
-            ImGui.TableSetupColumn("ID", ImGuiTableColumnFlags.WidthFixed, 60);
-            ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch); // Back to stretch
-            ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed, 40);
-            ImGui.TableSetupColumn("Category", ImGuiTableColumnFlags.WidthFixed, 150);
+            // Use dynamic widths based on content
+            float idWidth = ImGui.CalcTextSize("99999").X + 8;
+            float ilvlWidth = ImGui.CalcTextSize("999").X + 8;
+            float categoryWidth = ImGui.CalcTextSize("Seasonal Miscellany").X + 8;
+            float actionsWidth = ImGui.CalcTextSize("Remove").X + 16;
+            
+            ImGui.TableSetupColumn("ID", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHide, idWidth);
+            ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch | ImGuiTableColumnFlags.NoHide);
+            ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed, ilvlWidth);
+            ImGui.TableSetupColumn("Category", ImGuiTableColumnFlags.WidthFixed, categoryWidth);
             if (showRemoveButton)
             {
-                ImGui.TableSetupColumn("Actions", ImGuiTableColumnFlags.WidthFixed, 80);
+                ImGui.TableSetupColumn("Actions", ImGuiTableColumnFlags.WidthFixed, actionsWidth);
             }
-            ImGui.TableSetupScrollFreeze(0, 1);
             ImGui.TableHeadersRow();
             
             foreach (var itemId in itemIds)
@@ -378,9 +387,25 @@ public partial class InventoryManagementModule
                     var icon = _iconCache.GetIcon(iconId);
                     if (icon != null)
                     {
+                        // Lower the icon to align with text baseline
+                        var startY = ImGui.GetCursorPosY();
+                        ImGui.SetCursorPosY(startY - 2);  // Lower the icon by 2 pixels
                         ImGui.Image(icon.ImGuiHandle, new Vector2(20, 20));
-                        ImGui.SameLine();
+                        ImGui.SetCursorPosY(startY);
+                        ImGui.SameLine(0, 5);
                     }
+                    else
+                    {
+                        // Reserve space for missing icon
+                        ImGui.Dummy(new Vector2(20, 20));
+                        ImGui.SameLine(0, 5);
+                    }
+                }
+                else
+                {
+                    // Reserve space for missing icon
+                    ImGui.Dummy(new Vector2(20, 20));
+                    ImGui.SameLine(0, 5);
                 }
                 ImGui.Text(itemName);
                 

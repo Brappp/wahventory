@@ -1069,29 +1069,23 @@ public partial class InventoryManagementModule
     private void DrawFilteredItemRow(InventoryItemInfo item)
     {
         ImGui.TableNextRow();
+        ImGui.PushID(item.GetUniqueKey());
         
         // ID column
         ImGui.TableNextColumn();
-        ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.6f, 0.6f, 0.6f, 1));
-        ImGui.Text(item.ItemId.ToString());
-        ImGui.PopStyleColor();
+        ImGui.TextColored(ColorSubdued, item.ItemId.ToString());
         
+        // Item name with icon
         ImGui.TableNextColumn();
         
-        // Add left padding to compensate for missing checkbox column (30px)
-        ImGui.Dummy(new Vector2(30, 0));
-        ImGui.SameLine(0, 0);
-        
-        // Match the styling from available items but subdued
-        ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.6f, 0.6f, 0.6f, 1));
-        
-        // Icon - same as available items
+        // Icon - same styling as available items
         var iconSize = new Vector2(20, 20);
         if (item.IconId > 0)
         {
             var icon = _iconCache.GetIcon(item.IconId);
             if (icon != null)
             {
+                // Lower the icon to align with text baseline
                 var startY = ImGui.GetCursorPosY();
                 ImGui.SetCursorPosY(startY - 2);  // Lower the icon by 2 pixels
                 ImGui.Image(icon.ImGuiHandle, iconSize);
@@ -1113,62 +1107,73 @@ public partial class InventoryManagementModule
         }
         
         ImGui.Text(item.Name);
-        ImGui.PopStyleColor();
         
+        // Add filter tags right after item name - same as available items
         DrawItemFilterTags(item);
         
         if (item.IsHQ)
         {
             ImGui.SameLine();
-            ImGui.TextColored(new Vector4(0.4f, 0.6f, 0.4f, 1), "[HQ]");
+            ImGui.TextColored(ColorHQItem, "[HQ]");
         }
         
+        // Quantity
         ImGui.TableNextColumn();
-        ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.6f, 0.6f, 0.6f, 1));
         ImGui.Text(item.Quantity.ToString());
-        ImGui.PopStyleColor();
         
+        // Item Level
         ImGui.TableNextColumn();
-        ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.6f, 0.6f, 0.6f, 1));
         if (item.ItemLevel > 0)
         {
             ImGui.Text(item.ItemLevel.ToString());
         }
         else
         {
-            ImGui.Text("-");
+            ImGui.TextColored(ColorSubdued, "-");
         }
-        ImGui.PopStyleColor();
         
+        // Location
         ImGui.TableNextColumn();
-        ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.6f, 0.6f, 0.6f, 1));
-        ImGui.Text(GetContainerDisplayName(item.Container));
-        ImGui.PopStyleColor();
+        ImGui.Text(GetLocationName(item.Container));
         
         if (Settings.ShowMarketPrices)
         {
+            // Unit price
             ImGui.TableNextColumn();
-            ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.6f, 0.6f, 0.6f, 1));
             var priceText = item.GetFormattedPrice();
-            ImGui.Text(priceText);
-            ImGui.PopStyleColor();
+            if (priceText == "N/A")
+            {
+                ImGui.TextColored(ColorNotTradeable, priceText);
+            }
+            else if (priceText != "---")
+            {
+                ImGui.Text(priceText);
+            }
+            else
+            {
+                ImGui.TextColored(ColorSubdued, priceText);
+            }
             
+            // Total value
             ImGui.TableNextColumn();
             if (item.MarketPrice.HasValue && item.MarketPrice.Value > 0)
             {
-                ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.6f, 0.6f, 0.6f, 1));
-                ImGui.Text($"{item.MarketPrice.Value * item.Quantity:N0}g");
-                ImGui.PopStyleColor();
+                var total = item.MarketPrice.Value * item.Quantity;
+                ImGui.Text($"{total:N0}g");
+            }
+            else
+            {
+                ImGui.TextColored(ColorSubdued, "---");
             }
         }
         else
         {
+            // Reason
             ImGui.TableNextColumn();
-            ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.8f, 0.6f, 0.6f, 1));
-            var reason = GetFilterReason(item);
-            ImGui.Text(reason);
-            ImGui.PopStyleColor();
+            ImGui.TextColored(ColorWarning, GetFilterReason(item));
         }
+        
+        ImGui.PopID();
     }
     
     private string GetFilterReason(InventoryItemInfo item)

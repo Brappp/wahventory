@@ -21,7 +21,10 @@ public partial class InventoryManagementModule
         ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(8, 4));
         ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f));
         
-        ImGui.BeginChild("TopBar", new Vector2(0, 36), true, ImGuiWindowFlags.NoScrollbar);
+        ImGui.BeginChild("TopBar", new Vector2(0, 40), true, ImGuiWindowFlags.NoScrollbar); // Increased height for more bottom padding
+        
+        // Center content vertically with more space
+        ImGui.SetCursorPosY(ImGui.GetCursorPosY() + 2);
         
         ImGui.PushFont(UiBuilder.IconFont);
         ImGui.Text(FontAwesomeIcon.Search.ToIconString());
@@ -43,7 +46,7 @@ public partial class InventoryManagementModule
         
         ImGui.SameLine();
         ImGui.PushFont(UiBuilder.IconFont);
-        if (ImGui.Button(FontAwesomeIcon.Sync.ToIconString() + "##Refresh"))
+        if (ImGui.Button(FontAwesomeIcon.Sync.ToIconString() + "##Refresh", new Vector2(28, 0))) // Fixed width for icon button
         {
             RefreshInventory();
         }
@@ -108,6 +111,9 @@ public partial class InventoryManagementModule
         ImGui.EndChild();
         ImGui.PopStyleColor();
         ImGui.PopStyleVar(2);
+        
+        // Add spacing after the top bar
+        ImGui.Spacing();
     }
     
     private void DrawFiltersAndSettings()
@@ -115,7 +121,7 @@ public partial class InventoryManagementModule
         ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(6, 5));
         ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f));
         
-        ImGui.BeginChild("FiltersSection", new Vector2(0, 140), true);
+        ImGui.BeginChild("FiltersSection", new Vector2(0, 145), true); // Reduced height since top bar has more space
         
         ImGui.PushFont(UiBuilder.IconFont);
         ImGui.TextColored(ColorBlue, FontAwesomeIcon.Shield.ToIconString());
@@ -130,6 +136,8 @@ public partial class InventoryManagementModule
         ImGui.Spacing();
         
         DrawFilterGrid();
+        
+        ImGui.Spacing(); // Add bottom spacing
         
         ImGui.EndChild();
         ImGui.PopStyleColor();
@@ -227,14 +235,13 @@ public partial class InventoryManagementModule
         ImGui.TextColored(ColorWarning, "i");
         ImGui.SameLine(0, 2);
         
-        // Inline editable item level
-        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(4, 1));
-        ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 1);
-        ImGui.PushStyleColor(ImGuiCol.Border, new Vector4(0.5f, 0.5f, 0.5f, 0.5f));
-        ImGui.PushStyleColor(ImGuiCol.FrameBg, new Vector4(0.2f, 0.2f, 0.2f, 0.3f));
-        ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, new Vector4(0.3f, 0.3f, 0.3f, 0.4f));
+        // Inline editable item level - fix vertical alignment
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(4, 2)); // Adjusted padding for better alignment
+        ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 0); // Remove border for cleaner look
+        ImGui.PushStyleColor(ImGuiCol.FrameBg, new Vector4(0.2f, 0.2f, 0.2f, 0.5f));
+        ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, new Vector4(0.3f, 0.3f, 0.3f, 0.6f));
         ImGui.PushStyleColor(ImGuiCol.Text, ColorWarning);
-        ImGui.SetNextItemWidth(45);
+        ImGui.SetNextItemWidth(40); // Slightly narrower
         
         int maxLevel = (int)filters.MaxGearItemLevel;
         if (ImGui.InputInt("##MaxGearItemLevel", ref maxLevel, 0, 0, ImGuiInputTextFlags.CharsDecimal))
@@ -243,7 +250,7 @@ public partial class InventoryManagementModule
             changed = true;
         }
         
-        ImGui.PopStyleColor(4);
+        ImGui.PopStyleColor(3);
         ImGui.PopStyleVar(2);
         
         ImGui.SameLine(0, 2);
@@ -254,9 +261,10 @@ public partial class InventoryManagementModule
         // Help icon
         ImGui.SameLine();
         ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.6f, 0.6f, 0.6f, 1f));
-        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.2f, 0.2f, 0.2f, 1f));
-        ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 8f);
-        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(2, 0));
+        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0, 0, 0, 0)); // Transparent background
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.2f, 0.2f, 0.2f, 0.3f));
+        ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 10f);
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(3, 1)); // Better padding for help button
         
         ImGui.SmallButton("?");
         if (ImGui.IsItemHovered())
@@ -265,7 +273,7 @@ public partial class InventoryManagementModule
         }
         
         ImGui.PopStyleVar(2);
-        ImGui.PopStyleColor(2);
+        ImGui.PopStyleColor(3);
         
         var filterCollectable = filters.FilterCollectables;
         if (DrawFilterItem("Collectables", ref filterCollectable, "Turn-in items", "?"))

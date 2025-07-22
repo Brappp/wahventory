@@ -36,15 +36,30 @@ public partial class InventoryManagementModule
             ImGui.SetNextItemWidth(180f);
             if (ImGui.InputTextWithHint("##Search", "Search items...", ref _searchFilter, 100))
             {
-                _lastCategoryUpdate = DateTime.Now;
+                // Update categories immediately when search changes
+                UpdateCategories();
             }
             
-            // Only update categories after a delay
-            if (_lastCategoryUpdate != DateTime.MinValue && DateTime.Now - _lastCategoryUpdate > _categoryUpdateInterval)
+            // Show clear button if there's text in the search
+            if (!string.IsNullOrWhiteSpace(_searchFilter))
             {
-                UpdateCategories();
-                _lastCategoryUpdate = DateTime.MinValue;
+                ImGui.SameLine();
+                using (var colors = ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.3f, 0.3f, 0.3f, 0.3f))
+                                          .Push(ImGuiCol.ButtonHovered, new Vector4(0.4f, 0.4f, 0.4f, 0.5f)))
+                {
+                    if (ImGui.SmallButton("×"))
+                    {
+                        _searchFilter = string.Empty;
+                        UpdateCategories();
+                    }
+                }
+                if (ImGui.IsItemHovered())
+                {
+                    ImGui.SetTooltip("Clear search");
+                }
             }
+            
+            // Remove the delayed update logic since we now update immediately
             
             ImGui.SameLine();
             using (var font = ImRaii.PushFont(UiBuilder.IconFont))
@@ -354,6 +369,15 @@ public partial class InventoryManagementModule
         lock (_categoriesLock)
         {
             categoriesCopy = new List<CategoryGroup>(_categories);
+        }
+        
+        // Check if search is active and no results found
+        if (!string.IsNullOrWhiteSpace(_searchFilter) && !categoriesCopy.Any(c => c.Items.Count > 0))
+        {
+            ImGui.TextColored(ColorSubdued, $"No items found matching \"{_searchFilter}\"");
+            ImGui.Spacing();
+            ImGui.Text("Try adjusting your search or check the Protected Items tab.");
+            return;
         }
         
         // Remove the extra child wrapper which can cause sizing issues

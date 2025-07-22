@@ -212,7 +212,13 @@ public partial class InventoryManagementModule : IDisposable
                     availableCount = _categories.Sum(c => c.Items.Count);
                 }
                 
-                using (var tabItem = ImRaii.TabItem($"Available Items ({availableCount})"))
+                string availableTabText = $"Available Items ({availableCount})";
+                if (!string.IsNullOrWhiteSpace(_searchFilter))
+                {
+                    availableTabText = $"Available Items ({availableCount} found)";
+                }
+                
+                using (var tabItem = ImRaii.TabItem(availableTabText))
                 {
                     if (tabItem)
                     {
@@ -225,7 +231,15 @@ public partial class InventoryManagementModule : IDisposable
                 }
                 
                 // Protected Items tab
-                using (var tabItem = ImRaii.TabItem($"Protected Items ({filteredItems.Count})"))
+                string protectedTabText = $"Protected Items ({filteredItems.Count})";
+                if (!string.IsNullOrWhiteSpace(_searchFilter))
+                {
+                    // Count how many protected items match the search
+                    var matchingProtected = filteredItems.Count(i => i.Name.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase));
+                    protectedTabText = $"Protected Items ({matchingProtected} found)";
+                }
+                
+                using (var tabItem = ImRaii.TabItem(protectedTabText))
                 {
                     if (tabItem)
                     {
@@ -238,7 +252,37 @@ public partial class InventoryManagementModule : IDisposable
                 }
                 
                 // Blacklist Management tab
-                using (var tabItem = ImRaii.TabItem("Blacklist Management"))
+                string blacklistTabText = "Blacklist Management";
+                if (!string.IsNullOrWhiteSpace(_searchFilter))
+                {
+                    // Count how many blacklisted items match the search
+                    int matchingBlacklist = 0;
+                    foreach (var itemId in Settings.BlacklistedItems)
+                    {
+                        string itemName = null;
+                        lock (_itemsLock)
+                        {
+                            var itemInfo = _allItems.FirstOrDefault(i => i.ItemId == itemId);
+                            itemName = itemInfo?.Name;
+                        }
+                        
+                        if (!string.IsNullOrEmpty(itemName) && itemName.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase))
+                        {
+                            matchingBlacklist++;
+                        }
+                        else if (itemId.ToString().Contains(_searchFilter))
+                        {
+                            matchingBlacklist++;
+                        }
+                    }
+                    
+                    if (matchingBlacklist > 0)
+                    {
+                        blacklistTabText = $"Blacklist Management ({matchingBlacklist} found)";
+                    }
+                }
+                
+                using (var tabItem = ImRaii.TabItem(blacklistTabText))
                 {
                     if (tabItem)
                     {

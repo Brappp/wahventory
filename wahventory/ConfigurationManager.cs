@@ -24,16 +24,13 @@ public class ConfigurationManager
         _pluginInterface = pluginInterface;
         _configDirectory = Path.Combine(_pluginInterface.ConfigDirectory.FullName, "wahventory");
         
-        // Ensure directory exists
         if (!Directory.Exists(_configDirectory))
         {
             Directory.CreateDirectory(_configDirectory);
         }
         
-        // Load configuration
         LoadConfiguration();
         
-        // Migrate from old format if needed
         MigrateIfNeeded();
     }
     
@@ -59,7 +56,6 @@ public class ConfigurationManager
             _configuration = _pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         }
         
-        // Hook up the Save method
         _configuration.Save = SaveConfiguration;
     }
     

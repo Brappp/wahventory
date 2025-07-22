@@ -40,11 +40,9 @@ public partial class InventoryManagementModule : IDisposable
     private readonly IconCache _iconCache;
     private bool _initialized = false;
     
-    // Add properties for separated lists
     public HashSet<uint> BlacklistedItems { get; private set; }
     public HashSet<uint> AutoDiscardItems { get; private set; }
     
-    // Thread safety
     private readonly object _itemsLock = new object();
     private readonly object _categoriesLock = new object();
     private readonly object _selectedItemsLock = new object();
@@ -52,7 +50,9 @@ public partial class InventoryManagementModule : IDisposable
     private readonly object _fetchingPricesLock = new object();
     private readonly object _initLock = new object();
     
-    // Performance optimization
+    private DateTime _lastPriceFetch = DateTime.MinValue;
+    private readonly TimeSpan _priceFetchDelay = TimeSpan.FromSeconds(0.5);
+    
     private DateTime _lastRefresh = DateTime.MinValue;
     private DateTime _lastCategoryUpdate = DateTime.MinValue;
     private readonly TimeSpan _refreshInterval = TimeSpan.FromSeconds(1);
@@ -80,7 +80,6 @@ public partial class InventoryManagementModule : IDisposable
     private string _selectedWorld = "";
     private List<string> _availableWorlds = new();
     
-    // Settings reference
     private InventorySettings Settings => _plugin.Configuration.InventorySettings;
     
     // Discard state
@@ -126,7 +125,6 @@ public partial class InventoryManagementModule : IDisposable
             }
         }
         
-        // Sort alphabetically
         _availableWorlds.Sort();
     }
     
@@ -694,7 +692,6 @@ public partial class InventoryManagementModule : IDisposable
         _universalisClient?.Dispose();
     }
 
-    // Add methods to save the lists
     public void SaveBlacklist()
     {
         _plugin.ConfigManager.SaveBlacklist(BlacklistedItems);

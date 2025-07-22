@@ -14,7 +14,6 @@ namespace wahventory.Modules.Inventory;
 
 public partial class InventoryManagementModule
 {
-    // Search functionality for auto-discard
     private string _autoDiscardItemNameToAdd = string.Empty;
     private uint _autoDiscardItemToAdd = 0;
     private List<(uint Id, string Name, ushort Icon)> _autoDiscardSearchResults = new();
@@ -404,7 +403,6 @@ public partial class InventoryManagementModule
         return $"Unknown Item ({itemId})";
     }
     
-    // Public method to execute auto-discard
     public void ExecuteAutoDiscard()
     {
         if (AutoDiscardItems.Count == 0)

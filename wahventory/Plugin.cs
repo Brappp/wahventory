@@ -31,7 +31,6 @@ public sealed class Plugin : IDalamudPlugin
     private ConfigWindow ConfigWindow { get; init; }
     private MainWindow MainWindow { get; init; }
     
-    // Modules
     private InventoryManagementModule InventoryModule { get; init; }
 
     public Plugin()

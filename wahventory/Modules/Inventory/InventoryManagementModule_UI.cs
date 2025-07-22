@@ -1440,7 +1440,6 @@ public partial class InventoryManagementModule
     
     private string GetItemNameFromBlacklist(uint itemId)
     {
-        // Helper to get item names from the comments in InventoryHelpers.cs
         return itemId switch
         {
             16039 => "Ala Mhigan Earrings",

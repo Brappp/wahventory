@@ -15,7 +15,6 @@ namespace wahventory.Modules.Inventory;
 
 public partial class InventoryManagementModule
 {
-    // Search functionality
     private string _itemNameToAdd = string.Empty;
     private uint _itemToAdd = 0;
     private List<(uint Id, string Name, ushort Icon)> _searchResults = new();
@@ -413,7 +412,6 @@ public partial class InventoryManagementModule
     
     private string GetItemNameFromComment(uint itemId)
     {
-        // Helper to get item names from the comments in InventoryHelpers.cs
         return itemId switch
         {
             16039 => "Ala Mhigan Earrings",

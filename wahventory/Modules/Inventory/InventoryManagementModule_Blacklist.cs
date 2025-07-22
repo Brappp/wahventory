@@ -15,11 +15,11 @@ namespace wahventory.Modules.Inventory;
 
 public partial class InventoryManagementModule
 {
-    // UI state for blacklist management
-    private string _blacklistSearchFilter = string.Empty;
-    private uint _itemToAdd = 0;
+    // Search functionality
     private string _itemNameToAdd = string.Empty;
+    private uint _itemToAdd = 0;
     private List<(uint Id, string Name, ushort Icon)> _searchResults = new();
+    // Removed _blacklistSearchFilter since we now use the main _searchFilter
     private bool _searchingItems = false;
     private DateTime _lastSearchTime = DateTime.MinValue;
     private readonly TimeSpan _searchDebounce = TimeSpan.FromMilliseconds(300);
@@ -188,13 +188,7 @@ public partial class InventoryManagementModule
         // Header with count
         ImGui.Text($"Your Custom Blacklist ({Settings.BlacklistedItems.Count} items)");
         
-        // Search filter
-        ImGui.SameLine();
-        var windowWidth = ImGui.GetWindowContentRegionMax().X;
-        ImGui.SameLine(windowWidth - 210);
-        ImGui.SetNextItemWidth(200);
-        ImGui.InputTextWithHint("##BlacklistFilter", "Filter blacklist...", ref _blacklistSearchFilter, 100);
-        
+        // Remove the separate search filter input since we'll use the main search bar
         ImGui.Spacing();
         
         if (!Settings.BlacklistedItems.Any())
@@ -204,10 +198,10 @@ public partial class InventoryManagementModule
         }
         else
         {
-            // Filter the items if needed
+            // Filter the items using the main search filter
             var itemsToShow = Settings.BlacklistedItems.AsEnumerable();
             
-            if (!string.IsNullOrWhiteSpace(_blacklistSearchFilter))
+            if (!string.IsNullOrWhiteSpace(_searchFilter))
             {
                 var filteredIds = new List<uint>();
                 foreach (var itemId in Settings.BlacklistedItems)
@@ -239,8 +233,8 @@ public partial class InventoryManagementModule
                     
                     itemName ??= GetItemNameFromComment(itemId);
                     
-                    if (itemName.Contains(_blacklistSearchFilter, StringComparison.OrdinalIgnoreCase) ||
-                        itemId.ToString().Contains(_blacklistSearchFilter))
+                    if (itemName.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase) ||
+                        itemId.ToString().Contains(_searchFilter))
                     {
                         filteredIds.Add(itemId);
                     }

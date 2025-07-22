@@ -25,7 +25,6 @@ public partial class InventoryManagementModule
         
         ImGui.Begin("Confirm Discard##DiscardConfirmation", ref _isDiscarding, ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoCollapse);
         
-        // Header with warning
         using (var color = ImRaii.PushColor(ImGuiCol.ChildBg, new Vector4(0.541f, 0.227f, 0.227f, 0.3f)))
         {
             using (var child = ImRaii.Child("WarningHeader", new Vector2(0, 36), true, ImGuiWindowFlags.NoScrollbar))
@@ -42,7 +41,6 @@ public partial class InventoryManagementModule
         
         ImGui.Spacing();
         
-        // Summary section
         using (var color = ImRaii.PushColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f)))
         {
             using (var child = ImRaii.Child("SummarySection", new Vector2(0, 80), true))
@@ -63,7 +61,6 @@ public partial class InventoryManagementModule
             }
         }
         
-        // Error display
         if (!string.IsNullOrEmpty(_discardError))
         {
             ImGui.Spacing();
@@ -76,7 +73,6 @@ public partial class InventoryManagementModule
             }
         }
         
-        // Progress bar
         if (_discardProgress > 0)
         {
             ImGui.Spacing();
@@ -89,7 +85,6 @@ public partial class InventoryManagementModule
         
         ImGui.Spacing();
         
-        // Buttons
         DrawDiscardButtons();
         
         ImGui.End();
@@ -104,7 +99,6 @@ public partial class InventoryManagementModule
         
         ImGui.Columns(3, "SummaryColumns", false);
         
-        // Total Items
         using (var font = ImRaii.PushFont(UiBuilder.IconFont))
         {
             ImGui.TextColored(ColorInfo, FontAwesomeIcon.List.ToIconString());
@@ -115,7 +109,6 @@ public partial class InventoryManagementModule
         
         ImGui.NextColumn();
         
-        // Total Quantity
         using (var font = ImRaii.PushFont(UiBuilder.IconFont))
         {
             ImGui.TextColored(ColorInfo, FontAwesomeIcon.LayerGroup.ToIconString());
@@ -126,7 +119,6 @@ public partial class InventoryManagementModule
         
         ImGui.NextColumn();
         
-        // Market Value
         using (var font = ImRaii.PushFont(UiBuilder.IconFont))
         {
             ImGui.TextColored(ColorPrice, FontAwesomeIcon.Coins.ToIconString());
@@ -167,11 +159,9 @@ public partial class InventoryManagementModule
                 {
                     ImGui.TableNextRow();
                     
-                    // ID column
                     ImGui.TableNextColumn();
                     ImGui.Text(item.ItemId.ToString());
                     
-                    // Item name with icon
                     ImGui.TableNextColumn();
                     if (item.IconId > 0)
                     {
@@ -189,15 +179,12 @@ public partial class InventoryManagementModule
                         ImGui.TextColored(ColorHQItem, "[HQ]");
                     }
                     
-                    // Quantity
                     ImGui.TableNextColumn();
                     ImGui.Text(item.Quantity.ToString());
                     
-                    // Location
                     ImGui.TableNextColumn();
                     ImGui.Text(GetLocationName(item.Container));
                     
-                    // Value
                     ImGui.TableNextColumn();
                     if (item.MarketPrice.HasValue && item.MarketPrice.Value > 0)
                     {
@@ -216,10 +203,8 @@ public partial class InventoryManagementModule
     {
         ImGui.TableNextRow();
         
-        // Item name column with icon
         ImGui.TableNextColumn();
         
-        // Item icon and name aligned properly  
         var iconSize = new Vector2(20, 20);
         if (item.IconId > 0)
         {
@@ -227,21 +212,19 @@ public partial class InventoryManagementModule
             if (icon != null)
             {
                 var startY = ImGui.GetCursorPosY();
-                ImGui.SetCursorPosY(startY - 2);  // Lower the icon by 2 pixels
+                ImGui.SetCursorPosY(startY - 2);
                 ImGui.Image(icon.ImGuiHandle, iconSize);
                 ImGui.SetCursorPosY(startY);
                 ImGui.SameLine(0, 5);
             }
             else
             {
-                // Reserve space for missing icon
                 ImGui.Dummy(iconSize);
                 ImGui.SameLine(0, 5);
             }
         }
         else
         {
-            // Reserve space for missing icon
             ImGui.Dummy(iconSize);
             ImGui.SameLine(0, 5);
         }
@@ -253,11 +236,9 @@ public partial class InventoryManagementModule
             ImGui.SameLine();
             ImGui.TextColored(ColorHQItem, " [HQ]");
         }
-        // Quantity column
         ImGui.TableNextColumn();
         ImGui.Text($"{item.Quantity}");
         
-        // Item Level column
         ImGui.TableNextColumn();
         if (item.ItemLevel > 0)
         {
@@ -268,13 +249,11 @@ public partial class InventoryManagementModule
             ImGui.TextColored(ColorSubdued, "-");
         }
         
-        // Location column
         ImGui.TableNextColumn();
         ImGui.Text(GetContainerDisplayName(item.Container));
         
         if (Settings.ShowMarketPrices)
         {
-            // Price column
             ImGui.TableNextColumn();
             if (!item.CanBeTraded)
             {
@@ -293,7 +272,6 @@ public partial class InventoryManagementModule
                 ImGui.TextColored(ColorLoading, "Loading...");
             }
             
-            // Total value column
             ImGui.TableNextColumn();
             if (!item.CanBeTraded)
             {
@@ -315,7 +293,6 @@ public partial class InventoryManagementModule
         }
         else
         {
-            // Status column
             ImGui.TableNextColumn();
             if (!item.CanBeTraded)
             {

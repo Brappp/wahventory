@@ -75,7 +75,6 @@ public partial class InventoryManagementModule : IDisposable
     private string _selectedWorld = "";
     private List<string> _availableWorlds = new();
     
-    // Settings references
     private InventorySettings Settings => _plugin.Configuration.InventorySettings;
     
     // Discard state
@@ -153,7 +152,6 @@ public partial class InventoryManagementModule : IDisposable
     
     public void Draw()
     {
-        // Mark window as open for price fetching optimization
         _windowIsOpen = true;
         
         // Ensure initialization before drawing
@@ -202,7 +200,7 @@ public partial class InventoryManagementModule : IDisposable
                 List<InventoryItemInfo> filteredItems;
                 lock (_itemsLock)
                 {
-                    filteredItems = GetFilteredOutItems();
+                    filteredItems = GetProtectedItems();
                 }
                 
                 // Available Items tab
@@ -238,7 +236,7 @@ public partial class InventoryManagementModule : IDisposable
                         // Use calculated height to fill available space
                         using (var child = ImRaii.Child("ProtectedContent", new Vector2(0, contentHeight), false))
                         {
-                            DrawFilteredItemsTab(filteredItems);
+                            DrawProtectedItemsTab(filteredItems);
                         }
                     }
                 }

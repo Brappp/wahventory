@@ -36,7 +36,6 @@ public partial class InventoryManagementModule
             ImGui.SetNextItemWidth(180f);
             if (ImGui.InputTextWithHint("##Search", "Search items...", ref _searchFilter, 100))
             {
-                // Update categories immediately when search changes
                 UpdateCategories();
             }
             
@@ -58,8 +57,6 @@ public partial class InventoryManagementModule
                     ImGui.SetTooltip("Clear search");
                 }
             }
-            
-            // Remove the delayed update logic since we now update immediately
             
             ImGui.SameLine();
             using (var font = ImRaii.PushFont(UiBuilder.IconFont))
@@ -129,7 +126,6 @@ public partial class InventoryManagementModule
             }
         }
         
-        // Add spacing after the top bar
         ImGui.Spacing();
     }
     
@@ -154,8 +150,6 @@ public partial class InventoryManagementModule
             ImGui.Spacing();
             
             DrawFilterGrid();
-            
-            // Removed bottom spacing to reduce padding
         }
     }
     
@@ -204,7 +198,6 @@ public partial class InventoryManagementModule
         ImGui.SetColumnWidth(1, columnWidth);
         ImGui.SetColumnWidth(2, columnWidth);
         
-        // Column 1
         var filterUltimate = filters.FilterUltimateTokens;
         if (DrawFilterItem("Ultimate Tokens", ref filterUltimate, "Raid tokens, preorder items", "?"))
         {
@@ -228,7 +221,6 @@ public partial class InventoryManagementModule
         
         ImGui.NextColumn();
         
-        // Column 2
         var filterCrystals = filters.FilterCrystalsAndShards;
         if (DrawFilterItem("Crystals & Shards", ref filterCrystals, "Crafting materials", "?"))
         {
@@ -296,7 +288,6 @@ public partial class InventoryManagementModule
         
         ImGui.NextColumn();
         
-        // Column 3
         var filterGearset = filters.FilterGearsetItems;
         if (DrawFilterItem("Gearset Items", ref filterGearset, "Equipment in any gearset", "?"))
         {
@@ -436,7 +427,6 @@ public partial class InventoryManagementModule
                 }
             }
             
-            // Add small spacing between categories to prevent stretching
             ImGui.Spacing();
         }
     }
@@ -1203,20 +1193,19 @@ public partial class InventoryManagementModule
         };
     }
     
-    private void DrawFilteredItemsTab(List<InventoryItemInfo> filteredItems)
+    private void DrawProtectedItemsTab(List<InventoryItemInfo> protectedItems)
     {
-        // Section 1: Items filtered by current filter settings
         ImGui.Text("Items Protected by Active Filters:");
         ImGui.Spacing();
         
-        if (!filteredItems.Any())
+        if (!protectedItems.Any())
         {
             ImGui.TextColored(new Vector4(0.6f, 0.8f, 0.6f, 1), "No items are currently being filtered out.");
             ImGui.Text("All items in your inventory are available for selection.");
         }
         else
         {
-            var filteredCategories = filteredItems
+            var filteredCategories = protectedItems
                 .GroupBy(i => new { i.ItemUICategory, i.CategoryName })
                 .Select(categoryGroup => new
                 {
@@ -1249,7 +1238,7 @@ public partial class InventoryManagementModule
                             ExpandedCategories[category.CategoryId] = true;
                             _expandedCategoriesChanged = true;
                             
-                            DrawFilteredItemsTable(category.Items);
+                            DrawProtectedItemsTable(category.Items);
                         }
                         else
                         {
@@ -1259,7 +1248,6 @@ public partial class InventoryManagementModule
                     }
                 }
                 
-                // Add small spacing between categories to prevent stretching
                 ImGui.Spacing();
             }
         }
@@ -1444,7 +1432,7 @@ public partial class InventoryManagementModule
         };
     }
     
-    private void DrawFilteredItemsTable(List<InventoryItemInfo> items)
+    private void DrawProtectedItemsTable(List<InventoryItemInfo> items)
     {
         using var style = ImRaii.PushStyle(ImGuiStyleVar.CellPadding, new Vector2(4, 2))
                                 .Push(ImGuiStyleVar.ItemSpacing, new Vector2(4, 2));
@@ -1483,13 +1471,13 @@ public partial class InventoryManagementModule
                 
                 foreach (var item in items)
                 {
-                    DrawFilteredItemRow(item);
+                    DrawProtectedItemRow(item);
                 }
             }
         }
     }
     
-    private void DrawFilteredItemRow(InventoryItemInfo item)
+    private void DrawProtectedItemRow(InventoryItemInfo item)
     {
         ImGui.TableNextRow();
         using var id = ImRaii.PushId(item.GetUniqueKey());
@@ -1647,7 +1635,7 @@ public partial class InventoryManagementModule
         };
     }
     
-    private List<InventoryItemInfo> GetFilteredOutItems()
+    private List<InventoryItemInfo> GetProtectedItems()
     {
         // NOTE: This method should be called inside a lock(_itemsLock)
         var allItems = _originalItems.AsEnumerable();
@@ -1785,7 +1773,7 @@ public partial class InventoryManagementModule
             int protectedItems;
             lock (_itemsLock)
             {
-                protectedItems = GetFilteredOutItems().Count;
+                protectedItems = GetProtectedItems().Count;
             }
             
             // Right-align statistics with tighter spacing

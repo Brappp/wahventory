@@ -1,6 +1,5 @@
 using System;
 using System.Numerics;
-using Dalamud.Interface.Utility;
 using Dalamud.Interface.Windowing;
 using ImGuiNET;
 using wahventory.Modules.Inventory;
@@ -24,7 +23,6 @@ public class MainWindow : Window, IDisposable
         Plugin = plugin;
         InventoryModule = inventoryModule;
         
-        // Set initial size - window will adjust based on content
         Size = new Vector2(900, 600);
         SizeCondition = ImGuiCond.FirstUseEver;
     }
@@ -33,7 +31,6 @@ public class MainWindow : Window, IDisposable
 
     public override void Draw()
     {
-        // Draw the inventory module interface
         InventoryModule.Draw();
     }
 }

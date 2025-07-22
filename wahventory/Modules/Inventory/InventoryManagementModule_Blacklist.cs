@@ -19,44 +19,39 @@ public partial class InventoryManagementModule
     private string _itemNameToAdd = string.Empty;
     private uint _itemToAdd = 0;
     private List<(uint Id, string Name, ushort Icon)> _searchResults = new();
-    // Removed _blacklistSearchFilter since we now use the main _searchFilter
+    
     private bool _searchingItems = false;
     private DateTime _lastSearchTime = DateTime.MinValue;
-    private readonly TimeSpan _searchDebounce = TimeSpan.FromMilliseconds(300);
+    private readonly TimeSpan _searchDelay = TimeSpan.FromMilliseconds(300);
     
     private void DrawBlacklistTab()
     {
-        // Remove the extra child wrapper to prevent sizing issues
-        // Header with explanation
         ImGui.TextWrapped("Manage your custom blacklist. Items added here will never be selected for discard.");
         ImGui.TextWrapped("This is in addition to the built-in safety lists shown in the Protected Items tab.");
         ImGui.Spacing();
         
-        // Add item section
         DrawAddToBlacklistSection();
         
         ImGui.Separator();
         ImGui.Spacing();
         
-        // Current blacklist
         DrawCurrentBlacklist();
     }
     
     private void DrawAddToBlacklistSection()
     {
-        ImGui.Text("Add Item to Blacklist:");
+        ImGui.Text("Add New Item to Blacklist:");
+        ImGui.Spacing();
         
-        // Search for item to add
+        // Item search input
         ImGui.SetNextItemWidth(300);
-        if (ImGui.InputTextWithHint("##BlacklistSearch", "Search for item to add...", ref _itemNameToAdd, 100))
+        if (ImGui.InputTextWithHint("##AddItemName", "Search item name...", ref _itemNameToAdd, 100))
         {
-            _itemToAdd = 0;
             _lastSearchTime = DateTime.Now;
             _searchingItems = true;
         }
         
-        // Perform search after debounce
-        if (_searchingItems && DateTime.Now - _lastSearchTime > _searchDebounce)
+        if (_searchingItems && DateTime.Now - _lastSearchTime > _searchDelay)
         {
             SearchItems(_itemNameToAdd);
             _searchingItems = false;
@@ -65,11 +60,13 @@ public partial class InventoryManagementModule
         ImGui.SameLine();
         
         // Add by ID
+        ImGui.Text("or ID:");
+        ImGui.SameLine();
         ImGui.SetNextItemWidth(100);
-        int itemIdInput = (int)_itemToAdd;
-        if (ImGui.InputInt("Item ID", ref itemIdInput, 0, 0))
+        int itemId = (int)_itemToAdd;
+        if (ImGui.InputInt("##AddItemId", ref itemId, 0, 0))
         {
-            _itemToAdd = itemIdInput >= 0 ? (uint)itemIdInput : 0;
+            _itemToAdd = (uint)Math.Max(0, itemId);
         }
         
         ImGui.SameLine();
@@ -93,7 +90,6 @@ public partial class InventoryManagementModule
             }
         }
         
-        // Show search results
         DrawSearchResults();
     }
     
@@ -185,10 +181,8 @@ public partial class InventoryManagementModule
     
     private void DrawCurrentBlacklist()
     {
-        // Header with count
         ImGui.Text($"Your Custom Blacklist ({Settings.BlacklistedItems.Count} items)");
         
-        // Remove the separate search filter input since we'll use the main search bar
         ImGui.Spacing();
         
         if (!Settings.BlacklistedItems.Any())

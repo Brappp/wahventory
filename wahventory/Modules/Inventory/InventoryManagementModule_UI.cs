@@ -340,11 +340,17 @@ public partial class InventoryManagementModule
                         _selectedWorld = world;
                         _universalisClient.Dispose();
                         _universalisClient = new UniversalisClient(Plugin.Log, _selectedWorld);
-                        _priceCache.Clear();
-                        foreach (var item in _allItems)
+                        lock (_priceCacheLock)
                         {
-                            item.MarketPrice = null;
-                            item.MarketPriceFetchTime = null;
+                            _priceCache.Clear();
+                        }
+                        lock (_itemsLock)
+                        {
+                            foreach (var item in _allItems)
+                            {
+                                item.MarketPrice = null;
+                                item.MarketPriceFetchTime = null;
+                            }
                         }
                     }
                 }
@@ -377,71 +383,6 @@ public partial class InventoryManagementModule
         ImGui.PopStyleColor();
         ImGui.PopStyleVar(2);
     }
-    
-    private void DrawCompactMarketSettings()
-    {
-        ImGui.Text("Market:");
-        ImGui.SameLine();
-        
-        var showPrices = Settings.ShowMarketPrices;
-        if (ImGui.Checkbox("Prices", ref showPrices))
-        {
-            Settings.ShowMarketPrices = showPrices;
-            _plugin.Configuration.Save();
-        }
-        
-        ImGui.SameLine();
-        ImGui.Text("World:");
-        ImGui.SameLine();
-        ImGui.SetNextItemWidth(100);
-        if (ImGui.BeginCombo("##World", _selectedWorld))
-        {
-            foreach (var world in _availableWorlds)
-            {
-                bool isSelected = world == _selectedWorld;
-                if (ImGui.Selectable(world, isSelected))
-                {
-                    _selectedWorld = world;
-                    _universalisClient.Dispose();
-                    _universalisClient = new UniversalisClient(Plugin.Log, _selectedWorld);
-                    _priceCache.Clear();
-                    foreach (var item in _allItems)
-                    {
-                        item.MarketPrice = null;
-                        item.MarketPriceFetchTime = null;
-                    }
-                }
-            }
-            ImGui.EndCombo();
-        }
-        
-        ImGui.SameLine();
-        ImGui.Text("Cache:");
-        ImGui.SameLine();
-        ImGui.SetNextItemWidth(50);
-        var cacheMinutes = Settings.PriceCacheDurationMinutes;
-        if (ImGui.InputInt("##Cache", ref cacheMinutes, 0))
-        {
-            Settings.PriceCacheDurationMinutes = Math.Max(1, cacheMinutes);
-            _plugin.Configuration.Save();
-        }
-        ImGui.SameLine();
-        ImGui.Text("min");
-        
-        ImGui.SameLine();
-        var autoRefresh = Settings.AutoRefreshPrices;
-        if (ImGui.Checkbox("Auto-refresh", ref autoRefresh))
-        {
-            Settings.AutoRefreshPrices = autoRefresh;
-            _plugin.Configuration.Save();
-        }
-    }
-    
-    private void DrawTabBar()
-    {
-        // This method is no longer used since we removed the top buttons
-    }
-
     
     private void DrawAvailableItemsTab()
     {
@@ -490,10 +431,13 @@ public partial class InventoryManagementModule
                 // Immediately fetch prices for visible tradable items in this category
                 if (Settings.ShowMarketPrices)
                 {
-                    var tradableItems = category.Items.Where(i => i.CanBeTraded && !i.MarketPrice.HasValue && !_fetchingPrices.Contains(i.ItemId)).Take(2);
-                    foreach (var item in tradableItems)
+                    lock (_fetchingPricesLock)
                     {
-                        _ = FetchMarketPrice(item);
+                        var tradableItems = category.Items.Where(i => i.CanBeTraded && !i.MarketPrice.HasValue && !_fetchingPrices.Contains(i.ItemId)).Take(2);
+                        foreach (var item in tradableItems)
+                        {
+                            _ = FetchMarketPrice(item);
+                        }
                     }
                 }
                 
@@ -512,29 +456,42 @@ public partial class InventoryManagementModule
     private void DrawCategoryItems(CategoryGroup category)
     {
         // Make table more compact
-        ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 4));
+        ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 3));
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(4, 3));
         
         // Force table to start at the left edge with window padding
         var windowPadding = ImGui.GetStyle().WindowPadding.X;
         ImGui.SetCursorPosX(windowPadding);
         
-        if (ImGui.BeginTable($"ItemTable_{category.Name}", Settings.ShowMarketPrices ? 7 : 6, 
-        ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
+        if (ImGui.BeginTable($"ItemTable_{category.Name}", Settings.ShowMarketPrices ? 8 : 7, 
+            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable | 
+            ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.ScrollX))
         {
-        ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed, 25);
-        ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch);
-        ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed, 40);
-        ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed, 40);
-        ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, 100);
-        if (Settings.ShowMarketPrices)
-        {
-        ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, 80);
-            ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed, 80);
-        }
-        else
-        {
-            ImGui.TableSetupColumn("Status", ImGuiTableColumnFlags.WidthFixed, 120);
-                }
+            // Calculate dynamic widths based on content
+            float checkboxWidth = 22;
+            float idWidth = ImGui.CalcTextSize("99999").X + 8;
+            float qtyWidth = ImGui.CalcTextSize("999").X + 8;
+            float ilvlWidth = ImGui.CalcTextSize("999").X + 8;
+            float locationWidth = ImGui.CalcTextSize("P.Saddlebag 9").X + 8;
+            
+            ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, checkboxWidth);
+            ImGui.TableSetupColumn("ID", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHide, idWidth);
+            ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch | ImGuiTableColumnFlags.NoHide, 1.0f);
+            ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHide, qtyWidth);
+            ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed, ilvlWidth);
+            ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, locationWidth);
+            if (Settings.ShowMarketPrices)
+            {
+                float priceWidth = ImGui.CalcTextSize("999,999g").X + 8;
+                float totalWidth = ImGui.CalcTextSize("9,999,999g").X + 8;
+                ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, priceWidth);
+                ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed, totalWidth);
+            }
+            else
+            {
+                float statusWidth = ImGui.CalcTextSize("Not Discardable").X + 8;
+                ImGui.TableSetupColumn("Status", ImGuiTableColumnFlags.WidthFixed, statusWidth);
+            }
             
             ImGui.TableHeadersRow();
             
@@ -546,7 +503,7 @@ public partial class InventoryManagementModule
             ImGui.EndTable();
         }
         
-        ImGui.PopStyleVar(); // Pop CellPadding
+        ImGui.PopStyleVar(2); // Pop CellPadding and ItemSpacing
     }
     
     private void DrawCategoryControls(CategoryGroup category)
@@ -652,6 +609,10 @@ public partial class InventoryManagementModule
                 }
             }
         }
+        
+        // Item ID column
+        ImGui.TableNextColumn();
+        ImGui.TextColored(ColorSubdued, item.ItemId.ToString());
         
         // Item name with icon
         ImGui.TableNextColumn();
@@ -1046,28 +1007,40 @@ public partial class InventoryManagementModule
     
     private void DrawFilteredItemsTable(List<InventoryItemInfo> items)
     {
-        ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 4));
+        ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 3));
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(4, 3));
         
         // Force table to start at the left edge with window padding
         var windowPadding = ImGui.GetStyle().WindowPadding.X;
         ImGui.SetCursorPosX(windowPadding);
         
-        if (ImGui.BeginTable("FilteredItemsTable", Settings.ShowMarketPrices ? 6 : 5, 
-        ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
+        if (ImGui.BeginTable("FilteredItemsTable", Settings.ShowMarketPrices ? 7 : 6, 
+            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable |
+            ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.ScrollX))
         {
-        ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch);
-        ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed, 40);
-        ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed, 40);
-        ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, 100);
-        if (Settings.ShowMarketPrices)
-        {
-        ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, 80);
-            ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed, 80);
-        }
-        else
-        {
-            ImGui.TableSetupColumn("Reason", ImGuiTableColumnFlags.WidthFixed, 120);
-                }
+            // Calculate dynamic widths based on content
+            float idWidth = ImGui.CalcTextSize("99999").X + 8;
+            float qtyWidth = ImGui.CalcTextSize("999").X + 8;
+            float ilvlWidth = ImGui.CalcTextSize("999").X + 8;
+            float locationWidth = ImGui.CalcTextSize("P.Saddlebag 9").X + 8;
+            
+            ImGui.TableSetupColumn("ID", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHide, idWidth);
+            ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch | ImGuiTableColumnFlags.NoHide, 1.0f);
+            ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHide, qtyWidth);
+            ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed, ilvlWidth);
+            ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, locationWidth);
+            if (Settings.ShowMarketPrices)
+            {
+                float priceWidth = ImGui.CalcTextSize("999,999g").X + 8;
+                float totalWidth = ImGui.CalcTextSize("9,999,999g").X + 8;
+                ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, priceWidth);
+                ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed, totalWidth);
+            }
+            else
+            {
+                float reasonWidth = ImGui.CalcTextSize("Unique & Untradeable").X + 8;
+                ImGui.TableSetupColumn("Reason", ImGuiTableColumnFlags.WidthFixed, reasonWidth);
+            }
             
             ImGui.TableHeadersRow();
             
@@ -1079,12 +1052,18 @@ public partial class InventoryManagementModule
             ImGui.EndTable();
         }
         
-        ImGui.PopStyleVar(); // Pop CellPadding
+        ImGui.PopStyleVar(2); // Pop CellPadding and ItemSpacing
     }
     
     private void DrawFilteredItemRow(InventoryItemInfo item)
     {
         ImGui.TableNextRow();
+        
+        // ID column
+        ImGui.TableNextColumn();
+        ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.6f, 0.6f, 0.6f, 1));
+        ImGui.Text(item.ItemId.ToString());
+        ImGui.PopStyleColor();
         
         ImGui.TableNextColumn();
         
@@ -1197,7 +1176,7 @@ public partial class InventoryManagementModule
             return "Indisposable";
         if (filters.FilterHighLevelGear && item.EquipSlotCategory > 0 && item.ItemLevel >= filters.MaxGearItemLevel)
             return $"High Level (i{item.ItemLevel})";
-        if (filters.FilterUniqueUntradeable && item.IsUnique && item.IsUntradable && !InventoryHelpers.SafeUniqueItems.Contains(item.ItemId))
+        if (filters.FilterUniqueUntradeable && item.IsUnique && item.IsUntradable)
             return "Unique & Untradeable";
         if (filters.FilterHQItems && item.IsHQ)
             return "High Quality";
@@ -1287,12 +1266,12 @@ public partial class InventoryManagementModule
                 _selectedItems.Clear();
             }
             lock (_itemsLock)
+            {
+                foreach (var item in _allItems)
                 {
-                    foreach (var item in _allItems)
-                    {
-                        item.IsSelected = false;
-                    }
+                    item.IsSelected = false;
                 }
+            }
         }
         
         ImGui.SameLine();
@@ -1318,6 +1297,27 @@ public partial class InventoryManagementModule
         {
             ImGui.BeginDisabled();
             ImGui.Button(discardButtonText, new Vector2(80, 0));
+            ImGui.EndDisabled();
+        }
+        ImGui.PopStyleColor(2);
+        
+        ImGui.SameLine();
+        
+        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.227f, 0.227f, 0.541f, 1f));
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.327f, 0.327f, 0.641f, 1f));
+        var blacklistButtonText = $"Add to Blacklist ({selectedCount})";
+        
+        if (selectedCount > 0)
+        {
+            if (ImGui.Button(blacklistButtonText, new Vector2(120, 0)))
+            {
+                AddSelectedToBlacklist();
+            }
+        }
+        else
+        {
+            ImGui.BeginDisabled();
+            ImGui.Button(blacklistButtonText, new Vector2(120, 0));
             ImGui.EndDisabled();
         }
         ImGui.PopStyleColor(2);
@@ -1366,5 +1366,49 @@ public partial class InventoryManagementModule
         ImGui.EndChild();
         ImGui.PopStyleColor();
         ImGui.PopStyleVar();
+    }
+    
+    private void AddSelectedToBlacklist()
+    {
+        List<uint> itemsToAdd;
+        lock (_selectedItemsLock)
+        {
+            itemsToAdd = new List<uint>(_selectedItems);
+        }
+        
+        int addedCount = 0;
+        foreach (var itemId in itemsToAdd)
+        {
+            if (!Settings.BlacklistedItems.Contains(itemId))
+            {
+                Settings.BlacklistedItems.Add(itemId);
+                addedCount++;
+            }
+        }
+        
+        if (addedCount > 0)
+        {
+            _plugin.Configuration.Save();
+            
+            // Clear selections
+            lock (_selectedItemsLock)
+            {
+                _selectedItems.Clear();
+            }
+            lock (_itemsLock)
+            {
+                foreach (var item in _allItems)
+                {
+                    item.IsSelected = false;
+                }
+            }
+            
+            RefreshInventory();
+            Plugin.ChatGui.Print($"Added {addedCount} items to blacklist.");
+        }
+        else
+        {
+            Plugin.ChatGui.PrintError("All selected items are already blacklisted.");
+        }
     }
 }

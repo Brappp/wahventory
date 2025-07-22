@@ -255,6 +255,21 @@ public partial class InventoryManagementModule : IDisposable
                         }
                     }
                 }
+                
+                // Auto Discard tab
+                string autoDiscardTabText = "Auto Discard###AutoDiscardTab";
+                
+                using (var tabItem = ImRaii.TabItem(autoDiscardTabText))
+                {
+                    if (tabItem)
+                    {
+                        // Use calculated height to fill available space
+                        using (var child = ImRaii.Child("AutoDiscardContent", new Vector2(0, contentHeight), false))
+                        {
+                            DrawAutoDiscardTab();
+                        }
+                    }
+                }
             }
         }
         

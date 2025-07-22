@@ -124,6 +124,25 @@ public partial class InventoryManagementModule
                     }
                 }
             }
+            
+            // Right-align total value
+            var windowWidth = ImGui.GetWindowContentRegionMax().X;
+            long totalValue;
+            lock (_categoriesLock)
+            {
+                totalValue = _categories.Sum(c => c.TotalValue ?? 0);
+            }
+            
+            var totalText = $"Total: {totalValue:N0} gil";
+            var totalTextWidth = ImGui.CalcTextSize(totalText).X;
+            ImGui.SameLine(windowWidth - totalTextWidth);
+            
+            using (var font = ImRaii.PushFont(UiBuilder.IconFont))
+            {
+                ImGui.TextColored(ColorWarning, FontAwesomeIcon.Coins.ToIconString());
+            }
+            ImGui.SameLine(0, 4);
+            ImGui.TextColored(ColorPrice, $"{totalValue:N0} gil");
         }
         
         ImGui.Spacing();
@@ -1694,12 +1713,16 @@ public partial class InventoryManagementModule
             var clearButtonText = "Clear All";
             var discardButtonText = $"Discard ({selectedCount})";
             var blacklistButtonText = $"Add to Blacklist ({selectedCount})";
+            var autoDiscardButtonText = $"Add to Auto-Discard ({selectedCount})";
+            var executeAutoDiscardText = "Execute Auto Discard";
             
             // Calculate minimum widths based on text size with padding
             var buttonPadding = 20f; // Extra padding for button aesthetics
             var clearButtonWidth = Math.Max(80f, ImGui.CalcTextSize(clearButtonText).X + buttonPadding);
             var discardButtonWidth = Math.Max(80f, ImGui.CalcTextSize(discardButtonText).X + buttonPadding);
             var blacklistButtonWidth = Math.Max(120f, ImGui.CalcTextSize(blacklistButtonText).X + buttonPadding);
+            var autoDiscardButtonWidth = Math.Max(140f, ImGui.CalcTextSize(autoDiscardButtonText).X + buttonPadding);
+            var executeAutoDiscardWidth = Math.Max(140f, ImGui.CalcTextSize(executeAutoDiscardText).X + buttonPadding);
             
             if (ImGui.Button(clearButtonText, new Vector2(clearButtonWidth, 0)))
             {
@@ -1758,90 +1781,114 @@ public partial class InventoryManagementModule
                 }
             }
             
-            // Visual separator
             ImGui.SameLine();
-            ImGui.Text(" ");
             
-            // Center/Right side - Statistics
-            long totalValue;
-            int availableItems;
-            lock (_categoriesLock)
+            using (var btnColors = ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.541f, 0.341f, 0.127f, 1f))
+                                         .Push(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.441f, 0.227f, 1f)))
             {
-                totalValue = _categories.Sum(c => c.TotalValue ?? 0);
-                availableItems = _categories.Sum(c => c.Items.Count);
+                if (selectedCount > 0)
+                {
+                    if (ImGui.Button(autoDiscardButtonText, new Vector2(autoDiscardButtonWidth, 0)))
+                    {
+                        AddSelectedToAutoDiscard();
+                    }
+                }
+                else
+                {
+                    using (var disabled = ImRaii.Disabled())
+                    {
+                        ImGui.Button(autoDiscardButtonText, new Vector2(autoDiscardButtonWidth, 0));
+                    }
+                }
             }
-            int protectedItems;
-            lock (_itemsLock)
+            
+            // Execute Auto Discard button
+            ImGui.SameLine();
+            
+            using (var btnColors = ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.7f, 0.2f, 0.2f, 1f))
+                                         .Push(ImGuiCol.ButtonHovered, new Vector4(0.8f, 0.3f, 0.3f, 1f)))
             {
-                protectedItems = GetProtectedItems().Count;
+                bool hasAutoDiscardItems = Settings.AutoDiscardItems.Count > 0;
+                
+                if (hasAutoDiscardItems)
+                {
+                    if (ImGui.Button(executeAutoDiscardText, new Vector2(executeAutoDiscardWidth, 0)))
+                    {
+                        ExecuteAutoDiscard();
+                    }
+                    
+                    if (ImGui.IsItemHovered())
+                    {
+                        ImGui.SetTooltip("Execute auto-discard for configured items");
+                    }
+                }
+                else
+                {
+                    using (var disabled = ImRaii.Disabled())
+                    {
+                        ImGui.Button(executeAutoDiscardText, new Vector2(executeAutoDiscardWidth, 0));
+                    }
+                    
+                    if (ImGui.IsItemHovered())
+                    {
+                        ImGui.SetTooltip("No items configured for auto-discard");
+                    }
+                }
             }
-            
-            // Right-align statistics with tighter spacing
-            var windowWidth = ImGui.GetWindowContentRegionMax().X;
-            
-            // Calculate positions for each stat group
-            var protectedPos = windowWidth - 100;
-            var availablePos = protectedPos - 100;
-            var totalValuePos = availablePos - 130;
-            
-            ImGui.SameLine(totalValuePos);
-            ImGui.Text("Total:");
-            ImGui.SameLine();
-            ImGui.TextColored(ColorPrice, $"{totalValue:N0} gil");
-            
-            ImGui.SameLine(availablePos);
-            ImGui.Text("Available:");
-            ImGui.SameLine();
-            ImGui.TextColored(ColorSuccess, availableItems.ToString());
-            
-            ImGui.SameLine(protectedPos);
-            ImGui.Text("Protected:");
-            ImGui.SameLine();
-            ImGui.TextColored(ColorWarning, protectedItems.ToString());
         }
     }
     
     private void AddSelectedToBlacklist()
     {
-        List<uint> itemsToAdd;
         lock (_selectedItemsLock)
         {
-            itemsToAdd = new List<uint>(_selectedItems);
-        }
-        
-        int addedCount = 0;
-        foreach (var itemId in itemsToAdd)
-        {
-            if (!Settings.BlacklistedItems.Contains(itemId))
+            foreach (var itemId in _selectedItems)
             {
-                Settings.BlacklistedItems.Add(itemId);
-                addedCount++;
-            }
-        }
-        
-        if (addedCount > 0)
-        {
-            _plugin.Configuration.Save();
-            
-            // Clear selections
-            lock (_selectedItemsLock)
-            {
-                _selectedItems.Clear();
-            }
-            lock (_itemsLock)
-            {
-                foreach (var item in _allItems)
+                if (!Settings.BlacklistedItems.Contains(itemId))
                 {
-                    item.IsSelected = false;
+                    Settings.BlacklistedItems.Add(itemId);
                 }
             }
             
-            RefreshInventory();
-            Plugin.ChatGui.Print($"Added {addedCount} items to blacklist.");
+            _selectedItems.Clear();
         }
-        else
+        
+        lock (_itemsLock)
         {
-            Plugin.ChatGui.PrintError("All selected items are already blacklisted.");
+            foreach (var item in _allItems)
+            {
+                item.IsSelected = false;
+            }
         }
+        
+        _plugin.Configuration.Save();
+        RefreshInventory();
+    }
+    
+    private void AddSelectedToAutoDiscard()
+    {
+        lock (_selectedItemsLock)
+        {
+            foreach (var itemId in _selectedItems)
+            {
+                if (!Settings.AutoDiscardItems.Contains(itemId))
+                {
+                    Settings.AutoDiscardItems.Add(itemId);
+                }
+            }
+            
+            _selectedItems.Clear();
+        }
+        
+        lock (_itemsLock)
+        {
+            foreach (var item in _allItems)
+            {
+                item.IsSelected = false;
+            }
+        }
+        
+        _plugin.Configuration.Save();
+        RefreshInventory();
     }
 }

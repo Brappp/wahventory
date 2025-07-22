@@ -38,6 +38,9 @@ public class InventorySettings
     
     // Blacklisted items (user-defined)
     public HashSet<uint> BlacklistedItems { get; set; } = new();
+    
+    // Auto-discard items (user-defined)
+    public HashSet<uint> AutoDiscardItems { get; set; } = new();
 }
 
 [Serializable]

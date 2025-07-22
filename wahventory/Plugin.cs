@@ -48,7 +48,7 @@ public sealed class Plugin : IDalamudPlugin
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
-            HelpMessage = "Opens the WahVentory inventory management window"
+            HelpMessage = "Opens the WahVentory inventory management window. Use '/wahventory auto' to auto-discard configured items."
         });
 
         PluginInterface.UiBuilder.Draw += DrawUI;
@@ -77,7 +77,17 @@ public sealed class Plugin : IDalamudPlugin
 
     private void OnCommand(string command, string args)
     {
-        ToggleMainUI();
+        // Check if 'auto' argument is provided
+        if (!string.IsNullOrEmpty(args) && args.Trim().ToLower() == "auto")
+        {
+            // Execute auto-discard
+            InventoryModule.ExecuteAutoDiscard();
+        }
+        else
+        {
+            // Default behavior - toggle main UI
+            ToggleMainUI();
+        }
     }
 
     private void DrawUI() => WindowSystem.Draw();

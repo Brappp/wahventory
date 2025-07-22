@@ -70,11 +70,6 @@ public partial class InventoryManagementModule : IDisposable
     
     // Filter options
     private bool _showArmory = false;
-    private bool _showOnlyHQ = false;
-    
-    // Safety filter options
-    private bool _showSafetyFilters = true;
-    private bool _showOnlyFlagged = false;
     
     private string _selectedWorld = "";
     private List<string> _availableWorlds = new();
@@ -352,12 +347,6 @@ public partial class InventoryManagementModule : IDisposable
             filteredItems = filteredItems.Where(i => i.Name.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase));
         }
         
-        // Apply item filters
-        if (_showOnlyHQ)
-        {
-            filteredItems = filteredItems.Where(i => i.IsHQ);
-        }
-        
         // Apply safety filters directly
         var filters = Settings.SafetyFilters;
         if (filters.FilterUltimateTokens)
@@ -380,13 +369,6 @@ public partial class InventoryManagementModule : IDisposable
             filteredItems = filteredItems.Where(i => !i.IsCollectable);
         if (filters.FilterSpiritbondedItems)
             filteredItems = filteredItems.Where(i => i.SpiritBond < filters.MinSpiritbondToFilter);
-        
-        if (_showOnlyFlagged)
-        {
-            filteredItems = filteredItems.Where(i => i.SafetyAssessment?.SafetyFlags.Any() == true);
-        }
-            
-
             
         lock (_categoriesLock)
         {
@@ -454,11 +436,6 @@ public partial class InventoryManagementModule : IDisposable
             filteredItems = filteredItems.Where(i => i.Name.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase));
         }
         
-        if (_showOnlyHQ)
-        {
-            filteredItems = filteredItems.Where(i => i.IsHQ);
-        }
-        
         var filters = Settings.SafetyFilters;
         if (filters.FilterUltimateTokens)
             filteredItems = filteredItems.Where(i => !InventoryHelpers.HardcodedBlacklist.Contains(i.ItemId));
@@ -480,11 +457,6 @@ public partial class InventoryManagementModule : IDisposable
             filteredItems = filteredItems.Where(i => !i.IsCollectable);
         if (filters.FilterSpiritbondedItems)
             filteredItems = filteredItems.Where(i => i.SpiritBond < filters.MinSpiritbondToFilter);
-        
-        if (_showOnlyFlagged)
-        {
-            filteredItems = filteredItems.Where(i => i.SafetyAssessment?.SafetyFlags.Any() == true);
-        }
         
         return filteredItems.ToList();
     }

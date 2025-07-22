@@ -61,10 +61,49 @@ public partial class InventoryManagementModule
         }
         
         ImGui.SameLine();
-        if (ImGui.Checkbox("HQ Only", ref _showOnlyHQ)) UpdateCategories();
+        ImGui.TextColored(new Vector4(0.3f, 0.3f, 0.3f, 1f), "|");
         
         ImGui.SameLine();
-        if (ImGui.Checkbox("Show Flagged", ref _showOnlyFlagged)) UpdateCategories();
+        var showPrices = Settings.ShowMarketPrices;
+        if (ImGui.Checkbox("Show Prices", ref showPrices))
+        {
+            Settings.ShowMarketPrices = showPrices;
+            _plugin.Configuration.Save();
+        }
+        
+        if (Settings.ShowMarketPrices)
+        {
+            ImGui.SameLine();
+            ImGui.Text("World:");
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(100);
+            if (ImGui.BeginCombo("##World", _selectedWorld))
+            {
+                foreach (var world in _availableWorlds)
+                {
+                    bool isSelected = world == _selectedWorld;
+                    if (ImGui.Selectable(world, isSelected))
+                    {
+                        _selectedWorld = world;
+                        _universalisClient.Dispose();
+                        _universalisClient = new UniversalisClient(Plugin.Log, _selectedWorld);
+                        lock (_priceCacheLock)
+                        {
+                            _priceCache.Clear();
+                        }
+                        lock (_itemsLock)
+                        {
+                            foreach (var item in _allItems)
+                            {
+                                item.MarketPrice = null;
+                                item.MarketPriceFetchTime = null;
+                            }
+                        }
+                    }
+                }
+                ImGui.EndCombo();
+            }
+        }
         
         ImGui.EndChild();
         ImGui.PopStyleColor();
@@ -95,8 +134,6 @@ public partial class InventoryManagementModule
         ImGui.EndChild();
         ImGui.PopStyleColor();
         ImGui.PopStyleVar();
-        
-        DrawMarketSettingsBar();
     }
     
     private int CountActiveFilters()
@@ -306,84 +343,7 @@ public partial class InventoryManagementModule
         
         return changed;
     }
-    
-    private void DrawMarketSettingsBar()
-    {
-        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(6, 5));
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(8, 4));
-        ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f));
-        
-        ImGui.BeginChild("MarketSettings", new Vector2(0, 36), true, ImGuiWindowFlags.NoScrollbar);
-        
-        var showPrices = Settings.ShowMarketPrices;
-        if (ImGui.Checkbox("Show Prices", ref showPrices))
-        {
-            Settings.ShowMarketPrices = showPrices;
-            _plugin.Configuration.Save();
-        }
-        
-        if (Settings.ShowMarketPrices)
-        {
-            ImGui.SameLine();
-            ImGui.TextColored(new Vector4(0.3f, 0.3f, 0.3f, 1f), "|");
-            
-            ImGui.SameLine();
-            ImGui.Text("World:");
-            ImGui.SameLine();
-            ImGui.SetNextItemWidth(100);
-            if (ImGui.BeginCombo("##World", _selectedWorld))
-            {
-                foreach (var world in _availableWorlds)
-                {
-                    bool isSelected = world == _selectedWorld;
-                    if (ImGui.Selectable(world, isSelected))
-                    {
-                        _selectedWorld = world;
-                        _universalisClient.Dispose();
-                        _universalisClient = new UniversalisClient(Plugin.Log, _selectedWorld);
-                        lock (_priceCacheLock)
-                        {
-                            _priceCache.Clear();
-                        }
-                        lock (_itemsLock)
-                        {
-                            foreach (var item in _allItems)
-                            {
-                                item.MarketPrice = null;
-                                item.MarketPriceFetchTime = null;
-                            }
-                        }
-                    }
-                }
-                ImGui.EndCombo();
-            }
-            
-            ImGui.SameLine();
-            ImGui.Text("Cache:");
-            ImGui.SameLine();
-            ImGui.SetNextItemWidth(50);
-            var cacheMinutes = Settings.PriceCacheDurationMinutes;
-            if (ImGui.InputInt("##Cache", ref cacheMinutes, 0))
-            {
-                Settings.PriceCacheDurationMinutes = Math.Max(1, cacheMinutes);
-                _plugin.Configuration.Save();
-            }
-            ImGui.SameLine();
-            ImGui.Text("min");
-            
-            ImGui.SameLine();
-            var autoRefresh = Settings.AutoRefreshPrices;
-            if (ImGui.Checkbox("Auto-refresh", ref autoRefresh))
-            {
-                Settings.AutoRefreshPrices = autoRefresh;
-                _plugin.Configuration.Save();
-            }
-        }
-        
-        ImGui.EndChild();
-        ImGui.PopStyleColor();
-        ImGui.PopStyleVar(2);
-    }
+
     
     private void DrawAvailableItemsTab()
     {
@@ -457,16 +417,12 @@ public partial class InventoryManagementModule
     private void DrawCategoryItems(CategoryGroup category)
     {
         // Make table more compact
-        ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 3));
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(4, 3));
-        
-        // Force table to start at the left edge with window padding
-        var windowPadding = ImGui.GetStyle().WindowPadding.X;
-        ImGui.SetCursorPosX(windowPadding);
+        ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 2)); // Reduced vertical padding
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(4, 2)); // Reduced vertical spacing
         
         if (ImGui.BeginTable($"ItemTable_{category.Name}", Settings.ShowMarketPrices ? 8 : 7, 
             ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable | 
-            ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.ScrollX))
+            ImGuiTableFlags.ScrollX | ImGuiTableFlags.NoHostExtendX)) // NoHostExtendX prevents table from extending beyond content
         {
             // Calculate dynamic widths based on content
             float checkboxWidth = 22;
@@ -477,7 +433,7 @@ public partial class InventoryManagementModule
             
             ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, checkboxWidth);
             ImGui.TableSetupColumn("ID", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHide, idWidth);
-            ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch | ImGuiTableColumnFlags.NoHide, 1.0f);
+            ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch | ImGuiTableColumnFlags.NoHide); // Back to stretch
             ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHide, qtyWidth);
             ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed, ilvlWidth);
             ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, locationWidth);
@@ -1049,16 +1005,12 @@ public partial class InventoryManagementModule
     
     private void DrawFilteredItemsTable(List<InventoryItemInfo> items)
     {
-        ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 3));
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(4, 3));
-        
-        // Force table to start at the left edge with window padding
-        var windowPadding = ImGui.GetStyle().WindowPadding.X;
-        ImGui.SetCursorPosX(windowPadding);
+        ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 2)); // Reduced padding
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(4, 2));
         
         if (ImGui.BeginTable("FilteredItemsTable", Settings.ShowMarketPrices ? 7 : 6, 
             ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable |
-            ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.ScrollX))
+            ImGuiTableFlags.ScrollX | ImGuiTableFlags.NoHostExtendX))
         {
             // Calculate dynamic widths based on content
             float idWidth = ImGui.CalcTextSize("99999").X + 8;
@@ -1067,7 +1019,7 @@ public partial class InventoryManagementModule
             float locationWidth = ImGui.CalcTextSize("P.Saddlebag 9").X + 8;
             
             ImGui.TableSetupColumn("ID", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHide, idWidth);
-            ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch | ImGuiTableColumnFlags.NoHide, 1.0f);
+            ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch | ImGuiTableColumnFlags.NoHide); // Back to stretch
             ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHide, qtyWidth);
             ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed, ilvlWidth);
             ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, locationWidth);

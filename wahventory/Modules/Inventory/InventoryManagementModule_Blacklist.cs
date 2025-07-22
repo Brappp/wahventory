@@ -307,12 +307,16 @@ public partial class InventoryManagementModule
     
     private void DrawProtectedItemsTable(IEnumerable<uint> itemIds, string tableId, bool showRemoveButton, float height = 200)
     {
+        ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 2)); // Compact padding
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(4, 2));
+        
         if (ImGui.BeginTable($"ProtectedTable_{tableId}", showRemoveButton ? 5 : 4, 
-            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY,
+            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY |
+            ImGuiTableFlags.Resizable | ImGuiTableFlags.NoHostExtendX,
             new Vector2(0, height)))
         {
             ImGui.TableSetupColumn("ID", ImGuiTableColumnFlags.WidthFixed, 60);
-            ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch);
+            ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch); // Back to stretch
             ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed, 40);
             ImGui.TableSetupColumn("Category", ImGuiTableColumnFlags.WidthFixed, 150);
             if (showRemoveButton)
@@ -411,6 +415,8 @@ public partial class InventoryManagementModule
             
             ImGui.EndTable();
         }
+        
+        ImGui.PopStyleVar(2); // Pop padding and spacing
     }
     
     private string GetItemCategoryName(uint categoryId)

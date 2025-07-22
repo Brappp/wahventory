@@ -5,6 +5,7 @@ using System.Numerics;
 using System.Threading.Tasks;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility;
+using Dalamud.Interface.Utility.Raii;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
@@ -193,51 +194,62 @@ public partial class InventoryManagementModule : IDisposable
         contentHeight = Math.Max(100f, contentHeight); // Minimum height to prevent negative values
         
         // Tab bar with dynamically sized content
-        if (ImGui.BeginTabBar("InventoryTabs", ImGuiTabBarFlags.None))
+        using (var tabBar = ImRaii.TabBar("InventoryTabs"))
         {
-            // Calculate filtered items count for tab display
-            List<InventoryItemInfo> filteredItems;
-            lock (_itemsLock)
+            if (tabBar)
             {
-                filteredItems = GetFilteredOutItems();
+                // Calculate filtered items count for tab display
+                List<InventoryItemInfo> filteredItems;
+                lock (_itemsLock)
+                {
+                    filteredItems = GetFilteredOutItems();
+                }
+                
+                // Available Items tab
+                int availableCount;
+                lock (_categoriesLock)
+                {
+                    availableCount = _categories.Sum(c => c.Items.Count);
+                }
+                
+                using (var tabItem = ImRaii.TabItem($"Available Items ({availableCount})"))
+                {
+                    if (tabItem)
+                    {
+                        // Use calculated height to fill available space
+                        using (var child = ImRaii.Child("AvailableContent", new Vector2(0, contentHeight), false))
+                        {
+                            DrawAvailableItemsTab();
+                        }
+                    }
+                }
+                
+                // Protected Items tab
+                using (var tabItem = ImRaii.TabItem($"Protected Items ({filteredItems.Count})"))
+                {
+                    if (tabItem)
+                    {
+                        // Use calculated height to fill available space
+                        using (var child = ImRaii.Child("ProtectedContent", new Vector2(0, contentHeight), false))
+                        {
+                            DrawFilteredItemsTab(filteredItems);
+                        }
+                    }
+                }
+                
+                // Blacklist Management tab
+                using (var tabItem = ImRaii.TabItem("Blacklist Management"))
+                {
+                    if (tabItem)
+                    {
+                        // Use calculated height to fill available space
+                        using (var child = ImRaii.Child("BlacklistContent", new Vector2(0, contentHeight), false))
+                        {
+                            DrawBlacklistTab();
+                        }
+                    }
+                }
             }
-            
-            // Available Items tab
-            int availableCount;
-            lock (_categoriesLock)
-            {
-                availableCount = _categories.Sum(c => c.Items.Count);
-            }
-            if (ImGui.BeginTabItem($"Available Items ({availableCount})"))
-            {
-                // Use calculated height to fill available space
-                ImGui.BeginChild("AvailableContent", new Vector2(0, contentHeight), false);
-                DrawAvailableItemsTab();
-                ImGui.EndChild();
-                ImGui.EndTabItem();
-            }
-            
-            // Protected Items tab
-            if (ImGui.BeginTabItem($"Protected Items ({filteredItems.Count})"))
-            {
-                // Use calculated height to fill available space
-                ImGui.BeginChild("ProtectedContent", new Vector2(0, contentHeight), false);
-                DrawFilteredItemsTab(filteredItems);
-                ImGui.EndChild();
-                ImGui.EndTabItem();
-            }
-            
-            // Blacklist Management tab
-            if (ImGui.BeginTabItem("Blacklist Management"))
-            {
-                // Use calculated height to fill available space
-                ImGui.BeginChild("BlacklistContent", new Vector2(0, contentHeight), false);
-                DrawBlacklistTab();
-                ImGui.EndChild();
-                ImGui.EndTabItem();
-            }
-            
-            ImGui.EndTabBar();
         }
         
         // Bottom action bar stays at bottom

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Numerics;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility;
+using Dalamud.Interface.Utility.Raii;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using ImGuiNET;
 using wahventory.Helpers;
@@ -75,22 +76,22 @@ public partial class InventoryManagementModule
         
         // Add button
         var canAdd = _itemToAdd > 0;
-        if (!canAdd) ImGui.BeginDisabled();
         
-        if (ImGui.Button("Add to Blacklist"))
+        using (var disabled = ImRaii.Disabled(!canAdd))
         {
-            if (_itemToAdd > 0 && !Settings.BlacklistedItems.Contains(_itemToAdd))
+            if (ImGui.Button("Add to Blacklist"))
             {
-                Settings.BlacklistedItems.Add(_itemToAdd);
-                _plugin.Configuration.Save();
-                RefreshInventory();
-                _itemToAdd = 0;
-                _itemNameToAdd = string.Empty;
-                _searchResults.Clear();
+                if (_itemToAdd > 0 && !Settings.BlacklistedItems.Contains(_itemToAdd))
+                {
+                    Settings.BlacklistedItems.Add(_itemToAdd);
+                    _plugin.Configuration.Save();
+                    RefreshInventory();
+                    _itemToAdd = 0;
+                    _itemNameToAdd = string.Empty;
+                    _searchResults.Clear();
+                }
             }
         }
-        
-        if (!canAdd) ImGui.EndDisabled();
         
         // Show search results
         DrawSearchResults();
@@ -134,54 +135,52 @@ public partial class InventoryManagementModule
         ImGui.Text($"Search Results ({_searchResults.Count} items):");
         
         // Create a child region for scrollable results
-        ImGui.BeginChild("SearchResults", new Vector2(0, 200), true);
-        
-        foreach (var (id, name, iconId) in _searchResults)
+        using (var child = ImRaii.Child("SearchResults", new Vector2(0, 200), true))
         {
-            ImGui.PushID($"SearchResult_{id}");
-            
-            // Draw item with icon
-            if (iconId > 0)
+            foreach (var (id, name, iconId) in _searchResults)
             {
-                var icon = _iconCache.GetIcon(iconId);
-                if (icon != null)
+                using var pushId = ImRaii.PushId($"SearchResult_{id}");
+                
+                // Draw item with icon
+                if (iconId > 0)
                 {
-                    ImGui.Image(icon.ImGuiHandle, new Vector2(20, 20));
-                    ImGui.SameLine();
+                    var icon = _iconCache.GetIcon(iconId);
+                    if (icon != null)
+                    {
+                        ImGui.Image(icon.ImGuiHandle, new Vector2(20, 20));
+                        ImGui.SameLine();
+                    }
+                    else
+                    {
+                        ImGui.Dummy(new Vector2(20, 20));
+                        ImGui.SameLine();
+                    }
                 }
                 else
                 {
                     ImGui.Dummy(new Vector2(20, 20));
                     ImGui.SameLine();
                 }
-            }
-            else
-            {
-                ImGui.Dummy(new Vector2(20, 20));
-                ImGui.SameLine();
-            }
-            
-            // Item name and ID
-            var isBlacklisted = Settings.BlacklistedItems.Contains(id);
-            if (isBlacklisted)
-            {
-                ImGui.PushStyleColor(ImGuiCol.Text, ColorSubdued);
-                ImGui.Text($"{name} (ID: {id}) [Already Blacklisted]");
-                ImGui.PopStyleColor();
-            }
-            else
-            {
-                if (ImGui.Selectable($"{name} (ID: {id})"))
+                
+                // Item name and ID
+                var isBlacklisted = Settings.BlacklistedItems.Contains(id);
+                if (isBlacklisted)
                 {
-                    _itemToAdd = id;
-                    _itemNameToAdd = name;
+                    using (var color = ImRaii.PushColor(ImGuiCol.Text, ColorSubdued))
+                    {
+                        ImGui.Text($"{name} (ID: {id}) [Already Blacklisted]");
+                    }
+                }
+                else
+                {
+                    if (ImGui.Selectable($"{name} (ID: {id})"))
+                    {
+                        _itemToAdd = id;
+                        _itemNameToAdd = name;
+                    }
                 }
             }
-            
-            ImGui.PopID();
         }
-        
-        ImGui.EndChild();
     }
     
     private void DrawCurrentBlacklist()
@@ -259,111 +258,121 @@ public partial class InventoryManagementModule
                 ImGui.OpenPopup("ClearBlacklistConfirm");
             }
             
-            if (ImGui.BeginPopupModal("ClearBlacklistConfirm"))
+            using (var popup = ImRaii.PopupModal("ClearBlacklistConfirm"))
             {
-                ImGui.Text("Are you sure you want to clear all custom blacklisted items?");
-                ImGui.Text($"This will remove {Settings.BlacklistedItems.Count} items from your blacklist.");
-                ImGui.Spacing();
-                
-                if (ImGui.Button("Yes, Clear All", new Vector2(120, 0)))
+                if (popup)
                 {
-                    Settings.BlacklistedItems.Clear();
-                    _plugin.Configuration.Save();
-                    RefreshInventory();
-                    ImGui.CloseCurrentPopup();
+                    ImGui.Text("Are you sure you want to clear all custom blacklisted items?");
+                    ImGui.Text($"This will remove {Settings.BlacklistedItems.Count} items from your blacklist.");
+                    ImGui.Spacing();
+                    
+                    if (ImGui.Button("Yes, Clear All", new Vector2(120, 0)))
+                    {
+                        Settings.BlacklistedItems.Clear();
+                        _plugin.Configuration.Save();
+                        RefreshInventory();
+                        ImGui.CloseCurrentPopup();
+                    }
+                    
+                    ImGui.SameLine();
+                    if (ImGui.Button("Cancel", new Vector2(120, 0)))
+                    {
+                        ImGui.CloseCurrentPopup();
+                    }
                 }
-                
-                ImGui.SameLine();
-                if (ImGui.Button("Cancel", new Vector2(120, 0)))
-                {
-                    ImGui.CloseCurrentPopup();
-                }
-                
-                ImGui.EndPopup();
             }
         }
     }
     
     private void DrawCustomBlacklistTable(IEnumerable<uint> itemIds)
     {
-        ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 2)); // Compact padding
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(4, 2));
+        using var style = ImRaii.PushStyle(ImGuiStyleVar.CellPadding, new Vector2(4, 2))
+                                .Push(ImGuiStyleVar.ItemSpacing, new Vector2(4, 2));
         
-        if (ImGui.BeginTable($"CustomBlacklistTable", 5, 
+        using (var table = ImRaii.Table("CustomBlacklistTable", 5, 
             ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
         {
-            // Use dynamic widths based on content
-            float idWidth = ImGui.CalcTextSize("99999").X + 8;
-            float ilvlWidth = ImGui.CalcTextSize("999").X + 8;
-            float categoryWidth = ImGui.CalcTextSize("Seasonal Miscellany").X + 8;
-            float actionsWidth = ImGui.CalcTextSize("Remove").X + 16;
-            
-            ImGui.TableSetupColumn("ID", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHide, idWidth);
-            ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch | ImGuiTableColumnFlags.NoHide);
-            ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed, ilvlWidth);
-            ImGui.TableSetupColumn("Category", ImGuiTableColumnFlags.WidthFixed, categoryWidth);
-            ImGui.TableSetupColumn("Actions", ImGuiTableColumnFlags.WidthFixed, actionsWidth);
-            ImGui.TableHeadersRow();
-            
-            foreach (var itemId in itemIds)
+            if (table)
             {
-                // Try to find item info from inventory first
-                InventoryItemInfo itemInfo = null;
-                lock (_itemsLock)
-                {
-                    itemInfo = _allItems.FirstOrDefault(i => i.ItemId == itemId);
-                }
-                string itemName = itemInfo?.Name;
-                string categoryName = itemInfo?.CategoryName ?? "Unknown";
-                ushort iconId = itemInfo?.IconId ?? 0;
-                int itemLevel = (int)(itemInfo?.ItemLevel ?? 0);
+                // Use dynamic widths based on content
+                float idWidth = ImGui.CalcTextSize("99999").X + 8;
+                float ilvlWidth = ImGui.CalcTextSize("999").X + 8;
+                float categoryWidth = ImGui.CalcTextSize("Seasonal Miscellany").X + 8;
+                float actionsWidth = ImGui.CalcTextSize("Remove").X + 16;
                 
-                // If not in inventory, try to get from game data
-                if (string.IsNullOrEmpty(itemName))
+                ImGui.TableSetupColumn("ID", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHide, idWidth);
+                ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch | ImGuiTableColumnFlags.NoHide);
+                ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed, ilvlWidth);
+                ImGui.TableSetupColumn("Category", ImGuiTableColumnFlags.WidthFixed, categoryWidth);
+                ImGui.TableSetupColumn("Actions", ImGuiTableColumnFlags.WidthFixed, actionsWidth);
+                ImGui.TableHeadersRow();
+                
+                foreach (var itemId in itemIds)
                 {
-                    try
+                    // Try to find item info from inventory first
+                    InventoryItemInfo itemInfo = null;
+                    lock (_itemsLock)
                     {
-                        var itemSheet = Plugin.DataManager.GetExcelSheet<Item>();
-                        if (itemSheet != null)
+                        itemInfo = _allItems.FirstOrDefault(i => i.ItemId == itemId);
+                    }
+                    string itemName = itemInfo?.Name;
+                    string categoryName = itemInfo?.CategoryName ?? "Unknown";
+                    ushort iconId = itemInfo?.IconId ?? 0;
+                    int itemLevel = (int)(itemInfo?.ItemLevel ?? 0);
+                    
+                    // If not in inventory, try to get from game data
+                    if (string.IsNullOrEmpty(itemName))
+                    {
+                        try
                         {
-                            var gameItem = itemSheet.GetRowOrDefault(itemId);
-                            if (gameItem != null && gameItem.Value.RowId != 0)
+                            var itemSheet = Plugin.DataManager.GetExcelSheet<Item>();
+                            if (itemSheet != null)
                             {
-                                itemName = gameItem.Value.Name.ExtractText();
-                                iconId = gameItem.Value.Icon;
-                                categoryName = GetItemCategoryName(gameItem.Value.ItemUICategory.RowId);
-                                itemLevel = (int)gameItem.Value.LevelItem.RowId;
+                                var gameItem = itemSheet.GetRowOrDefault(itemId);
+                                if (gameItem != null && gameItem.Value.RowId != 0)
+                                {
+                                    itemName = gameItem.Value.Name.ExtractText();
+                                    iconId = gameItem.Value.Icon;
+                                    categoryName = GetItemCategoryName(gameItem.Value.ItemUICategory.RowId);
+                                    itemLevel = (int)gameItem.Value.LevelItem.RowId;
+                                }
                             }
                         }
+                        catch { }
                     }
-                    catch { }
-                }
-                
-                // Fallback to hardcoded names for known items
-                if (string.IsNullOrEmpty(itemName))
-                {
-                    itemName = GetItemNameFromComment(itemId);
-                }
-                
-                ImGui.TableNextRow();
-                
-                // ID column
-                ImGui.TableNextColumn();
-                ImGui.Text(itemId.ToString());
-                
-                // Name column with icon
-                ImGui.TableNextColumn();
-                if (iconId > 0)
-                {
-                    var icon = _iconCache.GetIcon(iconId);
-                    if (icon != null)
+                    
+                    // Fallback to hardcoded names for known items
+                    if (string.IsNullOrEmpty(itemName))
                     {
-                        // Lower the icon to align with text baseline
-                        var startY = ImGui.GetCursorPosY();
-                        ImGui.SetCursorPosY(startY - 2);  // Lower the icon by 2 pixels
-                        ImGui.Image(icon.ImGuiHandle, new Vector2(20, 20));
-                        ImGui.SetCursorPosY(startY);
-                        ImGui.SameLine(0, 5);
+                        itemName = GetItemNameFromComment(itemId);
+                    }
+                    
+                    ImGui.TableNextRow();
+                    
+                    // ID column
+                    ImGui.TableNextColumn();
+                    ImGui.Text(itemId.ToString());
+                    
+                    // Name column with icon
+                    ImGui.TableNextColumn();
+                    if (iconId > 0)
+                    {
+                        var icon = _iconCache.GetIcon(iconId);
+                        if (icon != null)
+                        {
+                            // Lower the icon to align with text baseline
+                            var startY = ImGui.GetCursorPosY();
+                            ImGui.SetCursorPosY(startY - 2);  // Lower the icon by 2 pixels
+                            ImGui.Image(icon.ImGuiHandle, new Vector2(20, 20));
+                            ImGui.SetCursorPosY(startY);
+                            ImGui.SameLine(0, 5);
+                        }
+                        else
+                        {
+                            // Reserve space for missing icon
+                            ImGui.Dummy(new Vector2(20, 20));
+                            ImGui.SameLine(0, 5);
+                        }
                     }
                     else
                     {
@@ -371,44 +380,34 @@ public partial class InventoryManagementModule
                         ImGui.Dummy(new Vector2(20, 20));
                         ImGui.SameLine(0, 5);
                     }
-                }
-                else
-                {
-                    // Reserve space for missing icon
-                    ImGui.Dummy(new Vector2(20, 20));
-                    ImGui.SameLine(0, 5);
-                }
-                ImGui.Text(itemName);
-                
-                // Item Level column
-                ImGui.TableNextColumn();
-                if (itemLevel > 0)
-                {
-                    ImGui.Text(itemLevel.ToString());
-                }
-                else
-                {
-                    ImGui.TextColored(ColorSubdued, "-");
-                }
-                
-                // Category column
-                ImGui.TableNextColumn();
-                ImGui.Text(categoryName);
-                
-                // Remove button
-                ImGui.TableNextColumn();
-                if (ImGui.SmallButton($"Remove##bl_{itemId}"))
-                {
-                    Settings.BlacklistedItems.Remove(itemId);
-                    _plugin.Configuration.Save();
-                    RefreshInventory();
+                    ImGui.Text(itemName);
+                    
+                    // Item Level column
+                    ImGui.TableNextColumn();
+                    if (itemLevel > 0)
+                    {
+                        ImGui.Text(itemLevel.ToString());
+                    }
+                    else
+                    {
+                        ImGui.TextColored(ColorSubdued, "-");
+                    }
+                    
+                    // Category column
+                    ImGui.TableNextColumn();
+                    ImGui.Text(categoryName);
+                    
+                    // Remove button
+                    ImGui.TableNextColumn();
+                    if (ImGui.SmallButton($"Remove##bl_{itemId}"))
+                    {
+                        Settings.BlacklistedItems.Remove(itemId);
+                        _plugin.Configuration.Save();
+                        RefreshInventory();
+                    }
                 }
             }
-            
-            ImGui.EndTable();
         }
-        
-        ImGui.PopStyleVar(2); // Pop padding and spacing
     }
     
     private string GetItemCategoryName(uint categoryId)

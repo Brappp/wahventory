@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Dalamud.Interface;
+using Dalamud.Interface.Utility.Raii;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using ImGuiNET;
 using wahventory.Helpers;
@@ -18,52 +19,61 @@ public partial class InventoryManagementModule
         ImGui.SetNextWindowSize(windowSize, ImGuiCond.FirstUseEver);
         ImGui.SetNextWindowPos(ImGui.GetMainViewport().GetCenter(), ImGuiCond.FirstUseEver, new Vector2(0.5f, 0.5f));
         
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(10, 10));
-        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(6, 5));
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(8, 6));
+        using var styles = ImRaii.PushStyle(ImGuiStyleVar.WindowPadding, new Vector2(10, 10))
+                                 .Push(ImGuiStyleVar.FramePadding, new Vector2(6, 5))
+                                 .Push(ImGuiStyleVar.ItemSpacing, new Vector2(8, 6));
         
         ImGui.Begin("Confirm Discard##DiscardConfirmation", ref _isDiscarding, ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoCollapse);
         
         // Header with warning
-        ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.541f, 0.227f, 0.227f, 0.3f));
-        ImGui.BeginChild("WarningHeader", new Vector2(0, 36), true, ImGuiWindowFlags.NoScrollbar);
-        ImGui.SetCursorPosY(ImGui.GetCursorPosY() + 5);
-        ImGui.PushFont(UiBuilder.IconFont);
-        ImGui.TextColored(ColorError, FontAwesomeIcon.ExclamationTriangle.ToIconString());
-        ImGui.PopFont();
-        ImGui.SameLine();
-        ImGui.Text("WARNING: This will permanently delete the following items!");
-        ImGui.EndChild();
-        ImGui.PopStyleColor();
+        using (var color = ImRaii.PushColor(ImGuiCol.ChildBg, new Vector4(0.541f, 0.227f, 0.227f, 0.3f)))
+        {
+            using (var child = ImRaii.Child("WarningHeader", new Vector2(0, 36), true, ImGuiWindowFlags.NoScrollbar))
+            {
+                ImGui.SetCursorPosY(ImGui.GetCursorPosY() + 5);
+                using (var font = ImRaii.PushFont(UiBuilder.IconFont))
+                {
+                    ImGui.TextColored(ColorError, FontAwesomeIcon.ExclamationTriangle.ToIconString());
+                }
+                ImGui.SameLine();
+                ImGui.Text("WARNING: This will permanently delete the following items!");
+            }
+        }
         
         ImGui.Spacing();
         
         // Summary section
-        ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f));
-        ImGui.BeginChild("SummarySection", new Vector2(0, 80), true);
-        DrawDiscardSummary();
-        ImGui.EndChild();
-        ImGui.PopStyleColor();
+        using (var color = ImRaii.PushColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f)))
+        {
+            using (var child = ImRaii.Child("SummarySection", new Vector2(0, 80), true))
+            {
+                DrawDiscardSummary();
+            }
+        }
         
         ImGui.Spacing();
         
         ImGui.Text("Items to discard:");
         var tableHeight = windowSize.Y - 280;
-        ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f));
-        ImGui.BeginChild("ItemTable", new Vector2(0, tableHeight), true);
-        DrawDiscardItemsTable();
-        ImGui.EndChild();
-        ImGui.PopStyleColor();
+        using (var color = ImRaii.PushColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f)))
+        {
+            using (var child = ImRaii.Child("ItemTable", new Vector2(0, tableHeight), true))
+            {
+                DrawDiscardItemsTable();
+            }
+        }
         
         // Error display
         if (!string.IsNullOrEmpty(_discardError))
         {
             ImGui.Spacing();
-            ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.541f, 0.227f, 0.227f, 0.3f));
-            ImGui.BeginChild("ErrorSection", new Vector2(0, 30), true, ImGuiWindowFlags.NoScrollbar);
-            ImGui.TextColored(ColorError, _discardError);
-            ImGui.EndChild();
-            ImGui.PopStyleColor();
+            using (var color = ImRaii.PushColor(ImGuiCol.ChildBg, new Vector4(0.541f, 0.227f, 0.227f, 0.3f)))
+            {
+                using (var child = ImRaii.Child("ErrorSection", new Vector2(0, 30), true, ImGuiWindowFlags.NoScrollbar))
+                {
+                    ImGui.TextColored(ColorError, _discardError);
+                }
+            }
         }
         
         // Progress bar
@@ -71,9 +81,10 @@ public partial class InventoryManagementModule
         {
             ImGui.Spacing();
             var progress = (float)_discardProgress / _itemsToDiscard.Count;
-            ImGui.PushStyleColor(ImGuiCol.PlotHistogram, ColorSuccess);
-            ImGui.ProgressBar(progress, new Vector2(-1, 25), $"Discarding... {_discardProgress}/{_itemsToDiscard.Count}");
-            ImGui.PopStyleColor();
+            using (var color = ImRaii.PushColor(ImGuiCol.PlotHistogram, ColorSuccess))
+            {
+                ImGui.ProgressBar(progress, new Vector2(-1, 25), $"Discarding... {_discardProgress}/{_itemsToDiscard.Count}");
+            }
         }
         
         ImGui.Spacing();
@@ -82,7 +93,6 @@ public partial class InventoryManagementModule
         DrawDiscardButtons();
         
         ImGui.End();
-        ImGui.PopStyleVar(3);
     }
     
     private void DrawDiscardSummary()
@@ -95,9 +105,10 @@ public partial class InventoryManagementModule
         ImGui.Columns(3, "SummaryColumns", false);
         
         // Total Items
-        ImGui.PushFont(UiBuilder.IconFont);
-        ImGui.TextColored(ColorInfo, FontAwesomeIcon.List.ToIconString());
-        ImGui.PopFont();
+        using (var font = ImRaii.PushFont(UiBuilder.IconFont))
+        {
+            ImGui.TextColored(ColorInfo, FontAwesomeIcon.List.ToIconString());
+        }
         ImGui.SameLine();
         ImGui.Text("Total Items:");
         ImGui.TextColored(ColorWarning, $"{totalItems} unique items");
@@ -105,9 +116,10 @@ public partial class InventoryManagementModule
         ImGui.NextColumn();
         
         // Total Quantity
-        ImGui.PushFont(UiBuilder.IconFont);
-        ImGui.TextColored(ColorInfo, FontAwesomeIcon.LayerGroup.ToIconString());
-        ImGui.PopFont();
+        using (var font = ImRaii.PushFont(UiBuilder.IconFont))
+        {
+            ImGui.TextColored(ColorInfo, FontAwesomeIcon.LayerGroup.ToIconString());
+        }
         ImGui.SameLine();
         ImGui.Text("Total Quantity:");
         ImGui.TextColored(ColorWarning, $"{totalQuantity} items");
@@ -115,9 +127,10 @@ public partial class InventoryManagementModule
         ImGui.NextColumn();
         
         // Market Value
-        ImGui.PushFont(UiBuilder.IconFont);
-        ImGui.TextColored(ColorPrice, FontAwesomeIcon.Coins.ToIconString());
-        ImGui.PopFont();
+        using (var font = ImRaii.PushFont(UiBuilder.IconFont))
+        {
+            ImGui.TextColored(ColorPrice, FontAwesomeIcon.Coins.ToIconString());
+        }
         ImGui.SameLine();
         ImGui.Text("Market Value:");
         if (totalValue > 0)
@@ -134,37 +147,69 @@ public partial class InventoryManagementModule
     
     private void DrawDiscardItemsTable()
     {
-        ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 4));
+        using var style = ImRaii.PushStyle(ImGuiStyleVar.CellPadding, new Vector2(4, 4));
         
-        if (ImGui.BeginTable("DiscardItemsTable", Settings.ShowMarketPrices ? 6 : 5, 
-            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY | ImGuiTableFlags.Resizable))
+        using (var table = ImRaii.Table("DiscardTable", 5, 
+            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY | 
+            ImGuiTableFlags.Resizable))
         {
-            ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch);
-            ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed, 40);
-            ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed, 40);
-            ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, 100);
-            if (Settings.ShowMarketPrices)
+            if (table)
             {
-                ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, 80);
-                ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed, 80);
+                ImGui.TableSetupColumn("ID", ImGuiTableColumnFlags.WidthFixed, 60);
+                ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch);
+                ImGui.TableSetupColumn("Quantity", ImGuiTableColumnFlags.WidthFixed, 80);
+                ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, 120);
+                ImGui.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthFixed, 100);
+                ImGui.TableSetupScrollFreeze(0, 1);
+                ImGui.TableHeadersRow();
+                
+                foreach (var item in _itemsToDiscard)
+                {
+                    ImGui.TableNextRow();
+                    
+                    // ID column
+                    ImGui.TableNextColumn();
+                    ImGui.Text(item.ItemId.ToString());
+                    
+                    // Item name with icon
+                    ImGui.TableNextColumn();
+                    if (item.IconId > 0)
+                    {
+                        var icon = _iconCache.GetIcon(item.IconId);
+                        if (icon != null)
+                        {
+                            ImGui.Image(icon.ImGuiHandle, new Vector2(20, 20));
+                            ImGui.SameLine();
+                        }
+                    }
+                    ImGui.Text(item.Name);
+                    if (item.IsHQ)
+                    {
+                        ImGui.SameLine();
+                        ImGui.TextColored(ColorHQItem, "[HQ]");
+                    }
+                    
+                    // Quantity
+                    ImGui.TableNextColumn();
+                    ImGui.Text(item.Quantity.ToString());
+                    
+                    // Location
+                    ImGui.TableNextColumn();
+                    ImGui.Text(GetLocationName(item.Container));
+                    
+                    // Value
+                    ImGui.TableNextColumn();
+                    if (item.MarketPrice.HasValue && item.MarketPrice.Value > 0)
+                    {
+                        ImGui.TextColored(ColorPrice, $"{item.MarketPrice.Value * item.Quantity:N0} gil");
+                    }
+                    else
+                    {
+                        ImGui.TextColored(ColorSubdued, "N/A");
+                    }
+                }
             }
-            else
-            {
-                ImGui.TableSetupColumn("Status", ImGuiTableColumnFlags.WidthFixed, 120);
-            }
-            
-            ImGui.TableSetupScrollFreeze(0, 1);
-            ImGui.TableHeadersRow();
-            
-            foreach (var item in _itemsToDiscard)
-            {
-                DrawDiscardItemRow(item);
-            }
-            
-            ImGui.EndTable();
         }
-        
-        ImGui.PopStyleVar(); // Pop CellPadding
     }
     
     private void DrawDiscardItemRow(InventoryItemInfo item)
@@ -309,37 +354,42 @@ public partial class InventoryManagementModule
         
         if (_discardProgress == 0)
         {
-            ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.541f, 0.227f, 0.227f, 1f));
-            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.327f, 0.327f, 1f));
-            
-            if (ImGui.Button("Start Discarding", new Vector2(buttonWidth, buttonHeight)))
+            using (var color = ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.541f, 0.227f, 0.227f, 1f))
+                                     .Push(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.327f, 0.327f, 1f)))
             {
-                StartDiscarding();
+                if (ImGui.Button("Start Discarding", new Vector2(buttonWidth, buttonHeight)))
+                {
+                    StartDiscarding();
+                }
             }
-            ImGui.PopStyleColor(2);
             
             ImGui.SameLine();
             
-            if (ImGui.Button("Cancel", new Vector2(buttonWidth, buttonHeight)))
+            using (var disabled = ImRaii.Disabled(_isDiscarding))
             {
-                CancelDiscard();
+                if (ImGui.Button("Cancel", new Vector2(buttonWidth, buttonHeight)))
+                {
+                    CancelDiscard();
+                }
             }
         }
         else
         {
-            ImGui.BeginDisabled();
-            ImGui.Button("Discarding...", new Vector2(buttonWidth, buttonHeight));
-            ImGui.EndDisabled();
+            using (var disabled = ImRaii.Disabled())
+            {
+                ImGui.Button("Discarding...", new Vector2(buttonWidth, buttonHeight));
+            }
             
             ImGui.SameLine();
             
-            ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.541f, 0.541f, 0.227f, 1f));
-            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.641f, 0.327f, 1f));
-            if (ImGui.Button("Cancel", new Vector2(buttonWidth, buttonHeight)))
+            using (var color = ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.541f, 0.541f, 0.227f, 1f))
+                                     .Push(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.641f, 0.327f, 1f)))
             {
-                CancelDiscard();
+                if (ImGui.Button("Cancel", new Vector2(buttonWidth, buttonHeight)))
+                {
+                    CancelDiscard();
+                }
             }
-            ImGui.PopStyleColor(2);
         }
     }
     

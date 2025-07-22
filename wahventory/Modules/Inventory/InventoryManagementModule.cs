@@ -180,7 +180,7 @@ public partial class InventoryManagementModule : IDisposable
         ImGui.Separator();
         
         // Main content area
-        var contentHeight = ImGui.GetContentRegionAvail().Y - 50; // Leave space for bottom action bar
+        var contentHeight = ImGui.GetContentRegionAvail().Y - 42; // Leave space for bottom action bar
         ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(4, 4));
         ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f));
         

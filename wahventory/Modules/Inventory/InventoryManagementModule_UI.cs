@@ -468,15 +468,13 @@ public partial class InventoryManagementModule
     
     private void DrawCategoryItems(CategoryGroup category)
     {
-        ImGui.Indent();
-        
         // Make table more compact
-        ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 2));
+        ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 4));
         
         if (ImGui.BeginTable($"ItemTable_{category.Name}", Settings.ShowMarketPrices ? 6 : 5, 
             ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.Resizable))
         {
-            ImGui.TableSetupColumn("##checkbox", ImGuiTableColumnFlags.WidthFixed, 25);
+            ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed, 25);
             ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthFixed, 250);
             ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed, 40);
             ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, 100);
@@ -501,7 +499,6 @@ public partial class InventoryManagementModule
         }
         
         ImGui.PopStyleVar(); // Pop CellPadding
-        ImGui.Unindent();
     }
     
     private void DrawCategoryControls(CategoryGroup category)
@@ -597,30 +594,31 @@ public partial class InventoryManagementModule
         ImGui.TableNextColumn();
         
         // Item icon and name aligned properly
-        var iconSize = new Vector2(16, 16);
+        var iconSize = new Vector2(20, 20);
         if (item.IconId > 0)
         {
             var icon = _iconCache.GetIcon(item.IconId);
             if (icon != null)
             {
-                var cursorPos = ImGui.GetCursorPos();
+                // Lower the icon to align with text baseline
+                var startY = ImGui.GetCursorPosY();
+                ImGui.SetCursorPosY(startY - 2);  // Lower the icon by 2 pixels
                 ImGui.Image(icon.ImGuiHandle, iconSize);
-                ImGui.SameLine();
-                // Align text vertically with icon
-                ImGui.SetCursorPosY(cursorPos.Y + (iconSize.Y - ImGui.GetTextLineHeight()) / 2);
+                ImGui.SetCursorPosY(startY);
+                ImGui.SameLine(0, 5);
             }
             else
             {
                 // Reserve space for missing icon
                 ImGui.Dummy(iconSize);
-                ImGui.SameLine();
+                ImGui.SameLine(0, 5);
             }
         }
         else
         {
             // Reserve space for missing icon
             ImGui.Dummy(iconSize);
-            ImGui.SameLine();
+            ImGui.SameLine(0, 5);
         }
         
         ImGui.Text(item.Name);
@@ -949,9 +947,7 @@ public partial class InventoryManagementModule
                 ExpandedCategories[category.CategoryId] = true;
                 _expandedCategoriesChanged = true;
                 
-                ImGui.Indent();
                 DrawFilteredItemsTable(category.Items);
-                ImGui.Unindent();
             }
             else
             {
@@ -965,7 +961,7 @@ public partial class InventoryManagementModule
     
     private void DrawFilteredItemsTable(List<InventoryItemInfo> items)
     {
-        ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 2));
+        ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 4));
         
         if (ImGui.BeginTable("FilteredItemsTable", Settings.ShowMarketPrices ? 5 : 4, 
             ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingFixedFit))
@@ -1008,8 +1004,12 @@ public partial class InventoryManagementModule
             var icon = _iconCache.GetIcon(item.IconId);
             if (icon != null)
             {
-                ImGui.Image(icon.ImGuiHandle, new Vector2(16, 16));
-                ImGui.SameLine();
+                var iconSize = new Vector2(20, 20);
+                var startY = ImGui.GetCursorPosY();
+                ImGui.SetCursorPosY(startY - 2);  // Lower the icon
+                ImGui.Image(icon.ImGuiHandle, iconSize);
+                ImGui.SetCursorPosY(startY);
+                ImGui.SameLine(0, 5);
             }
         }
         
@@ -1188,26 +1188,34 @@ public partial class InventoryManagementModule
         }
         ImGui.PopStyleColor(2);
         
+        // Visual separator
+        ImGui.SameLine();
+        ImGui.Text(" ");
+        
         // Center/Right side - Statistics
         var totalValue = _categories.Sum(c => c.TotalValue ?? 0);
         var availableItems = _categories.Sum(c => c.Items.Count);
         var protectedItems = GetFilteredOutItems().Count;
         
-        // Right-align statistics
+        // Right-align statistics with tighter spacing
         var windowWidth = ImGui.GetWindowContentRegionMax().X;
-        var statSpacing = 150f;
         
-        ImGui.SameLine(windowWidth - statSpacing * 3);
-        ImGui.Text("Total Value:");
+        // Calculate positions for each stat group
+        var protectedPos = windowWidth - 100;
+        var availablePos = protectedPos - 100;
+        var totalValuePos = availablePos - 130;
+        
+        ImGui.SameLine(totalValuePos);
+        ImGui.Text("Total:");
         ImGui.SameLine();
         ImGui.TextColored(ColorPrice, $"{totalValue:N0} gil");
         
-        ImGui.SameLine(windowWidth - statSpacing * 2);
+        ImGui.SameLine(availablePos);
         ImGui.Text("Available:");
         ImGui.SameLine();
         ImGui.TextColored(ColorSuccess, availableItems.ToString());
         
-        ImGui.SameLine(windowWidth - statSpacing);
+        ImGui.SameLine(protectedPos);
         ImGui.Text("Protected:");
         ImGui.SameLine();
         ImGui.TextColored(ColorWarning, protectedItems.ToString());

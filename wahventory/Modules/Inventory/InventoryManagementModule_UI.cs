@@ -509,19 +509,21 @@ public partial class InventoryManagementModule
     private void DrawCategoryControls(CategoryGroup category)
     {
         int selectedInCategory;
-        bool allSelectedInCategory;
+        bool allSelectableSelected;
         lock (_selectedItemsLock)
         {
             selectedInCategory = category.Items.Count(i => _selectedItems.Contains(i.ItemId));
-            allSelectedInCategory = category.Items.Count > 0 && category.Items.All(i => _selectedItems.Contains(i.ItemId));
+            // Check if all non-blacklisted items are selected
+            var selectableItems = category.Items.Where(i => !Settings.BlacklistedItems.Contains(i.ItemId)).ToList();
+            allSelectableSelected = selectableItems.Count > 0 && selectableItems.All(i => _selectedItems.Contains(i.ItemId));
         }
         
         // Show selection info inline with category header
-        var buttonText = allSelectedInCategory ? "Deselect All" : "Select All";
+        var buttonText = allSelectableSelected ? "Deselect All" : "Select All";
         
         if (ImGui.SmallButton(buttonText))
         {
-            if (allSelectedInCategory)
+            if (allSelectableSelected)
             {
                 // Deselect all items in this category
                 lock (_selectedItemsLock)
@@ -535,15 +537,28 @@ public partial class InventoryManagementModule
             }
             else
             {
-                // Select all items in this category
+                // Select all non-blacklisted items in this category
                 lock (_selectedItemsLock)
                 {
                     foreach (var item in category.Items)
                     {
+                        // Skip blacklisted items
+                        if (Settings.BlacklistedItems.Contains(item.ItemId))
+                            continue;
+                            
                         _selectedItems.Add(item.ItemId);
                         item.IsSelected = true;
                     }
                 }
+            }
+        }
+        
+        if (ImGui.IsItemHovered())
+        {
+            var blacklistedCount = category.Items.Count(i => Settings.BlacklistedItems.Contains(i.ItemId));
+            if (blacklistedCount > 0)
+            {
+                ImGui.SetTooltip($"Blacklisted items ({blacklistedCount}) will not be selected");
             }
         }
         
@@ -1259,7 +1274,24 @@ public partial class InventoryManagementModule
         ImGui.BeginChild("ActionBar", new Vector2(0, 42), true, ImGuiWindowFlags.NoScrollbar);
         
         // Left side - Action buttons
-        if (ImGui.Button("Clear All", new Vector2(80, 0)))
+        int selectedCount;
+        lock (_selectedItemsLock)
+        {
+            selectedCount = _selectedItems.Count;
+        }
+        
+        // Calculate dynamic button widths based on text
+        var clearButtonText = "Clear All";
+        var discardButtonText = $"Discard ({selectedCount})";
+        var blacklistButtonText = $"Add to Blacklist ({selectedCount})";
+        
+        // Calculate minimum widths based on text size with padding
+        var buttonPadding = 20f; // Extra padding for button aesthetics
+        var clearButtonWidth = Math.Max(80f, ImGui.CalcTextSize(clearButtonText).X + buttonPadding);
+        var discardButtonWidth = Math.Max(80f, ImGui.CalcTextSize(discardButtonText).X + buttonPadding);
+        var blacklistButtonWidth = Math.Max(120f, ImGui.CalcTextSize(blacklistButtonText).X + buttonPadding);
+        
+        if (ImGui.Button(clearButtonText, new Vector2(clearButtonWidth, 0)))
         {
             lock (_selectedItemsLock)
             {
@@ -1279,16 +1311,9 @@ public partial class InventoryManagementModule
         ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.541f, 0.227f, 0.227f, 1f));
         ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.327f, 0.327f, 1f));
         
-        int selectedCount;
-        lock (_selectedItemsLock)
-        {
-            selectedCount = _selectedItems.Count;
-        }
-        var discardButtonText = $"Discard ({selectedCount})";
-        
         if (selectedCount > 0)
         {
-            if (ImGui.Button(discardButtonText, new Vector2(80, 0)))
+            if (ImGui.Button(discardButtonText, new Vector2(discardButtonWidth, 0)))
             {
                 PrepareDiscard();
             }
@@ -1296,7 +1321,7 @@ public partial class InventoryManagementModule
         else
         {
             ImGui.BeginDisabled();
-            ImGui.Button(discardButtonText, new Vector2(80, 0));
+            ImGui.Button(discardButtonText, new Vector2(discardButtonWidth, 0));
             ImGui.EndDisabled();
         }
         ImGui.PopStyleColor(2);
@@ -1305,11 +1330,10 @@ public partial class InventoryManagementModule
         
         ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.227f, 0.227f, 0.541f, 1f));
         ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.327f, 0.327f, 0.641f, 1f));
-        var blacklistButtonText = $"Add to Blacklist ({selectedCount})";
         
         if (selectedCount > 0)
         {
-            if (ImGui.Button(blacklistButtonText, new Vector2(120, 0)))
+            if (ImGui.Button(blacklistButtonText, new Vector2(blacklistButtonWidth, 0)))
             {
                 AddSelectedToBlacklist();
             }
@@ -1317,7 +1341,7 @@ public partial class InventoryManagementModule
         else
         {
             ImGui.BeginDisabled();
-            ImGui.Button(blacklistButtonText, new Vector2(120, 0));
+            ImGui.Button(blacklistButtonText, new Vector2(blacklistButtonWidth, 0));
             ImGui.EndDisabled();
         }
         ImGui.PopStyleColor(2);

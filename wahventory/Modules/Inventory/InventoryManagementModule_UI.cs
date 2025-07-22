@@ -371,16 +371,14 @@ public partial class InventoryManagementModule
             categoriesCopy = new List<CategoryGroup>(_categories);
         }
         
-        // Check if search is active and no results found
-        if (!string.IsNullOrWhiteSpace(_searchFilter) && !categoriesCopy.Any(c => c.Items.Count > 0))
+        // When searching, show all results in a single view
+        if (!string.IsNullOrWhiteSpace(_searchFilter))
         {
-            ImGui.TextColored(ColorSubdued, $"No items found matching \"{_searchFilter}\"");
-            ImGui.Spacing();
-            ImGui.Text("Try adjusting your search or check the Protected Items tab.");
+            DrawSearchResultsView(categoriesCopy);
             return;
         }
         
-        // Remove the extra child wrapper which can cause sizing issues
+        // Normal category view when not searching
         foreach (var category in categoriesCopy)
         {
             if (category.Items.Count == 0) continue;
@@ -440,6 +438,234 @@ public partial class InventoryManagementModule
             
             // Add small spacing between categories to prevent stretching
             ImGui.Spacing();
+        }
+    }
+    
+    private void DrawSearchResultsView(List<CategoryGroup> categories)
+    {
+        ImGui.Text("Search Results for: ");
+        ImGui.SameLine();
+        ImGui.TextColored(ColorInfo, $"\"{_searchFilter}\"");
+        ImGui.Separator();
+        ImGui.Spacing();
+        
+        // Collect all matching items from all categories
+        var allMatchingItems = new List<InventoryItemInfo>();
+        foreach (var category in categories)
+        {
+            allMatchingItems.AddRange(category.Items);
+        }
+        
+        if (!allMatchingItems.Any())
+        {
+            ImGui.TextColored(ColorSubdued, "No items found in available inventory.");
+            ImGui.Spacing();
+            ImGui.Text("Items might be:");
+            ImGui.BulletText("Protected by active filters (check Protected Items tab)");
+            ImGui.BulletText("In your blacklist (check Blacklist Management tab)");
+            ImGui.BulletText("Not matching your search term");
+            return;
+        }
+        
+        ImGui.Text($"Found {allMatchingItems.Count} items:");
+        ImGui.Spacing();
+        
+        // Show all results in a single table for easy viewing
+        using var style = ImRaii.PushStyle(ImGuiStyleVar.CellPadding, new Vector2(4, 2))
+                                .Push(ImGuiStyleVar.ItemSpacing, new Vector2(4, 2));
+        
+        using (var table = ImRaii.Table("SearchResultsTable", Settings.ShowMarketPrices ? 8 : 7, 
+            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollY))
+        {
+            if (table)
+            {
+                // Setup columns similar to normal item table
+                float checkboxWidth = 22;
+                float idWidth = ImGui.CalcTextSize("99999").X + 8;
+                float qtyWidth = ImGui.CalcTextSize("999").X + 8;
+                float ilvlWidth = ImGui.CalcTextSize("999").X + 8;
+                float locationWidth = ImGui.CalcTextSize("P.Saddlebag 9").X + 8;
+                float categoryWidth = ImGui.CalcTextSize("Seasonal Miscellany").X + 8;
+                
+                ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, checkboxWidth);
+                ImGui.TableSetupColumn("ID", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHide, idWidth);
+                ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch | ImGuiTableColumnFlags.NoHide);
+                ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHide, qtyWidth);
+                ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed, ilvlWidth);
+                ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, locationWidth);
+                ImGui.TableSetupColumn("Category", ImGuiTableColumnFlags.WidthFixed, categoryWidth);
+                if (Settings.ShowMarketPrices)
+                {
+                    float priceWidth = ImGui.CalcTextSize("999,999g").X + 8;
+                    ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, priceWidth);
+                }
+                
+                ImGui.TableSetupScrollFreeze(0, 1); // Freeze header row
+                ImGui.TableHeadersRow();
+                
+                // Sort items by category then name for better organization
+                var sortedItems = allMatchingItems
+                    .OrderBy(i => i.CategoryName)
+                    .ThenBy(i => i.Name)
+                    .ToList();
+                
+                foreach (var item in sortedItems)
+                {
+                    ImGui.TableNextRow();
+                    
+                    // Checkbox column
+                    ImGui.TableNextColumn();
+                    bool isBlacklisted = Settings.BlacklistedItems.Contains(item.ItemId);
+                    bool isSelected;
+                    lock (_selectedItemsLock)
+                    {
+                        isSelected = _selectedItems.Contains(item.ItemId);
+                    }
+                    
+                    if (isBlacklisted)
+                    {
+                        using (var disabled = ImRaii.Disabled())
+                        {
+                            bool blacklistedCheck = false;
+                            ImGui.Checkbox($"##check_{item.GetUniqueKey()}", ref blacklistedCheck);
+                        }
+                        
+                        if (ImGui.IsItemHovered())
+                        {
+                            ImGui.SetTooltip("This item is blacklisted and cannot be selected");
+                        }
+                    }
+                    else
+                    {
+                        if (ImGui.Checkbox($"##check_{item.GetUniqueKey()}", ref isSelected))
+                        {
+                            lock (_selectedItemsLock)
+                            {
+                                if (isSelected)
+                                {
+                                    _selectedItems.Add(item.ItemId);
+                                    item.IsSelected = true;
+                                }
+                                else
+                                {
+                                    _selectedItems.Remove(item.ItemId);
+                                    item.IsSelected = false;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // ID column
+                    ImGui.TableNextColumn();
+                    ImGui.TextColored(ColorSubdued, item.ItemId.ToString());
+                    
+                    // Item name with icon
+                    ImGui.TableNextColumn();
+                    if (item.IconId > 0)
+                    {
+                        var icon = _iconCache.GetIcon(item.IconId);
+                        if (icon != null)
+                        {
+                            var startY = ImGui.GetCursorPosY();
+                            ImGui.SetCursorPosY(startY + 2);
+                            ImGui.Image(icon.ImGuiHandle, new Vector2(20, 20));
+                            ImGui.SetCursorPosY(startY);
+                            ImGui.SameLine(0, 5);
+                        }
+                    }
+                    
+                    // Highlight the matching part of the name
+                    var itemName = item.Name;
+                    var matchIndex = itemName.IndexOf(_searchFilter, StringComparison.OrdinalIgnoreCase);
+                    if (matchIndex >= 0)
+                    {
+                        if (matchIndex > 0)
+                        {
+                            ImGui.Text(itemName.Substring(0, matchIndex));
+                            ImGui.SameLine(0, 0);
+                        }
+                        
+                        ImGui.TextColored(ColorWarning, itemName.Substring(matchIndex, _searchFilter.Length));
+                        ImGui.SameLine(0, 0);
+                        
+                        if (matchIndex + _searchFilter.Length < itemName.Length)
+                        {
+                            ImGui.Text(itemName.Substring(matchIndex + _searchFilter.Length));
+                        }
+                    }
+                    else
+                    {
+                        ImGui.Text(itemName);
+                    }
+                    
+                    if (item.IsHQ)
+                    {
+                        ImGui.SameLine();
+                        ImGui.TextColored(ColorHQItem, "[HQ]");
+                    }
+                    
+                    DrawItemSafetyFlags(item);
+                    DrawItemFilterTags(item);
+                    
+                    // Quantity
+                    ImGui.TableNextColumn();
+                    ImGui.Text(item.Quantity.ToString());
+                    
+                    // Item Level
+                    ImGui.TableNextColumn();
+                    if (item.ItemLevel > 0)
+                    {
+                        ImGui.Text(item.ItemLevel.ToString());
+                    }
+                    else
+                    {
+                        ImGui.TextColored(ColorSubdued, "-");
+                    }
+                    
+                    // Location
+                    ImGui.TableNextColumn();
+                    ImGui.Text(GetLocationName(item.Container));
+                    
+                    // Category
+                    ImGui.TableNextColumn();
+                    ImGui.TextColored(ColorSubdued, item.CategoryName);
+                    
+                    // Price
+                    if (Settings.ShowMarketPrices)
+                    {
+                        ImGui.TableNextColumn();
+                        DrawItemPrice(item);
+                    }
+                }
+            }
+        }
+    }
+    
+    private void DrawItemPrice(InventoryItemInfo item)
+    {
+        if (!item.CanBeTraded)
+        {
+            ImGui.TextColored(ColorSubdued, "Untradable");
+        }
+        else if (item.MarketPrice.HasValue)
+        {
+            if (item.MarketPrice.Value > 0)
+            {
+                ImGui.TextColored(ColorPrice, $"{item.MarketPrice.Value:N0}g");
+            }
+            else
+            {
+                ImGui.TextColored(ColorSubdued, "No data");
+            }
+        }
+        else
+        {
+            ImGui.TextColored(ColorSubdued, "Loading...");
+            // Fetch price if not already fetching
+            if (!IsFetchingPrice(item.ItemId))
+            {
+                _ = FetchMarketPrice(item);
+            }
         }
     }
     

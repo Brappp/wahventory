@@ -81,7 +81,7 @@ public partial class InventoryManagementModule
         ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(6, 5));
         ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f));
         
-        ImGui.BeginChild("FiltersSection", new Vector2(0, 125), true);
+        ImGui.BeginChild("FiltersSection", new Vector2(0, 140), true);
         
         // Header
         ImGui.PushFont(UiBuilder.IconFont);

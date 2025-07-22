@@ -136,11 +136,12 @@ public partial class InventoryManagementModule
     {
         ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 4));
         
-        if (ImGui.BeginTable("DiscardItemsTable", Settings.ShowMarketPrices ? 5 : 4, 
+        if (ImGui.BeginTable("DiscardItemsTable", Settings.ShowMarketPrices ? 6 : 5, 
             ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY | ImGuiTableFlags.Resizable))
         {
             ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch);
             ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed, 40);
+            ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed, 40);
             ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, 100);
             if (Settings.ShowMarketPrices)
             {
@@ -210,6 +211,17 @@ public partial class InventoryManagementModule
         // Quantity column
         ImGui.TableNextColumn();
         ImGui.Text($"{item.Quantity}");
+        
+        // Item Level column
+        ImGui.TableNextColumn();
+        if (item.ItemLevel > 0)
+        {
+            ImGui.Text(item.ItemLevel.ToString());
+        }
+        else
+        {
+            ImGui.TextColored(ColorSubdued, "-");
+        }
         
         // Location column
         ImGui.TableNextColumn();

@@ -373,7 +373,7 @@ public partial class InventoryManagementModule : IDisposable
         if (filters.FilterHighLevelGear)
             filteredItems = filteredItems.Where(i => !(i.EquipSlotCategory > 0 && i.ItemLevel >= filters.MaxGearItemLevel));
         if (filters.FilterUniqueUntradeable)
-            filteredItems = filteredItems.Where(i => !(i.IsUnique && i.IsUntradable && !InventoryHelpers.SafeUniqueItems.Contains(i.ItemId)));
+            filteredItems = filteredItems.Where(i => !(i.IsUnique && i.IsUntradable));
         if (filters.FilterHQItems)
             filteredItems = filteredItems.Where(i => !i.IsHQ);
         if (filters.FilterCollectables)
@@ -473,7 +473,7 @@ public partial class InventoryManagementModule : IDisposable
         if (filters.FilterHighLevelGear)
             filteredItems = filteredItems.Where(i => !(i.EquipSlotCategory > 0 && i.ItemLevel >= filters.MaxGearItemLevel));
         if (filters.FilterUniqueUntradeable)
-            filteredItems = filteredItems.Where(i => !(i.IsUnique && i.IsUntradable && !InventoryHelpers.SafeUniqueItems.Contains(i.ItemId)));
+            filteredItems = filteredItems.Where(i => !(i.IsUnique && i.IsUntradable));
         if (filters.FilterHQItems)
             filteredItems = filteredItems.Where(i => !i.IsHQ);
         if (filters.FilterCollectables)

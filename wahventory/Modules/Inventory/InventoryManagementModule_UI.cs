@@ -473,22 +473,23 @@ public partial class InventoryManagementModule
         var windowPadding = ImGui.GetStyle().WindowPadding.X;
         ImGui.SetCursorPosX(windowPadding);
         
-        if (ImGui.BeginTable($"ItemTable_{category.Name}", Settings.ShowMarketPrices ? 6 : 5, 
-            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
+        if (ImGui.BeginTable($"ItemTable_{category.Name}", Settings.ShowMarketPrices ? 7 : 6, 
+        ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
         {
-            ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed, 25);
-            ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch);
-            ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed, 40);
-            ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, 100);
-            if (Settings.ShowMarketPrices)
-            {
-                ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, 80);
-                ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed, 80);
-            }
-            else
-            {
-                ImGui.TableSetupColumn("Status", ImGuiTableColumnFlags.WidthFixed, 120);
-            }
+        ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed, 25);
+        ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch);
+        ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed, 40);
+        ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed, 40);
+        ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, 100);
+        if (Settings.ShowMarketPrices)
+        {
+        ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, 80);
+            ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed, 80);
+        }
+        else
+        {
+            ImGui.TableSetupColumn("Status", ImGuiTableColumnFlags.WidthFixed, 120);
+                }
             
             ImGui.TableHeadersRow();
             
@@ -655,6 +656,17 @@ public partial class InventoryManagementModule
         // Quantity
         ImGui.TableNextColumn();
         ImGui.Text(item.Quantity.ToString());
+        
+        // Item Level
+        ImGui.TableNextColumn();
+        if (item.ItemLevel > 0)
+        {
+            ImGui.Text(item.ItemLevel.ToString());
+        }
+        else
+        {
+            ImGui.TextColored(ColorSubdued, "-");
+        }
         
         // Location
         ImGui.TableNextColumn();
@@ -857,7 +869,7 @@ public partial class InventoryManagementModule
         if (item.EquipSlotCategory > 0 && item.ItemLevel >= filters.MaxGearItemLevel)
             appliedFilters.Add(("High-Level", filters.FilterHighLevelGear));
         
-        if (item.IsUnique && item.IsUntradable && !InventoryHelpers.SafeUniqueItems.Contains(item.ItemId))
+        if (item.IsUnique && item.IsUntradable)
             appliedFilters.Add(("Unique", filters.FilterUniqueUntradeable));
         
         if (item.IsHQ)
@@ -995,21 +1007,22 @@ public partial class InventoryManagementModule
         var windowPadding = ImGui.GetStyle().WindowPadding.X;
         ImGui.SetCursorPosX(windowPadding);
         
-        if (ImGui.BeginTable("FilteredItemsTable", Settings.ShowMarketPrices ? 5 : 4, 
-            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
+        if (ImGui.BeginTable("FilteredItemsTable", Settings.ShowMarketPrices ? 6 : 5, 
+        ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
         {
-            ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch);
-            ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed, 40);
-            ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, 100);
-            if (Settings.ShowMarketPrices)
-            {
-                ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, 80);
-                ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed, 80);
-            }
-            else
-            {
-                ImGui.TableSetupColumn("Reason", ImGuiTableColumnFlags.WidthFixed, 120);
-            }
+        ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch);
+        ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed, 40);
+        ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed, 40);
+        ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, 100);
+        if (Settings.ShowMarketPrices)
+        {
+        ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, 80);
+            ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed, 80);
+        }
+        else
+        {
+            ImGui.TableSetupColumn("Reason", ImGuiTableColumnFlags.WidthFixed, 120);
+                }
             
             ImGui.TableHeadersRow();
             
@@ -1078,6 +1091,18 @@ public partial class InventoryManagementModule
         ImGui.TableNextColumn();
         ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.6f, 0.6f, 0.6f, 1));
         ImGui.Text(item.Quantity.ToString());
+        ImGui.PopStyleColor();
+        
+        ImGui.TableNextColumn();
+        ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.6f, 0.6f, 0.6f, 1));
+        if (item.ItemLevel > 0)
+        {
+            ImGui.Text(item.ItemLevel.ToString());
+        }
+        else
+        {
+            ImGui.Text("-");
+        }
         ImGui.PopStyleColor();
         
         ImGui.TableNextColumn();
@@ -1184,7 +1209,7 @@ public partial class InventoryManagementModule
                 isFilteredOut = true;
             else if (filters.FilterHighLevelGear && item.EquipSlotCategory > 0 && item.ItemLevel >= filters.MaxGearItemLevel)
                 isFilteredOut = true;
-            else if (filters.FilterUniqueUntradeable && item.IsUnique && item.IsUntradable && !InventoryHelpers.SafeUniqueItems.Contains(item.ItemId))
+            else if (filters.FilterUniqueUntradeable && item.IsUnique && item.IsUntradable)
                 isFilteredOut = true;
             else if (filters.FilterHQItems && item.IsHQ)
                 isFilteredOut = true;

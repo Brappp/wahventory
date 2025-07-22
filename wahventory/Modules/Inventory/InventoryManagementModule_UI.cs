@@ -400,7 +400,13 @@ public partial class InventoryManagementModule
     
     private void DrawAvailableItemsTab()
     {
-        foreach (var category in _categories)
+        List<CategoryGroup> categoriesCopy;
+        lock (_categoriesLock)
+        {
+            categoriesCopy = new List<CategoryGroup>(_categories);
+        }
+        
+        foreach (var category in categoriesCopy)
         {
             if (category.Items.Count == 0) continue;
             
@@ -499,8 +505,13 @@ public partial class InventoryManagementModule
     
     private void DrawCategoryControls(CategoryGroup category)
     {
-        var selectedInCategory = category.Items.Count(i => _selectedItems.Contains(i.ItemId));
-        var allSelectedInCategory = category.Items.Count > 0 && category.Items.All(i => _selectedItems.Contains(i.ItemId));
+        int selectedInCategory;
+        bool allSelectedInCategory;
+        lock (_selectedItemsLock)
+        {
+            selectedInCategory = category.Items.Count(i => _selectedItems.Contains(i.ItemId));
+            allSelectedInCategory = category.Items.Count > 0 && category.Items.All(i => _selectedItems.Contains(i.ItemId));
+        }
         
         // Show selection info inline with category header
         var buttonText = allSelectedInCategory ? "Deselect All" : "Select All";
@@ -510,19 +521,25 @@ public partial class InventoryManagementModule
             if (allSelectedInCategory)
             {
                 // Deselect all items in this category
-                foreach (var item in category.Items)
+                lock (_selectedItemsLock)
                 {
-                    _selectedItems.Remove(item.ItemId);
-                    item.IsSelected = false;
+                    foreach (var item in category.Items)
+                    {
+                        _selectedItems.Remove(item.ItemId);
+                        item.IsSelected = false;
+                    }
                 }
             }
             else
             {
                 // Select all items in this category
-                foreach (var item in category.Items)
+                lock (_selectedItemsLock)
                 {
-                    _selectedItems.Add(item.ItemId);
-                    item.IsSelected = true;
+                    foreach (var item in category.Items)
+                    {
+                        _selectedItems.Add(item.ItemId);
+                        item.IsSelected = true;
+                    }
                 }
             }
         }
@@ -559,7 +576,11 @@ public partial class InventoryManagementModule
         ImGui.PushID(item.GetUniqueKey());
         
         // Check if this row is selected
-        var isSelected = _selectedItems.Contains(item.ItemId);
+        bool isSelected;
+        lock (_selectedItemsLock)
+        {
+            isSelected = _selectedItems.Contains(item.ItemId);
+        }
         
         // Apply selection background using table row bg
         if (isSelected)
@@ -571,15 +592,18 @@ public partial class InventoryManagementModule
         ImGui.TableNextColumn();
         if (ImGui.Checkbox($"##check_{item.GetUniqueKey()}", ref isSelected))
         {
-            if (isSelected)
+            lock (_selectedItemsLock)
             {
-                _selectedItems.Add(item.ItemId);
-                item.IsSelected = true;
-            }
-            else
-            {
-                _selectedItems.Remove(item.ItemId);
-                item.IsSelected = false;
+                if (isSelected)
+                {
+                    _selectedItems.Add(item.ItemId);
+                    item.IsSelected = true;
+                }
+                else
+                {
+                    _selectedItems.Remove(item.ItemId);
+                    item.IsSelected = false;
+                }
             }
         }
         
@@ -641,7 +665,13 @@ public partial class InventoryManagementModule
             // Unit price
             ImGui.TableNextColumn();
             
-            if (_fetchingPrices.Contains(item.ItemId))
+            bool isFetching;
+            lock (_fetchingPricesLock)
+            {
+                isFetching = _fetchingPrices.Contains(item.ItemId);
+            }
+            
+            if (isFetching)
             {
                 // Show loading spinner
                 ImGui.PushFont(UiBuilder.IconFont);
@@ -1133,6 +1163,7 @@ public partial class InventoryManagementModule
     
     private List<InventoryItemInfo> GetFilteredOutItems()
     {
+        // NOTE: This method should be called inside a lock(_itemsLock)
         var allItems = _originalItems.AsEnumerable();
         var filteredOutItems = new List<InventoryItemInfo>();
         var filters = Settings.SafetyFilters;
@@ -1181,20 +1212,32 @@ public partial class InventoryManagementModule
         // Left side - Action buttons
         if (ImGui.Button("Clear All", new Vector2(80, 0)))
         {
-            _selectedItems.Clear();
-            foreach (var item in _allItems)
+            lock (_selectedItemsLock)
             {
-                item.IsSelected = false;
+                _selectedItems.Clear();
             }
+            lock (_itemsLock)
+                {
+                    foreach (var item in _allItems)
+                    {
+                        item.IsSelected = false;
+                    }
+                }
         }
         
         ImGui.SameLine();
         
         ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.541f, 0.227f, 0.227f, 1f));
         ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.327f, 0.327f, 1f));
-        var discardButtonText = $"Discard ({_selectedItems.Count})";
         
-        if (_selectedItems.Count > 0)
+        int selectedCount;
+        lock (_selectedItemsLock)
+        {
+            selectedCount = _selectedItems.Count;
+        }
+        var discardButtonText = $"Discard ({selectedCount})";
+        
+        if (selectedCount > 0)
         {
             if (ImGui.Button(discardButtonText, new Vector2(80, 0)))
             {
@@ -1214,9 +1257,18 @@ public partial class InventoryManagementModule
         ImGui.Text(" ");
         
         // Center/Right side - Statistics
-        var totalValue = _categories.Sum(c => c.TotalValue ?? 0);
-        var availableItems = _categories.Sum(c => c.Items.Count);
-        var protectedItems = GetFilteredOutItems().Count;
+        long totalValue;
+        int availableItems;
+        lock (_categoriesLock)
+        {
+            totalValue = _categories.Sum(c => c.TotalValue ?? 0);
+            availableItems = _categories.Sum(c => c.Items.Count);
+        }
+        int protectedItems;
+        lock (_itemsLock)
+        {
+            protectedItems = GetFilteredOutItems().Count;
+        }
         
         // Right-align statistics with tighter spacing
         var windowWidth = ImGui.GetWindowContentRegionMax().X;

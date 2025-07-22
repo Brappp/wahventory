@@ -225,7 +225,11 @@ public partial class InventoryManagementModule
                 foreach (var itemId in blacklistedItems)
                 {
                     // Try to find item info from inventory first
-                    var itemInfo = _allItems.FirstOrDefault(i => i.ItemId == itemId);
+                    InventoryItemInfo itemInfo = null;
+                    lock (_itemsLock)
+                    {
+                        itemInfo = _allItems.FirstOrDefault(i => i.ItemId == itemId);
+                    }
                     string itemName = itemInfo?.Name;
                     string categoryName = itemInfo?.CategoryName ?? "Unknown";
                     ushort iconId = itemInfo?.IconId ?? 0;
@@ -307,8 +311,12 @@ public partial class InventoryManagementModule
             
             foreach (var itemId in InventoryHelpers.HardcodedBlacklist)
             {
-                var itemInfo = _allItems.FirstOrDefault(i => i.ItemId == itemId);
-                var itemName = itemInfo?.Name ?? GetItemNameFromComment(itemId);
+                string itemName;
+                lock (_itemsLock)
+                {
+                    var itemInfo = _allItems.FirstOrDefault(i => i.ItemId == itemId);
+                    itemName = itemInfo?.Name ?? GetItemNameFromComment(itemId);
+                }
                 ImGui.Text($"{itemId}: {itemName}");
             }
             
@@ -333,8 +341,12 @@ public partial class InventoryManagementModule
             
             foreach (var itemId in InventoryHelpers.SafeUniqueItems)
             {
-                var itemInfo = _allItems.FirstOrDefault(i => i.ItemId == itemId);
-                var itemName = itemInfo?.Name ?? GetItemNameFromComment(itemId);
+                string itemName;
+                lock (_itemsLock)
+                {
+                    var itemInfo = _allItems.FirstOrDefault(i => i.ItemId == itemId);
+                    itemName = itemInfo?.Name ?? GetItemNameFromComment(itemId);
+                }
                 ImGui.Text($"{itemId}: {itemName}");
             }
             

@@ -333,28 +333,40 @@ public partial class InventoryManagementModule
     
     private void PrepareDiscard()
     {
-        Plugin.Log.Information($"PrepareDiscard called. Selected items count: {_selectedItems.Count}");
+        List<uint> selectedItemsCopy;
+        lock (_selectedItemsLock)
+        {
+            selectedItemsCopy = new List<uint>(_selectedItems);
+        }
+        
+        Plugin.Log.Information($"PrepareDiscard called. Selected items count: {selectedItemsCopy.Count}");
         
         var actualItemsToDiscard = new List<InventoryItemInfo>();
         
-        foreach (var selectedItemId in _selectedItems)
+        lock (_itemsLock)
         {
-            var actualItems = _originalItems.Where(i => 
-                i.ItemId == selectedItemId && 
-                InventoryHelpers.IsSafeToDiscard(i, Settings.BlacklistedItems)).ToList();
-                
-            Plugin.Log.Information($"Found {actualItems.Count} instances of item {selectedItemId} to discard");
-            
-            foreach (var item in actualItems)
+            foreach (var selectedItemId in selectedItemsCopy)
             {
-                if (_priceCache.TryGetValue(item.ItemId, out var cached))
+                var actualItems = _originalItems.Where(i => 
+                    i.ItemId == selectedItemId && 
+                    InventoryHelpers.IsSafeToDiscard(i, Settings.BlacklistedItems)).ToList();
+                    
+                Plugin.Log.Information($"Found {actualItems.Count} instances of item {selectedItemId} to discard");
+                
+                foreach (var item in actualItems)
                 {
-                    item.MarketPrice = cached.price;
-                    item.MarketPriceFetchTime = cached.fetchTime;
+                    lock (_priceCacheLock)
+                    {
+                        if (_priceCache.TryGetValue(item.ItemId, out var cached))
+                        {
+                            item.MarketPrice = cached.price;
+                            item.MarketPriceFetchTime = cached.fetchTime;
+                        }
+                    }
                 }
+                
+                actualItemsToDiscard.AddRange(actualItems);
             }
-            
-            actualItemsToDiscard.AddRange(actualItems);
         }
         
         _itemsToDiscard = actualItemsToDiscard;

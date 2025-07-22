@@ -39,6 +39,13 @@ public partial class InventoryManagementModule : IDisposable
     private readonly IconCache _iconCache;
     private bool _initialized = false;
     
+    // Thread safety
+    private readonly object _itemsLock = new object();
+    private readonly object _categoriesLock = new object();
+    private readonly object _selectedItemsLock = new object();
+    private readonly object _priceCacheLock = new object();
+    private readonly object _fetchingPricesLock = new object();
+    
     // Performance optimization
     private DateTime _lastRefresh = DateTime.MinValue;
     private DateTime _lastCategoryUpdate = DateTime.MinValue;
@@ -113,12 +120,15 @@ public partial class InventoryManagementModule : IDisposable
             _lastRefresh = DateTime.Now;
             
             // Only fetch prices for currently visible (not filtered out) items
-            var visibleItems = GetVisibleItems();
+            List<InventoryItemInfo> visibleItems;
+            lock (_itemsLock)
+            {
+                visibleItems = GetVisibleItems();
+            }
             var stalePrices = visibleItems.Where(item => 
                 item.CanBeTraded && // Only check prices for tradable items
-                !_fetchingPrices.Contains(item.ItemId) &&
-                (!_priceCache.TryGetValue(item.ItemId, out var cached) || 
-                 DateTime.Now - cached.fetchTime > TimeSpan.FromMinutes(Settings.PriceCacheDurationMinutes)))
+                !IsFetchingPrice(item.ItemId) &&
+                !HasValidCachedPrice(item.ItemId))
                 .Take(2) // Reduced to 2 for slower, more stable price fetching
                 .ToList();
                 
@@ -188,10 +198,18 @@ public partial class InventoryManagementModule : IDisposable
         if (ImGui.BeginTabBar("InventoryTabs", ImGuiTabBarFlags.None))
         {
             // Calculate filtered items count for tab display
-            var filteredItems = GetFilteredOutItems();
+            List<InventoryItemInfo> filteredItems;
+            lock (_itemsLock)
+            {
+                filteredItems = GetFilteredOutItems();
+            }
             
             // Available Items tab
-            var availableCount = _categories.Sum(c => c.Items.Count);
+            int availableCount;
+            lock (_categoriesLock)
+            {
+                availableCount = _categories.Sum(c => c.Items.Count);
+            }
             if (ImGui.BeginTabItem($"Available Items ({availableCount})"))
             {
                 DrawAvailableItemsTab();
@@ -286,22 +304,33 @@ public partial class InventoryManagementModule : IDisposable
     
     private void RefreshInventory()
     {
-        _originalItems = _inventoryHelpers.GetAllItems(_showArmory, false);
-        _allItems = _originalItems;
+        var newItems = _inventoryHelpers.GetAllItems(_showArmory, false);
         
-        // Assess safety for all items and update market prices from cache
-        foreach (var item in _allItems)
+        lock (_itemsLock)
         {
-            item.SafetyAssessment = InventoryHelpers.AssessItemSafety(item, Settings);
+            _originalItems = newItems;
+            _allItems = new List<InventoryItemInfo>(_originalItems);
             
-            if (_priceCache.TryGetValue(item.ItemId, out var cached))
+            // Assess safety for all items and update market prices from cache
+            foreach (var item in _allItems)
             {
-                item.MarketPrice = cached.price;
-                item.MarketPriceFetchTime = cached.fetchTime;
+                item.SafetyAssessment = InventoryHelpers.AssessItemSafety(item, Settings);
+                
+                lock (_priceCacheLock)
+                {
+                    if (_priceCache.TryGetValue(item.ItemId, out var cached))
+                    {
+                        item.MarketPrice = cached.price;
+                        item.MarketPriceFetchTime = cached.fetchTime;
+                    }
+                }
+                
+                // Restore selection state
+                lock (_selectedItemsLock)
+                {
+                    item.IsSelected = _selectedItems.Contains(item.ItemId);
+                }
             }
-            
-            // Restore selection state
-            item.IsSelected = _selectedItems.Contains(item.ItemId);
         }
         
         UpdateCategories();
@@ -309,7 +338,13 @@ public partial class InventoryManagementModule : IDisposable
     
     private void UpdateCategories()
     {
-        var filteredItems = _allItems.AsEnumerable();
+        List<InventoryItemInfo> itemsCopy;
+        lock (_itemsLock)
+        {
+            itemsCopy = new List<InventoryItemInfo>(_allItems);
+        }
+        
+        var filteredItems = itemsCopy.AsEnumerable();
         
         // Apply text search filter
         if (!string.IsNullOrWhiteSpace(_searchFilter))
@@ -351,61 +386,67 @@ public partial class InventoryManagementModule : IDisposable
             filteredItems = filteredItems.Where(i => i.SafetyAssessment?.SafetyFlags.Any() == true);
         }
             
-        _categories = filteredItems
-            .GroupBy(i => new { i.ItemUICategory, i.CategoryName })
-            .Select(categoryGroup => 
-            {
-                var items = categoryGroup
-                    .GroupBy(i => i.ItemId)
-                    .Select(itemGroup => 
-                    {
-                        var first = itemGroup.First();
-                        return new InventoryItemInfo
-                        {
-                            ItemId = first.ItemId,
-                            Name = first.Name,
-                            Quantity = itemGroup.Sum(i => i.Quantity),
-                            Container = first.Container,
-                            Slot = first.Slot,
-                            IsHQ = first.IsHQ,
-                            IconId = first.IconId,
-                            CanBeDiscarded = first.CanBeDiscarded,
-                            CanBeTraded = first.CanBeTraded,
-                            IsCollectable = first.IsCollectable,
-                            SpiritBond = first.SpiritBond,
-                            Durability = first.Durability,
-                            MaxDurability = first.MaxDurability,
-                            CategoryName = first.CategoryName,
-                            ItemUICategory = first.ItemUICategory,
-                            MarketPrice = first.MarketPrice,
-                            MarketPriceFetchTime = first.MarketPriceFetchTime,
-                            IsSelected = first.IsSelected,
-                            ItemLevel = first.ItemLevel,
-                            EquipLevel = first.EquipLevel,
-                            Rarity = first.Rarity,
-                            IsUnique = first.IsUnique,
-                            IsUntradable = first.IsUntradable,
-                            IsIndisposable = first.IsIndisposable,
-                            EquipSlotCategory = first.EquipSlotCategory,
-                            SafetyAssessment = first.SafetyAssessment
-                        };
-                    })
-                    .OrderBy(i => i.Name)
-                    .ToList();
-                    
-                return new CategoryGroup
+
+            
+        lock (_categoriesLock)
+        {
+            _categories = filteredItems
+                .GroupBy(i => new { i.ItemUICategory, i.CategoryName })
+                .Select(categoryGroup => 
                 {
-                    CategoryId = categoryGroup.Key.ItemUICategory,
-                    Name = categoryGroup.Key.CategoryName,
-                    Items = items
-                };
-            })
-            .OrderBy(c => c.Name)
-            .ToList();
+                    var items = categoryGroup
+                        .GroupBy(i => i.ItemId)
+                        .Select(itemGroup => 
+                        {
+                            var first = itemGroup.First();
+                            return new InventoryItemInfo
+                            {
+                                ItemId = first.ItemId,
+                                Name = first.Name,
+                                Quantity = itemGroup.Sum(i => i.Quantity),
+                                Container = first.Container,
+                                Slot = first.Slot,
+                                IsHQ = first.IsHQ,
+                                IconId = first.IconId,
+                                CanBeDiscarded = first.CanBeDiscarded,
+                                CanBeTraded = first.CanBeTraded,
+                                IsCollectable = first.IsCollectable,
+                                SpiritBond = first.SpiritBond,
+                                Durability = first.Durability,
+                                MaxDurability = first.MaxDurability,
+                                CategoryName = first.CategoryName,
+                                ItemUICategory = first.ItemUICategory,
+                                MarketPrice = first.MarketPrice,
+                                MarketPriceFetchTime = first.MarketPriceFetchTime,
+                                IsSelected = first.IsSelected,
+                                ItemLevel = first.ItemLevel,
+                                EquipLevel = first.EquipLevel,
+                                Rarity = first.Rarity,
+                                IsUnique = first.IsUnique,
+                                IsUntradable = first.IsUntradable,
+                                IsIndisposable = first.IsIndisposable,
+                                EquipSlotCategory = first.EquipSlotCategory,
+                                SafetyAssessment = first.SafetyAssessment
+                            };
+                        })
+                        .OrderBy(i => i.Name)
+                        .ToList();
+                        
+                    return new CategoryGroup
+                    {
+                        CategoryId = categoryGroup.Key.ItemUICategory,
+                        Name = categoryGroup.Key.CategoryName,
+                        Items = items
+                    };
+                })
+                .OrderBy(c => c.Name)
+                .ToList();
+        }
     }
     
     private List<InventoryItemInfo> GetVisibleItems()
     {
+        // NOTE: This method should be called inside a lock(_itemsLock)
         var filteredItems = _allItems.AsEnumerable();
         
         if (!string.IsNullOrWhiteSpace(_searchFilter))
@@ -450,32 +491,68 @@ public partial class InventoryManagementModule : IDisposable
     
     private void CleanupStuckFetches()
     {
-        var stuckItems = _fetchStartTimes.Where(kvp => 
-            DateTime.Now - kvp.Value > _fetchTimeout).Select(kvp => kvp.Key).ToList();
+        List<uint> stuckItems;
+        lock (_fetchingPricesLock)
+        {
+            stuckItems = _fetchStartTimes.Where(kvp => 
+                DateTime.Now - kvp.Value > _fetchTimeout).Select(kvp => kvp.Key).ToList();
+        }
         
         foreach (var stuckItem in stuckItems)
         {
-            _fetchingPrices.Remove(stuckItem);
-            _fetchStartTimes.Remove(stuckItem);
-            
-            var stuckItemInfo = _allItems.FirstOrDefault(i => i.ItemId == stuckItem);
-            if (stuckItemInfo != null)
+            lock (_fetchingPricesLock)
             {
-                stuckItemInfo.MarketPrice = -1;
-                _priceCache[stuckItem] = (-1, DateTime.Now);
+                _fetchingPrices.Remove(stuckItem);
+                _fetchStartTimes.Remove(stuckItem);
+            }
+            
+            lock (_itemsLock)
+            {
+                var stuckItemInfo = _allItems.FirstOrDefault(i => i.ItemId == stuckItem);
+                if (stuckItemInfo != null)
+                {
+                    stuckItemInfo.MarketPrice = -1;
+                    lock (_priceCacheLock)
+                    {
+                        _priceCache[stuckItem] = (-1, DateTime.Now);
+                    }
+                }
             }
             
             Plugin.Log.Warning($"Cleaned up stuck price fetch for item {stuckItem}");
         }
     }
 
+    private bool IsFetchingPrice(uint itemId)
+    {
+        lock (_fetchingPricesLock)
+        {
+            return _fetchingPrices.Contains(itemId);
+        }
+    }
+    
+    private bool HasValidCachedPrice(uint itemId)
+    {
+        lock (_priceCacheLock)
+        {
+            if (_priceCache.TryGetValue(itemId, out var cached))
+            {
+                return DateTime.Now - cached.fetchTime <= TimeSpan.FromMinutes(Settings.PriceCacheDurationMinutes);
+            }
+            return false;
+        }
+    }
+    
     private async Task FetchMarketPrice(InventoryItemInfo item)
     {
-        if (_fetchingPrices.Contains(item.ItemId)) return;
+        if (IsFetchingPrice(item.ItemId)) return;
         if (!item.CanBeTraded) return;
         
-        _fetchingPrices.Add(item.ItemId);
-        _fetchStartTimes[item.ItemId] = DateTime.Now;
+        lock (_fetchingPricesLock)
+        {
+            _fetchingPrices.Add(item.ItemId);
+            _fetchStartTimes[item.ItemId] = DateTime.Now;
+        }
         
         try
         {
@@ -485,24 +562,36 @@ public partial class InventoryManagementModule : IDisposable
             {
                 item.MarketPrice = result.Price;
                 item.MarketPriceFetchTime = DateTime.Now;
-                _priceCache[item.ItemId] = (result.Price, DateTime.Now);
+                lock (_priceCacheLock)
+                {
+                    _priceCache[item.ItemId] = (result.Price, DateTime.Now);
+                }
             }
             else
             {
                 item.MarketPrice = -1;
-                _priceCache[item.ItemId] = (-1, DateTime.Now);
+                lock (_priceCacheLock)
+                {
+                    _priceCache[item.ItemId] = (-1, DateTime.Now);
+                }
             }
         }
         catch (Exception ex)
         {
             Plugin.Log.Error(ex, $"Failed to fetch price for {item.Name}");
             item.MarketPrice = -1;
-            _priceCache[item.ItemId] = (-1, DateTime.Now);
+            lock (_priceCacheLock)
+            {
+                _priceCache[item.ItemId] = (-1, DateTime.Now);
+            }
         }
         finally
         {
-            _fetchingPrices.Remove(item.ItemId);
-            _fetchStartTimes.Remove(item.ItemId);
+            lock (_fetchingPricesLock)
+            {
+                _fetchingPrices.Remove(item.ItemId);
+                _fetchStartTimes.Remove(item.ItemId);
+            }
         }
     }
     
@@ -513,8 +602,12 @@ public partial class InventoryManagementModule : IDisposable
             _plugin.Configuration.Save();
         }
         
-        _fetchingPrices.Clear();
-        _fetchStartTimes.Clear();
+        lock (_fetchingPricesLock)
+        {
+            _fetchingPrices.Clear();
+            _fetchStartTimes.Clear();
+        }
+        
         _windowIsOpen = false;
         
         _iconCache?.Dispose();

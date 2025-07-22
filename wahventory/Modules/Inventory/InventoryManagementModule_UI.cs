@@ -29,13 +29,13 @@ public partial class InventoryManagementModule
             
             using (var font = ImRaii.PushFont(UiBuilder.IconFont))
             {
-                ImGui.Text(FontAwesomeIcon.Search.ToIconString());
+        ImGui.Text(FontAwesomeIcon.Search.ToIconString());
             }
-            
-            ImGui.SameLine();
-            ImGui.SetNextItemWidth(180f);
-            if (ImGui.InputTextWithHint("##Search", "Search items...", ref _searchFilter, 100))
-            {
+        
+        ImGui.SameLine();
+        ImGui.SetNextItemWidth(180f);
+        if (ImGui.InputTextWithHint("##Search", "Search items...", ref _searchFilter, 100))
+        {
                 UpdateCategories();
             }
             
@@ -49,78 +49,78 @@ public partial class InventoryManagementModule
                     if (ImGui.SmallButton("×"))
                     {
                         _searchFilter = string.Empty;
-                        UpdateCategories();
+            UpdateCategories();
                     }
                 }
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.SetTooltip("Clear search");
                 }
-            }
-            
-            ImGui.SameLine();
+        }
+        
+        ImGui.SameLine();
             using (var font = ImRaii.PushFont(UiBuilder.IconFont))
             {
                 if (ImGui.Button(FontAwesomeIcon.Sync.ToIconString() + "##Refresh", new Vector2(28, 0))) // Fixed width for icon button
-                {
-                    RefreshInventory();
-                }
+        {
+            RefreshInventory();
+        }
             }
+        ImGui.SameLine();
+        ImGui.Text("Refresh");
+        
+        ImGui.SameLine();
+        ImGui.TextColored(new Vector4(0.3f, 0.3f, 0.3f, 1f), "|");
+        
+        ImGui.SameLine();
+        if (ImGui.Checkbox("Armory", ref _showArmory)) 
+        {
+            RefreshInventory();
+        }
+        
+        ImGui.SameLine();
+        ImGui.TextColored(new Vector4(0.3f, 0.3f, 0.3f, 1f), "|");
+        
+        ImGui.SameLine();
+        var showPrices = Settings.ShowMarketPrices;
+        if (ImGui.Checkbox("Show Prices", ref showPrices))
+        {
+            Settings.ShowMarketPrices = showPrices;
+                _plugin.ConfigManager.SaveConfiguration();
+        }
+        
+        if (Settings.ShowMarketPrices)
+        {
             ImGui.SameLine();
-            ImGui.Text("Refresh");
-            
+            ImGui.Text("World:");
             ImGui.SameLine();
-            ImGui.TextColored(new Vector4(0.3f, 0.3f, 0.3f, 1f), "|");
-            
-            ImGui.SameLine();
-            if (ImGui.Checkbox("Armory", ref _showArmory)) 
-            {
-                RefreshInventory();
-            }
-            
-            ImGui.SameLine();
-            ImGui.TextColored(new Vector4(0.3f, 0.3f, 0.3f, 1f), "|");
-            
-            ImGui.SameLine();
-            var showPrices = Settings.ShowMarketPrices;
-            if (ImGui.Checkbox("Show Prices", ref showPrices))
-            {
-                Settings.ShowMarketPrices = showPrices;
-                _plugin.Configuration.Save();
-            }
-            
-            if (Settings.ShowMarketPrices)
-            {
-                ImGui.SameLine();
-                ImGui.Text("World:");
-                ImGui.SameLine();
-                ImGui.SetNextItemWidth(100);
+            ImGui.SetNextItemWidth(100);
                 using (var combo = ImRaii.Combo("##World", _selectedWorld))
                 {
                     if (combo)
+            {
+                foreach (var world in _availableWorlds)
+                {
+                    bool isSelected = world == _selectedWorld;
+                    if (ImGui.Selectable(world, isSelected))
                     {
-                        foreach (var world in _availableWorlds)
+                        _selectedWorld = world;
+                        _universalisClient.Dispose();
+                        _universalisClient = new UniversalisClient(Plugin.Log, _selectedWorld);
+                        lock (_priceCacheLock)
                         {
-                            bool isSelected = world == _selectedWorld;
-                            if (ImGui.Selectable(world, isSelected))
+                            _priceCache.Clear();
+                        }
+                        lock (_itemsLock)
+                        {
+                            foreach (var item in _allItems)
                             {
-                                _selectedWorld = world;
-                                _universalisClient.Dispose();
-                                _universalisClient = new UniversalisClient(Plugin.Log, _selectedWorld);
-                                lock (_priceCacheLock)
-                                {
-                                    _priceCache.Clear();
-                                }
-                                lock (_itemsLock)
-                                {
-                                    foreach (var item in _allItems)
-                                    {
-                                        item.MarketPrice = null;
-                                        item.MarketPriceFetchTime = null;
-                                    }
-                                }
+                                item.MarketPrice = null;
+                                item.MarketPriceFetchTime = null;
                             }
                         }
+                    }
+                }
                     }
                 }
             }
@@ -157,18 +157,18 @@ public partial class InventoryManagementModule
         {
             using (var font = ImRaii.PushFont(UiBuilder.IconFont))
             {
-                ImGui.TextColored(ColorBlue, FontAwesomeIcon.Shield.ToIconString());
+        ImGui.TextColored(ColorBlue, FontAwesomeIcon.Shield.ToIconString());
             }
-            ImGui.SameLine();
-            ImGui.Text("Safety Filters");
-            ImGui.SameLine();
-            
-            var activeCount = CountActiveFilters();
-            ImGui.TextColored(ColorInfo, $"({activeCount}/9 active)");
-            
-            ImGui.Spacing();
-            
-            DrawFilterGrid();
+        ImGui.SameLine();
+        ImGui.Text("Safety Filters");
+        ImGui.SameLine();
+        
+        var activeCount = CountActiveFilters();
+        ImGui.TextColored(ColorInfo, $"({activeCount}/9 active)");
+        
+        ImGui.Spacing();
+        
+        DrawFilterGrid();
         }
     }
     
@@ -201,7 +201,7 @@ public partial class InventoryManagementModule
         filters.FilterHQItems = false;
         filters.FilterCollectables = false;
         filters.FilterSpiritbondedItems = false;
-        _plugin.Configuration.Save();
+        _plugin.ConfigManager.SaveConfiguration();
         RefreshInventory();
     }
     
@@ -269,12 +269,12 @@ public partial class InventoryManagementModule
                                   .Push(ImGuiCol.Text, ColorWarning))
         {
             ImGui.SetNextItemWidth(40); // Slightly narrower
-            
-            int maxLevel = (int)filters.MaxGearItemLevel;
-            if (ImGui.InputInt("##MaxGearItemLevel", ref maxLevel, 0, 0, ImGuiInputTextFlags.CharsDecimal))
-            {
-                filters.MaxGearItemLevel = (uint)Math.Max(1, Math.Min(999, maxLevel));
-                changed = true;
+        
+        int maxLevel = (int)filters.MaxGearItemLevel;
+        if (ImGui.InputInt("##MaxGearItemLevel", ref maxLevel, 0, 0, ImGuiInputTextFlags.CharsDecimal))
+        {
+            filters.MaxGearItemLevel = (uint)Math.Max(1, Math.Min(999, maxLevel));
+            changed = true;
             }
         }
         
@@ -291,10 +291,10 @@ public partial class InventoryManagementModule
         using (var styles = ImRaii.PushStyle(ImGuiStyleVar.FrameRounding, 10f)
                                   .Push(ImGuiStyleVar.FramePadding, new Vector2(3, 1)))
         {
-            ImGui.SmallButton("?");
-            if (ImGui.IsItemHovered())
-            {
-                ImGui.SetTooltip($"Equipment above item level {filters.MaxGearItemLevel}\nClick the number to change the threshold");
+        ImGui.SmallButton("?");
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.SetTooltip($"Equipment above item level {filters.MaxGearItemLevel}\nClick the number to change the threshold");
             }
         }
         
@@ -332,7 +332,7 @@ public partial class InventoryManagementModule
         
         if (changed)
         {
-            _plugin.Configuration.Save();
+            _plugin.ConfigManager.SaveConfiguration();
             RefreshInventory();
         }
     }
@@ -343,28 +343,28 @@ public partial class InventoryManagementModule
         
         using (var group = ImRaii.Group())
         {
-            // Checkbox
-            if (ImGui.Checkbox($"##{label}", ref value))
-            {
-                changed = true;
-            }
-            
-            // Label
-            ImGui.SameLine();
-            ImGui.Text(label);
-            
-            // Help icon
-            ImGui.SameLine();
+        // Checkbox
+        if (ImGui.Checkbox($"##{label}", ref value))
+        {
+            changed = true;
+        }
+        
+        // Label
+        ImGui.SameLine();
+        ImGui.Text(label);
+        
+        // Help icon
+        ImGui.SameLine();
             using (var colors = ImRaii.PushColor(ImGuiCol.Text, new Vector4(0.6f, 0.6f, 0.6f, 1f))
                                       .Push(ImGuiCol.Button, new Vector4(0, 0, 0, 0))
                                       .Push(ImGuiCol.ButtonHovered, new Vector4(0.2f, 0.2f, 0.2f, 0.3f)))
             using (var styles = ImRaii.PushStyle(ImGuiStyleVar.FrameRounding, 10f)
                                       .Push(ImGuiStyleVar.FramePadding, new Vector2(3, 1)))
             {
-                ImGui.SmallButton(helpText);
-                if (ImGui.IsItemHovered())
-                {
-                    ImGui.SetTooltip(tooltip);
+        ImGui.SmallButton(helpText);
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.SetTooltip(tooltip);
                 }
             }
         }
@@ -404,45 +404,45 @@ public partial class InventoryManagementModule
             
             using (var node = ImRaii.TreeNode($"{category.Name}###{category.CategoryId}_node", nodeFlags))
             {
-                // Stats on the same line
+            // Stats on the same line
+            ImGui.SameLine();
+            ImGui.TextColored(ColorInfo, $"({category.Items.Count} items, {category.TotalQuantity} total)");
+            
+            if (Settings.ShowMarketPrices && category.TotalValue.HasValue)
+            {
                 ImGui.SameLine();
-                ImGui.TextColored(ColorInfo, $"({category.Items.Count} items, {category.TotalQuantity} total)");
-                
-                if (Settings.ShowMarketPrices && category.TotalValue.HasValue)
-                {
-                    ImGui.SameLine();
-                    ImGui.TextColored(ColorPrice, $"{category.TotalValue.Value:N0} gil");
-                }
-                
-                // Select All button - positioned with better spacing
-                var selectAllWidth = 90f;
-                var windowWidth = ImGui.GetWindowContentRegionMax().X;
-                ImGui.SameLine(windowWidth - selectAllWidth - 10);
-                DrawCategoryControls(category);
-                
+                ImGui.TextColored(ColorPrice, $"{category.TotalValue.Value:N0} gil");
+            }
+            
+            // Select All button - positioned with better spacing
+            var selectAllWidth = 90f;
+            var windowWidth = ImGui.GetWindowContentRegionMax().X;
+            ImGui.SameLine(windowWidth - selectAllWidth - 10);
+            DrawCategoryControls(category);
+            
                 if (node)
+            {
+                ExpandedCategories[category.CategoryId] = true;
+                _expandedCategoriesChanged = true;
+                DrawCategoryItems(category);
+                
+                // Immediately fetch prices for visible tradable items in this category
+                if (Settings.ShowMarketPrices)
                 {
-                    ExpandedCategories[category.CategoryId] = true;
-                    _expandedCategoriesChanged = true;
-                    DrawCategoryItems(category);
-                    
-                    // Immediately fetch prices for visible tradable items in this category
-                    if (Settings.ShowMarketPrices)
+                    lock (_fetchingPricesLock)
                     {
-                        lock (_fetchingPricesLock)
+                        var tradableItems = category.Items.Where(i => i.CanBeTraded && !i.MarketPrice.HasValue && !_fetchingPrices.Contains(i.ItemId)).Take(2);
+                        foreach (var item in tradableItems)
                         {
-                            var tradableItems = category.Items.Where(i => i.CanBeTraded && !i.MarketPrice.HasValue && !_fetchingPrices.Contains(i.ItemId)).Take(2);
-                            foreach (var item in tradableItems)
-                            {
-                                _ = FetchMarketPrice(item);
-                            }
+                            _ = FetchMarketPrice(item);
                         }
                     }
                 }
-                else
-                {
-                    ExpandedCategories[category.CategoryId] = false;
-                    _expandedCategoriesChanged = true;
+            }
+            else
+            {
+                ExpandedCategories[category.CategoryId] = false;
+                _expandedCategoriesChanged = true;
                 }
             }
             
@@ -524,7 +524,7 @@ public partial class InventoryManagementModule
                     
                     // Checkbox column
                     ImGui.TableNextColumn();
-                    bool isBlacklisted = Settings.BlacklistedItems.Contains(item.ItemId);
+                    bool isBlacklisted = BlacklistedItems.Contains(item.ItemId);
                     bool isSelected;
                     lock (_selectedItemsLock)
                     {
@@ -689,40 +689,40 @@ public partial class InventoryManagementModule
             ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
         {
             if (table)
+        {
+            // Calculate dynamic widths based on content
+            float checkboxWidth = 22;
+            float idWidth = ImGui.CalcTextSize("99999").X + 8;
+            float qtyWidth = ImGui.CalcTextSize("999").X + 8;
+            float ilvlWidth = ImGui.CalcTextSize("999").X + 8;
+            float locationWidth = ImGui.CalcTextSize("P.Saddlebag 9").X + 8;
+            
+            ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, checkboxWidth);
+            ImGui.TableSetupColumn("ID", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHide, idWidth);
+            ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch | ImGuiTableColumnFlags.NoHide); // Back to stretch
+            ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHide, qtyWidth);
+            ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed, ilvlWidth);
+            ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, locationWidth);
+            if (Settings.ShowMarketPrices)
             {
-                // Calculate dynamic widths based on content
-                float checkboxWidth = 22;
-                float idWidth = ImGui.CalcTextSize("99999").X + 8;
-                float qtyWidth = ImGui.CalcTextSize("999").X + 8;
-                float ilvlWidth = ImGui.CalcTextSize("999").X + 8;
-                float locationWidth = ImGui.CalcTextSize("P.Saddlebag 9").X + 8;
-                
-                ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, checkboxWidth);
-                ImGui.TableSetupColumn("ID", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHide, idWidth);
-                ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch | ImGuiTableColumnFlags.NoHide); // Back to stretch
-                ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHide, qtyWidth);
-                ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed, ilvlWidth);
-                ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, locationWidth);
-                if (Settings.ShowMarketPrices)
-                {
-                    float priceWidth = ImGui.CalcTextSize("999,999g").X + 8;
-                    float totalWidth = ImGui.CalcTextSize("9,999,999g").X + 8;
-                    ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, priceWidth);
-                    ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed, totalWidth);
-                }
-                else
-                {
-                    float statusWidth = ImGui.CalcTextSize("Not Discardable").X + 8;
-                    ImGui.TableSetupColumn("Status", ImGuiTableColumnFlags.WidthFixed, statusWidth);
-                }
-                
-                ImGui.TableHeadersRow();
-                
-                foreach (var item in category.Items)
-                {
-                    DrawItemRow(item, category);
-                }
+                float priceWidth = ImGui.CalcTextSize("999,999g").X + 8;
+                float totalWidth = ImGui.CalcTextSize("9,999,999g").X + 8;
+                ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, priceWidth);
+                ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed, totalWidth);
             }
+            else
+            {
+                float statusWidth = ImGui.CalcTextSize("Not Discardable").X + 8;
+                ImGui.TableSetupColumn("Status", ImGuiTableColumnFlags.WidthFixed, statusWidth);
+            }
+            
+            ImGui.TableHeadersRow();
+            
+            foreach (var item in category.Items)
+            {
+                DrawItemRow(item, category);
+            }
+        }
         }
     }
     
@@ -734,7 +734,7 @@ public partial class InventoryManagementModule
         {
             selectedInCategory = category.Items.Count(i => _selectedItems.Contains(i.ItemId));
             // Check if all non-blacklisted items are selected
-            var selectableItems = category.Items.Where(i => !Settings.BlacklistedItems.Contains(i.ItemId)).ToList();
+            var selectableItems = category.Items.Where(i => !BlacklistedItems.Contains(i.ItemId)).ToList();
             allSelectableSelected = selectableItems.Count > 0 && selectableItems.All(i => _selectedItems.Contains(i.ItemId));
         }
         
@@ -763,7 +763,7 @@ public partial class InventoryManagementModule
                     foreach (var item in category.Items)
                     {
                         // Skip blacklisted items
-                        if (Settings.BlacklistedItems.Contains(item.ItemId))
+                        if (BlacklistedItems.Contains(item.ItemId))
                             continue;
                             
                         _selectedItems.Add(item.ItemId);
@@ -775,7 +775,7 @@ public partial class InventoryManagementModule
         
         if (ImGui.IsItemHovered())
         {
-            var blacklistedCount = category.Items.Count(i => Settings.BlacklistedItems.Contains(i.ItemId));
+            var blacklistedCount = category.Items.Count(i => BlacklistedItems.Contains(i.ItemId));
             if (blacklistedCount > 0)
             {
                 ImGui.SetTooltip($"Blacklisted items ({blacklistedCount}) will not be selected");
@@ -788,7 +788,7 @@ public partial class InventoryManagementModule
             ImGui.SameLine();
             using (var font = ImRaii.PushFont(UiBuilder.IconFont))
             {
-                ImGui.TextColored(ColorWarning, FontAwesomeIcon.ExclamationTriangle.ToIconString());
+            ImGui.TextColored(ColorWarning, FontAwesomeIcon.ExclamationTriangle.ToIconString());
             }
             if (ImGui.IsItemHovered())
             {
@@ -822,7 +822,7 @@ public partial class InventoryManagementModule
         }
         
         // Check if item is blacklisted
-        bool isBlacklisted = Settings.BlacklistedItems.Contains(item.ItemId);
+        bool isBlacklisted = BlacklistedItems.Contains(item.ItemId);
         
         // Apply selection or blacklist background using table row bg
         if (isBlacklisted)
@@ -844,8 +844,8 @@ public partial class InventoryManagementModule
             // Show disabled checkbox for blacklisted items
             using (var disabled = ImRaii.Disabled())
             {
-                bool blacklistedCheck = false;
-                ImGui.Checkbox($"##check_{item.GetUniqueKey()}", ref blacklistedCheck);
+            bool blacklistedCheck = false;
+            ImGui.Checkbox($"##check_{item.GetUniqueKey()}", ref blacklistedCheck);
             }
             
             if (ImGui.IsItemHovered())
@@ -957,9 +957,9 @@ public partial class InventoryManagementModule
                 // Show loading spinner
                 using (var font = ImRaii.PushFont(UiBuilder.IconFont))
                 {
-                    var time = ImGui.GetTime();
-                    var spinnerIcon = time % 1.0 < 0.5 ? FontAwesomeIcon.CircleNotch : FontAwesomeIcon.Circle;
-                    ImGui.TextColored(ColorLoading, spinnerIcon.ToIconString());
+                var time = ImGui.GetTime();
+                var spinnerIcon = time % 1.0 < 0.5 ? FontAwesomeIcon.CircleNotch : FontAwesomeIcon.Circle;
+                ImGui.TextColored(ColorLoading, spinnerIcon.ToIconString());
                 }
                 ImGui.SameLine();
                 ImGui.TextColored(ColorLoading, "Loading...");
@@ -984,10 +984,10 @@ public partial class InventoryManagementModule
                     using (var style = ImRaii.PushStyle(ImGuiStyleVar.FramePadding, new Vector2(2, 0)))
                     using (var font = ImRaii.PushFont(UiBuilder.IconFont))
                     {
-                        if (ImGui.SmallButton(FontAwesomeIcon.DollarSign.ToIconString() + $"##fetch_{item.GetUniqueKey()}"))
-                        {
-                            _ = FetchMarketPrice(item);
-                        }
+                    if (ImGui.SmallButton(FontAwesomeIcon.DollarSign.ToIconString() + $"##fetch_{item.GetUniqueKey()}"))
+                    {
+                        _ = FetchMarketPrice(item);
+                    }
                     }
                     if (ImGui.IsItemHovered())
                         ImGui.SetTooltip("Fetch current market price");
@@ -1058,14 +1058,14 @@ public partial class InventoryManagementModule
             
             using (var color = ImRaii.PushColor(ImGuiCol.Text, tagColor))
             {
-                var shortName = GetShortFilterName(filterName);
-                ImGui.Text($"[{shortName}]");
-                
-                if (ImGui.IsItemHovered())
-                {
-                    ImGui.SetTooltip(isActive ? 
-                        $"HIDDEN by '{filterName}' filter" :
-                        $"Would be hidden by '{filterName}' filter (disabled)");
+            var shortName = GetShortFilterName(filterName);
+            ImGui.Text($"[{shortName}]");
+            
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip(isActive ? 
+                    $"HIDDEN by '{filterName}' filter" :
+                    $"Would be hidden by '{filterName}' filter (disabled)");
                 }
             }
         }
@@ -1096,19 +1096,19 @@ public partial class InventoryManagementModule
         
         using (var color = ImRaii.PushColor(ImGuiCol.Text, flagColor))
         {
-            var flagText = string.Join(", ", additionalFlags);
-            ImGui.Text($"[{flagText}]");
-            
-            if (ImGui.IsItemHovered())
-            {
+        var flagText = string.Join(", ", additionalFlags);
+        ImGui.Text($"[{flagText}]");
+        
+        if (ImGui.IsItemHovered())
+        {
                 using (var tooltip = ImRaii.Tooltip())
                 {
-                    ImGui.Text("Additional Safety Info:");
-                    foreach (var flag in additionalFlags)
-                    {
-                        ImGui.BulletText(flag);
-                    }
-                }
+            ImGui.Text("Additional Safety Info:");
+            foreach (var flag in additionalFlags)
+            {
+                ImGui.BulletText(flag);
+            }
+        }
             }
         }
     }
@@ -1225,44 +1225,44 @@ public partial class InventoryManagementModule
         else
         {
             var filteredCategories = protectedItems
-                .GroupBy(i => new { i.ItemUICategory, i.CategoryName })
-                .Select(categoryGroup => new
-                {
-                    CategoryId = categoryGroup.Key.ItemUICategory,
-                    CategoryName = categoryGroup.Key.CategoryName,
-                    Items = categoryGroup.ToList()
-                })
-                .OrderBy(c => c.CategoryName)
-                .ToList();
-            
-            foreach (var category in filteredCategories)
+            .GroupBy(i => new { i.ItemUICategory, i.CategoryName })
+            .Select(categoryGroup => new
             {
-                var isExpanded = ExpandedCategories.GetValueOrDefault(category.CategoryId, true);
-                
+                CategoryId = categoryGroup.Key.ItemUICategory,
+                CategoryName = categoryGroup.Key.CategoryName,
+                Items = categoryGroup.ToList()
+            })
+            .OrderBy(c => c.CategoryName)
+            .ToList();
+        
+        foreach (var category in filteredCategories)
+        {
+            var isExpanded = ExpandedCategories.GetValueOrDefault(category.CategoryId, true);
+            
                 // Use unique ID based on category ID and filtered prefix
                 using var id = ImRaii.PushId($"FilteredCategory_{category.CategoryId}");
-                
-                var categoryHeaderText = $"{category.CategoryName} ({category.Items.Count} protected)";
-                
+            
+            var categoryHeaderText = $"{category.CategoryName} ({category.Items.Count} protected)";
+            
                 // Use TreeNodeEx for consistent behavior with Available Items - remove Framed
                 var nodeFlags = ImGuiTreeNodeFlags.AllowItemOverlap | ImGuiTreeNodeFlags.SpanAvailWidth;
-                if (isExpanded) nodeFlags |= ImGuiTreeNodeFlags.DefaultOpen;
-                
+            if (isExpanded) nodeFlags |= ImGuiTreeNodeFlags.DefaultOpen;
+            
                 using (var color = ImRaii.PushColor(ImGuiCol.Text, new Vector4(0.8f, 0.6f, 0.6f, 1)))
                 {
                     using (var node = ImRaii.TreeNode($"{categoryHeaderText}###{category.CategoryId}_filtered_node", nodeFlags))
                     {
                         if (node)
-                        {
-                            ExpandedCategories[category.CategoryId] = true;
-                            _expandedCategoriesChanged = true;
-                            
+            {
+                ExpandedCategories[category.CategoryId] = true;
+                _expandedCategoriesChanged = true;
+                
                             DrawProtectedItemsTable(category.Items);
-                        }
-                        else
-                        {
-                            ExpandedCategories[category.CategoryId] = false;
-                            _expandedCategoriesChanged = true;
+            }
+            else
+            {
+                ExpandedCategories[category.CategoryId] = false;
+                _expandedCategoriesChanged = true;
                         }
                     }
                 }
@@ -1461,38 +1461,38 @@ public partial class InventoryManagementModule
             ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
         {
             if (table)
+        {
+            // Calculate dynamic widths based on content
+            float idWidth = ImGui.CalcTextSize("99999").X + 8;
+            float qtyWidth = ImGui.CalcTextSize("999").X + 8;
+            float ilvlWidth = ImGui.CalcTextSize("999").X + 8;
+            float locationWidth = ImGui.CalcTextSize("P.Saddlebag 9").X + 8;
+            
+            ImGui.TableSetupColumn("ID", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHide, idWidth);
+            ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch | ImGuiTableColumnFlags.NoHide); // Back to stretch
+            ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHide, qtyWidth);
+            ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed, ilvlWidth);
+            ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, locationWidth);
+            if (Settings.ShowMarketPrices)
             {
-                // Calculate dynamic widths based on content
-                float idWidth = ImGui.CalcTextSize("99999").X + 8;
-                float qtyWidth = ImGui.CalcTextSize("999").X + 8;
-                float ilvlWidth = ImGui.CalcTextSize("999").X + 8;
-                float locationWidth = ImGui.CalcTextSize("P.Saddlebag 9").X + 8;
-                
-                ImGui.TableSetupColumn("ID", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHide, idWidth);
-                ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch | ImGuiTableColumnFlags.NoHide); // Back to stretch
-                ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHide, qtyWidth);
-                ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed, ilvlWidth);
-                ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, locationWidth);
-                if (Settings.ShowMarketPrices)
-                {
-                    float priceWidth = ImGui.CalcTextSize("999,999g").X + 8;
-                    float totalWidth = ImGui.CalcTextSize("9,999,999g").X + 8;
-                    ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, priceWidth);
-                    ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed, totalWidth);
-                }
-                else
-                {
-                    float reasonWidth = ImGui.CalcTextSize("Unique & Untradeable").X + 8;
-                    ImGui.TableSetupColumn("Reason", ImGuiTableColumnFlags.WidthFixed, reasonWidth);
-                }
-                
-                ImGui.TableHeadersRow();
-                
-                foreach (var item in items)
-                {
-                    DrawProtectedItemRow(item);
-                }
+                float priceWidth = ImGui.CalcTextSize("999,999g").X + 8;
+                float totalWidth = ImGui.CalcTextSize("9,999,999g").X + 8;
+                ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, priceWidth);
+                ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed, totalWidth);
             }
+            else
+            {
+                float reasonWidth = ImGui.CalcTextSize("Unique & Untradeable").X + 8;
+                ImGui.TableSetupColumn("Reason", ImGuiTableColumnFlags.WidthFixed, reasonWidth);
+            }
+            
+            ImGui.TableHeadersRow();
+            
+            foreach (var item in items)
+            {
+                    DrawProtectedItemRow(item);
+            }
+        }
         }
     }
     
@@ -1577,7 +1577,7 @@ public partial class InventoryManagementModule
             }
             else if (priceText != "---")
             {
-                ImGui.Text(priceText);
+            ImGui.Text(priceText);
             }
             else
             {
@@ -1702,86 +1702,86 @@ public partial class InventoryManagementModule
         
         using (var child = ImRaii.Child("ActionBar", new Vector2(0, 42), true, ImGuiWindowFlags.NoScrollbar))
         {
-            // Left side - Action buttons
-            int selectedCount;
-            lock (_selectedItemsLock)
-            {
-                selectedCount = _selectedItems.Count;
-            }
-            
-            // Calculate dynamic button widths based on text
-            var clearButtonText = "Clear All";
-            var discardButtonText = $"Discard ({selectedCount})";
-            var blacklistButtonText = $"Add to Blacklist ({selectedCount})";
+        // Left side - Action buttons
+        int selectedCount;
+        lock (_selectedItemsLock)
+        {
+            selectedCount = _selectedItems.Count;
+        }
+        
+        // Calculate dynamic button widths based on text
+        var clearButtonText = "Clear All";
+        var discardButtonText = $"Discard ({selectedCount})";
+        var blacklistButtonText = $"Add to Blacklist ({selectedCount})";
             var autoDiscardButtonText = $"Add to Auto-Discard ({selectedCount})";
             var executeAutoDiscardText = "Execute Auto Discard";
-            
-            // Calculate minimum widths based on text size with padding
-            var buttonPadding = 20f; // Extra padding for button aesthetics
-            var clearButtonWidth = Math.Max(80f, ImGui.CalcTextSize(clearButtonText).X + buttonPadding);
-            var discardButtonWidth = Math.Max(80f, ImGui.CalcTextSize(discardButtonText).X + buttonPadding);
-            var blacklistButtonWidth = Math.Max(120f, ImGui.CalcTextSize(blacklistButtonText).X + buttonPadding);
+        
+        // Calculate minimum widths based on text size with padding
+        var buttonPadding = 20f; // Extra padding for button aesthetics
+        var clearButtonWidth = Math.Max(80f, ImGui.CalcTextSize(clearButtonText).X + buttonPadding);
+        var discardButtonWidth = Math.Max(80f, ImGui.CalcTextSize(discardButtonText).X + buttonPadding);
+        var blacklistButtonWidth = Math.Max(120f, ImGui.CalcTextSize(blacklistButtonText).X + buttonPadding);
             var autoDiscardButtonWidth = Math.Max(140f, ImGui.CalcTextSize(autoDiscardButtonText).X + buttonPadding);
             var executeAutoDiscardWidth = Math.Max(140f, ImGui.CalcTextSize(executeAutoDiscardText).X + buttonPadding);
-            
-            if (ImGui.Button(clearButtonText, new Vector2(clearButtonWidth, 0)))
+        
+        if (ImGui.Button(clearButtonText, new Vector2(clearButtonWidth, 0)))
+        {
+            lock (_selectedItemsLock)
             {
-                lock (_selectedItemsLock)
+                _selectedItems.Clear();
+            }
+            lock (_itemsLock)
+            {
+                foreach (var item in _allItems)
                 {
-                    _selectedItems.Clear();
-                }
-                lock (_itemsLock)
-                {
-                    foreach (var item in _allItems)
-                    {
-                        item.IsSelected = false;
-                    }
+                    item.IsSelected = false;
                 }
             }
-            
-            ImGui.SameLine();
-            
+        }
+        
+        ImGui.SameLine();
+        
             using (var btnColors = ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.541f, 0.227f, 0.227f, 1f))
                                          .Push(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.327f, 0.327f, 1f)))
             {
-                if (selectedCount > 0)
-                {
-                    if (ImGui.Button(discardButtonText, new Vector2(discardButtonWidth, 0)))
-                    {
-                        PrepareDiscard();
-                    }
-                }
-                else
-                {
+        if (selectedCount > 0)
+        {
+            if (ImGui.Button(discardButtonText, new Vector2(discardButtonWidth, 0)))
+            {
+                PrepareDiscard();
+            }
+        }
+        else
+        {
                     using (var disabled = ImRaii.Disabled())
                     {
-                        ImGui.Button(discardButtonText, new Vector2(discardButtonWidth, 0));
-                    }
+            ImGui.Button(discardButtonText, new Vector2(discardButtonWidth, 0));
+        }
                 }
             }
-            
-            ImGui.SameLine();
-            
+        
+        ImGui.SameLine();
+        
             using (var btnColors = ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.227f, 0.227f, 0.541f, 1f))
                                          .Push(ImGuiCol.ButtonHovered, new Vector4(0.327f, 0.327f, 0.641f, 1f)))
             {
-                if (selectedCount > 0)
-                {
-                    if (ImGui.Button(blacklistButtonText, new Vector2(blacklistButtonWidth, 0)))
-                    {
-                        AddSelectedToBlacklist();
-                    }
-                }
-                else
-                {
+        if (selectedCount > 0)
+        {
+            if (ImGui.Button(blacklistButtonText, new Vector2(blacklistButtonWidth, 0)))
+            {
+                AddSelectedToBlacklist();
+            }
+        }
+        else
+        {
                     using (var disabled = ImRaii.Disabled())
                     {
-                        ImGui.Button(blacklistButtonText, new Vector2(blacklistButtonWidth, 0));
-                    }
+            ImGui.Button(blacklistButtonText, new Vector2(blacklistButtonWidth, 0));
+        }
                 }
             }
-            
-            ImGui.SameLine();
+        
+        ImGui.SameLine();
             
             using (var btnColors = ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.541f, 0.341f, 0.127f, 1f))
                                          .Push(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.441f, 0.227f, 1f)))
@@ -1803,12 +1803,12 @@ public partial class InventoryManagementModule
             }
             
             // Execute Auto Discard button
-            ImGui.SameLine();
+        ImGui.SameLine();
             
             using (var btnColors = ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.7f, 0.2f, 0.2f, 1f))
                                          .Push(ImGuiCol.ButtonHovered, new Vector4(0.8f, 0.3f, 0.3f, 1f)))
             {
-                bool hasAutoDiscardItems = Settings.AutoDiscardItems.Count > 0;
+                bool hasAutoDiscardItems = AutoDiscardItems.Count > 0;
                 
                 if (hasAutoDiscardItems)
                 {
@@ -1844,9 +1844,9 @@ public partial class InventoryManagementModule
         {
             foreach (var itemId in _selectedItems)
             {
-                if (!Settings.BlacklistedItems.Contains(itemId))
+                if (!BlacklistedItems.Contains(itemId))
                 {
-                    Settings.BlacklistedItems.Add(itemId);
+                    BlacklistedItems.Add(itemId);
                 }
             }
             
@@ -1861,34 +1861,34 @@ public partial class InventoryManagementModule
             }
         }
         
-        _plugin.Configuration.Save();
+        SaveBlacklist();
         RefreshInventory();
     }
     
     private void AddSelectedToAutoDiscard()
     {
-        lock (_selectedItemsLock)
-        {
+            lock (_selectedItemsLock)
+            {
             foreach (var itemId in _selectedItems)
             {
-                if (!Settings.AutoDiscardItems.Contains(itemId))
+                if (!AutoDiscardItems.Contains(itemId))
                 {
-                    Settings.AutoDiscardItems.Add(itemId);
+                    AutoDiscardItems.Add(itemId);
                 }
             }
             
-            _selectedItems.Clear();
-        }
-        
-        lock (_itemsLock)
-        {
-            foreach (var item in _allItems)
-            {
-                item.IsSelected = false;
+                _selectedItems.Clear();
             }
-        }
         
-        _plugin.Configuration.Save();
-        RefreshInventory();
+            lock (_itemsLock)
+            {
+                foreach (var item in _allItems)
+                {
+                    item.IsSelected = false;
+                }
+            }
+            
+        SaveAutoDiscard();
+            RefreshInventory();
     }
 }

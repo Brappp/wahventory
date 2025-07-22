@@ -75,10 +75,10 @@ public partial class InventoryManagementModule
         {
             if (ImGui.Button("Add to Blacklist"))
             {
-                if (_itemToAdd > 0 && !Settings.BlacklistedItems.Contains(_itemToAdd))
+                if (_itemToAdd > 0 && !BlacklistedItems.Contains(_itemToAdd))
                 {
-                    Settings.BlacklistedItems.Add(_itemToAdd);
-                    _plugin.Configuration.Save();
+                    BlacklistedItems.Add(_itemToAdd);
+                    SaveBlacklist();
                     RefreshInventory();
                     _itemToAdd = 0;
                     _itemNameToAdd = string.Empty;
@@ -156,7 +156,7 @@ public partial class InventoryManagementModule
                 }
                 
                 // Item name and ID
-                var isBlacklisted = Settings.BlacklistedItems.Contains(id);
+                var isBlacklisted = BlacklistedItems.Contains(id);
                 if (isBlacklisted)
                 {
                     using (var color = ImRaii.PushColor(ImGuiCol.Text, ColorSubdued))
@@ -178,11 +178,11 @@ public partial class InventoryManagementModule
     
     private void DrawCurrentBlacklist()
     {
-        ImGui.Text($"Your Custom Blacklist ({Settings.BlacklistedItems.Count} items)");
+        ImGui.Text($"Your Custom Blacklist ({BlacklistedItems.Count} items)");
         
         ImGui.Spacing();
         
-        if (!Settings.BlacklistedItems.Any())
+        if (!BlacklistedItems.Any())
         {
             ImGui.TextColored(ColorSubdued, "No custom blacklisted items.");
             ImGui.TextColored(ColorInfo, "Add items using the controls above or select items in the Available Items tab and click 'Add to Blacklist'.");
@@ -190,12 +190,12 @@ public partial class InventoryManagementModule
         else
         {
             // Filter the items using the main search filter
-            var itemsToShow = Settings.BlacklistedItems.AsEnumerable();
+            var itemsToShow = BlacklistedItems.AsEnumerable();
             
             if (!string.IsNullOrWhiteSpace(_searchFilter))
             {
                 var filteredIds = new List<uint>();
-                foreach (var itemId in Settings.BlacklistedItems)
+                foreach (var itemId in BlacklistedItems)
                 {
                     // Get item info for filtering
                     string itemName = null;
@@ -248,13 +248,13 @@ public partial class InventoryManagementModule
                 if (popup)
                 {
                     ImGui.Text("Are you sure you want to clear all custom blacklisted items?");
-                    ImGui.Text($"This will remove {Settings.BlacklistedItems.Count} items from your blacklist.");
+                    ImGui.Text($"This will remove {BlacklistedItems.Count} items from your blacklist.");
                     ImGui.Spacing();
                     
                     if (ImGui.Button("Yes, Clear All", new Vector2(120, 0)))
                     {
-                        Settings.BlacklistedItems.Clear();
-                        _plugin.Configuration.Save();
+                        BlacklistedItems.Clear();
+                        SaveBlacklist();
                         RefreshInventory();
                         ImGui.CloseCurrentPopup();
                     }
@@ -381,8 +381,8 @@ public partial class InventoryManagementModule
                     ImGui.TableNextColumn();
                     if (ImGui.SmallButton($"Remove##bl_{itemId}"))
                     {
-                        Settings.BlacklistedItems.Remove(itemId);
-                        _plugin.Configuration.Save();
+                        BlacklistedItems.Remove(itemId);
+                        SaveBlacklist();
                         RefreshInventory();
                     }
                 }

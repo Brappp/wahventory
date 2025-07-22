@@ -4,60 +4,58 @@ using Dalamud.Plugin;
 using System.IO;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
-using ECommons;
 using wahventory.Windows;
 using wahventory.Modules.Inventory;
+using Dalamud.Game;
 
 namespace wahventory;
 
 public sealed class Plugin : IDalamudPlugin
 {
     [PluginService] internal static IDalamudPluginInterface PluginInterface { get; private set; } = null!;
-    [PluginService] internal static ITextureProvider TextureProvider { get; private set; } = null!;
     [PluginService] internal static ICommandManager CommandManager { get; private set; } = null!;
-    [PluginService] internal static IClientState ClientState { get; private set; } = null!;
     [PluginService] internal static IDataManager DataManager { get; private set; } = null!;
+    [PluginService] internal static IFramework Framework { get; private set; } = null!;
+    [PluginService] internal static IClientState ClientState { get; private set; } = null!;
+    [PluginService] internal static ITextureProvider TextureProvider { get; private set; } = null!;
+    [PluginService] internal static IPluginLog Log { get; private set; } = null!;
+    [PluginService] internal static IGameInteropProvider GameInteropProvider { get; private set; } = null!;
     [PluginService] internal static IChatGui ChatGui { get; private set; } = null!;
     [PluginService] internal static IGameGui GameGui { get; private set; } = null!;
-    [PluginService] internal static IPluginLog Log { get; private set; } = null!;
-    [PluginService] internal static IFramework Framework { get; private set; } = null!;
 
     private const string CommandName = "/wahventory";
 
-    public Configuration Configuration { get; init; }
-
-    public readonly WindowSystem WindowSystem = new("WahVentory");
+    public ConfigurationManager ConfigManager { get; }
+    public Configuration Configuration => ConfigManager.Configuration;
+    public readonly WindowSystem WindowSystem = new("wahventory");
     private ConfigWindow ConfigWindow { get; init; }
     private MainWindow MainWindow { get; init; }
+    
+    // Modules
     private InventoryManagementModule InventoryModule { get; init; }
 
     public Plugin()
     {
-        ECommonsMain.Init(PluginInterface, this);
-        
-        Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
-
-        InventoryModule = new InventoryManagementModule(this);
-        InventoryModule.Initialize();
+        ConfigManager = new ConfigurationManager(PluginInterface);
 
         ConfigWindow = new ConfigWindow(this);
+        InventoryModule = new InventoryManagementModule(this);
         MainWindow = new MainWindow(this, InventoryModule);
-
+        
         WindowSystem.AddWindow(ConfigWindow);
         WindowSystem.AddWindow(MainWindow);
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
-            HelpMessage = "Opens the WahVentory inventory management window. Use '/wahventory auto' to auto-discard configured items."
+            HelpMessage = "Open the wahventory window\n/wahventory auto - Execute auto-discard for configured items"
         });
 
         PluginInterface.UiBuilder.Draw += DrawUI;
         PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUI;
         PluginInterface.UiBuilder.OpenMainUi += ToggleMainUI;
         
+        // Initialize module on first framework update
         Framework.Update += OnFrameworkUpdate;
-
-        Log.Information($"WahVentory initialized successfully!");
     }
 
     public void Dispose()
@@ -65,14 +63,20 @@ public sealed class Plugin : IDalamudPlugin
         Framework.Update -= OnFrameworkUpdate;
         
         WindowSystem.RemoveAllWindows();
-
+        
         ConfigWindow.Dispose();
         MainWindow.Dispose();
         InventoryModule.Dispose();
-
-        CommandManager.RemoveHandler(CommandName);
         
-        ECommonsMain.Dispose();
+        CommandManager.RemoveHandler(CommandName);
+    }
+    
+    private void OnFrameworkUpdate(IFramework framework)
+    {
+        InventoryModule.Initialize();
+        
+        // Unsubscribe after first initialization
+        Framework.Update -= OnFrameworkUpdate;
     }
 
     private void OnCommand(string command, string args)
@@ -91,9 +95,4 @@ public sealed class Plugin : IDalamudPlugin
 
     public void ToggleConfigUI() => ConfigWindow.Toggle();
     public void ToggleMainUI() => MainWindow.Toggle();
-    
-    private void OnFrameworkUpdate(IFramework framework)
-    {
-        InventoryModule.Update();
-    }
 }

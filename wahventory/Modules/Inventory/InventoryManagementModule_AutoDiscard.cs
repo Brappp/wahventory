@@ -75,10 +75,10 @@ public partial class InventoryManagementModule
         {
             if (ImGui.Button("Add to Auto-Discard"))
             {
-                if (_autoDiscardItemToAdd > 0 && !Settings.AutoDiscardItems.Contains(_autoDiscardItemToAdd))
+                if (_autoDiscardItemToAdd > 0 && !AutoDiscardItems.Contains(_autoDiscardItemToAdd))
                 {
-                    Settings.AutoDiscardItems.Add(_autoDiscardItemToAdd);
-                    _plugin.Configuration.Save();
+                    AutoDiscardItems.Add(_autoDiscardItemToAdd);
+                    SaveAutoDiscard();
                     RefreshInventory();
                     _autoDiscardItemToAdd = 0;
                     _autoDiscardItemNameToAdd = string.Empty;
@@ -156,8 +156,8 @@ public partial class InventoryManagementModule
                 }
                 
                 // Item name and ID
-                var isAutoDiscard = Settings.AutoDiscardItems.Contains(id);
-                if (isAutoDiscard)
+                var isInAutoDiscard = AutoDiscardItems.Contains(id);
+                if (isInAutoDiscard)
                 {
                     using (var color = ImRaii.PushColor(ImGuiCol.Text, ColorSubdued))
                     {
@@ -178,24 +178,24 @@ public partial class InventoryManagementModule
     
     private void DrawCurrentAutoDiscardList()
     {
-        ImGui.Text($"Your Auto-Discard List ({Settings.AutoDiscardItems.Count} items)");
+        ImGui.Text($"Your Auto-Discard List ({AutoDiscardItems.Count} items)");
         
         ImGui.Spacing();
         
-        if (!Settings.AutoDiscardItems.Any())
+        if (!AutoDiscardItems.Any())
         {
             ImGui.TextColored(ColorSubdued, "No auto-discard items configured.");
-            ImGui.TextColored(ColorInfo, "Add items using the controls above. Be careful - these items will be automatically discarded!");
+            ImGui.TextColored(ColorInfo, "Add items using the controls above or select items in the Available Items tab and click 'Add to Auto-Discard'.");
         }
         else
         {
             // Filter the items using the main search filter
-            var itemsToShow = Settings.AutoDiscardItems.AsEnumerable();
+            var itemsToShow = AutoDiscardItems.AsEnumerable();
             
             if (!string.IsNullOrWhiteSpace(_searchFilter))
             {
                 var filteredIds = new List<uint>();
-                foreach (var itemId in Settings.AutoDiscardItems)
+                foreach (var itemId in AutoDiscardItems)
                 {
                     // Get item info for filtering
                     string itemName = null;
@@ -248,13 +248,13 @@ public partial class InventoryManagementModule
                 if (popup)
                 {
                     ImGui.Text("Are you sure you want to clear all auto-discard items?");
-                    ImGui.Text($"This will remove {Settings.AutoDiscardItems.Count} items from your auto-discard list.");
+                    ImGui.Text($"This will remove {AutoDiscardItems.Count} items from your auto-discard list.");
                     ImGui.Spacing();
                     
                     if (ImGui.Button("Yes, Clear All", new Vector2(120, 0)))
                     {
-                        Settings.AutoDiscardItems.Clear();
-                        _plugin.Configuration.Save();
+                        AutoDiscardItems.Clear();
+                        SaveAutoDiscard();
                         RefreshInventory();
                         ImGui.CloseCurrentPopup();
                     }
@@ -389,8 +389,8 @@ public partial class InventoryManagementModule
                     ImGui.TableNextColumn();
                     if (ImGui.SmallButton($"Remove##ad_{itemId}"))
                     {
-                        Settings.AutoDiscardItems.Remove(itemId);
-                        _plugin.Configuration.Save();
+                        AutoDiscardItems.Remove(itemId);
+                        SaveAutoDiscard();
                         RefreshInventory();
                     }
                 }
@@ -407,7 +407,7 @@ public partial class InventoryManagementModule
     // Public method to execute auto-discard
     public void ExecuteAutoDiscard()
     {
-        if (Settings.AutoDiscardItems.Count == 0)
+        if (AutoDiscardItems.Count == 0)
         {
             Plugin.ChatGui.PrintError("No items configured for auto-discard. Add items in the Auto Discard tab.");
             return;
@@ -418,9 +418,9 @@ public partial class InventoryManagementModule
         lock (_itemsLock)
         {
             itemsToDiscard = _allItems
-                .Where(item => Settings.AutoDiscardItems.Contains(item.ItemId) && 
+                .Where(item => AutoDiscardItems.Contains(item.ItemId) && 
                               item.CanBeDiscarded &&
-                              !Settings.BlacklistedItems.Contains(item.ItemId))
+                              !BlacklistedItems.Contains(item.ItemId))
                 .ToList();
         }
         

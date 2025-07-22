@@ -40,12 +40,17 @@ public partial class InventoryManagementModule : IDisposable
     private readonly IconCache _iconCache;
     private bool _initialized = false;
     
+    // Add properties for separated lists
+    public HashSet<uint> BlacklistedItems { get; private set; }
+    public HashSet<uint> AutoDiscardItems { get; private set; }
+    
     // Thread safety
     private readonly object _itemsLock = new object();
     private readonly object _categoriesLock = new object();
     private readonly object _selectedItemsLock = new object();
     private readonly object _priceCacheLock = new object();
     private readonly object _fetchingPricesLock = new object();
+    private readonly object _initLock = new object();
     
     // Performance optimization
     private DateTime _lastRefresh = DateTime.MinValue;
@@ -75,6 +80,7 @@ public partial class InventoryManagementModule : IDisposable
     private string _selectedWorld = "";
     private List<string> _availableWorlds = new();
     
+    // Settings reference
     private InventorySettings Settings => _plugin.Configuration.InventorySettings;
     
     // Discard state
@@ -90,12 +96,73 @@ public partial class InventoryManagementModule : IDisposable
         _plugin = plugin;
         _inventoryHelpers = new InventoryHelpers(Plugin.DataManager, Plugin.Log);
         _iconCache = new IconCache(Plugin.TextureProvider);
-        _universalisClient = new UniversalisClient(Plugin.Log, "Aether");
-        _taskManager = new TaskManager();
+        
+        // Load blacklist and auto-discard items from separate files
+        BlacklistedItems = _plugin.ConfigManager.LoadBlacklist();
+        AutoDiscardItems = _plugin.ConfigManager.LoadAutoDiscard();
+        
+        // Initialize with a default world - will be updated when on main thread
+        _selectedWorld = "Excalibur";
+        _universalisClient = new UniversalisClient(Plugin.Log, _selectedWorld);
+        
+        // Populate available worlds
+        PopulateAvailableWorlds();
+    }
+    
+    private void PopulateAvailableWorlds()
+    {
+        _availableWorlds.Clear();
+        
+        var worldSheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.World>();
+        if (worldSheet != null)
+        {
+            foreach (var world in worldSheet)
+            {
+                // Only add worlds that are actual game worlds (not instances, etc)
+                if (world.IsPublic && !string.IsNullOrEmpty(world.Name.ToString()))
+                {
+                    _availableWorlds.Add(world.Name.ToString());
+                }
+            }
+        }
+        
+        // Sort alphabetically
+        _availableWorlds.Sort();
     }
     
     public void Initialize()
     {
+        lock (_initLock)
+        {
+            if (_initialized)
+                return;
+
+            _initialized = true;
+        }
+        
+        // Now we're on the main thread, update the world
+        UpdateCurrentWorld();
+        
+        // Initial inventory refresh
+        RefreshInventory();
+    }
+    
+    private void UpdateCurrentWorld()
+    {
+        try
+        {
+            var currentWorld = Plugin.ClientState.LocalPlayer?.CurrentWorld.Value.Name.ToString();
+            if (!string.IsNullOrEmpty(currentWorld) && currentWorld != _selectedWorld)
+            {
+                _selectedWorld = currentWorld;
+                _universalisClient.Dispose();
+                _universalisClient = new UniversalisClient(Plugin.Log, _selectedWorld);
+            }
+        }
+        catch
+        {
+            // Player not logged in yet, keep default world
+        }
     }
     
     public void Update()
@@ -144,7 +211,7 @@ public partial class InventoryManagementModule : IDisposable
         if (_expandedCategoriesChanged && DateTime.Now - _lastConfigSave > _configSaveInterval)
         {
             // We're already on the main thread in Update()
-            _plugin.Configuration.Save();
+            _plugin.ConfigManager.SaveConfiguration();
             _expandedCategoriesChanged = false;
             _lastConfigSave = DateTime.Now;
         }
@@ -611,7 +678,7 @@ public partial class InventoryManagementModule : IDisposable
     {
         if (_expandedCategoriesChanged)
         {
-            _plugin.Configuration.Save();
+            _plugin.ConfigManager.SaveConfiguration();
         }
         
         lock (_fetchingPricesLock)
@@ -625,5 +692,26 @@ public partial class InventoryManagementModule : IDisposable
         _iconCache?.Dispose();
         _taskManager?.Dispose();
         _universalisClient?.Dispose();
+    }
+
+    // Add methods to save the lists
+    public void SaveBlacklist()
+    {
+        _plugin.ConfigManager.SaveBlacklist(BlacklistedItems);
+    }
+    
+    public void SaveAutoDiscard()
+    {
+        _plugin.ConfigManager.SaveAutoDiscard(AutoDiscardItems);
+    }
+
+    private void SaveExpandedState()
+    {
+        if (_expandedCategoriesChanged)
+        {
+            Settings.ExpandedCategories = ExpandedCategories;
+            _plugin.ConfigManager.SaveConfiguration();
+            _expandedCategoriesChanged = false;
+        }
     }
 }

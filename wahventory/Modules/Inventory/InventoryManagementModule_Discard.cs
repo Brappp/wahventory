@@ -388,7 +388,7 @@ public partial class InventoryManagementModule
             {
                 var actualItems = _originalItems.Where(i => 
                     i.ItemId == selectedItemId && 
-                    InventoryHelpers.IsSafeToDiscard(i, Settings.BlacklistedItems)).ToList();
+                    InventoryHelpers.IsSafeToDiscard(i, BlacklistedItems)).ToList();
                     
                 Plugin.Log.Information($"Found {actualItems.Count} instances of item {selectedItemId} to discard");
                 

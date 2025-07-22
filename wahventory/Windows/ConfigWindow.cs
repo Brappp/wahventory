@@ -166,13 +166,19 @@ public class ConfigWindow : Window, IDisposable
         
         if (changed)
         {
-            Configuration.Save();
+            Plugin.ConfigManager.SaveConfiguration();
         }
         
         ImGui.Spacing();
         if (ImGui.Button("Close"))
         {
             Toggle();
+        }
+        ImGui.Spacing();
+        
+        if (ImGui.Button("Save"))
+        {
+            Plugin.ConfigManager.SaveConfiguration();
         }
     }
 }

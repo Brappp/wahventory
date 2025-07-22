@@ -15,11 +15,9 @@ public class Configuration : IPluginConfiguration
     // Inventory Settings
     public InventorySettings InventorySettings { get; set; } = new();
 
-    // the below exist just to make saving less cumbersome
-    public void Save()
-    {
-        Plugin.PluginInterface.SavePluginConfig(this);
-    }
+    // Save delegate that will be set by ConfigurationManager
+    [NonSerialized]
+    public Action Save;
 }
 
 [Serializable]
@@ -36,10 +34,11 @@ public class InventorySettings
     // UI State
     public Dictionary<uint, bool> ExpandedCategories { get; set; } = new();
     
-    // Blacklisted items (user-defined)
+    // These are now stored in separate files, keeping for migration
+    [Obsolete("Use ConfigurationManager to load/save blacklist")]
     public HashSet<uint> BlacklistedItems { get; set; } = new();
     
-    // Auto-discard items (user-defined)
+    [Obsolete("Use ConfigurationManager to load/save auto-discard")]
     public HashSet<uint> AutoDiscardItems { get; set; } = new();
 }
 

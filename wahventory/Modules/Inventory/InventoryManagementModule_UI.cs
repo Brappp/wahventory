@@ -471,11 +471,15 @@ public partial class InventoryManagementModule
         // Make table more compact
         ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 4));
         
+        // Force table to start at the left edge with window padding
+        var windowPadding = ImGui.GetStyle().WindowPadding.X;
+        ImGui.SetCursorPosX(windowPadding);
+        
         if (ImGui.BeginTable($"ItemTable_{category.Name}", Settings.ShowMarketPrices ? 6 : 5, 
-            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.Resizable))
+            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
         {
             ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed, 25);
-            ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthFixed, 250);
+            ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch);
             ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed, 40);
             ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, 100);
             if (Settings.ShowMarketPrices)
@@ -938,8 +942,12 @@ public partial class InventoryManagementModule
             
             var categoryHeaderText = $"{category.CategoryName} ({category.Items.Count} protected)";
             
+            // Use TreeNodeEx for consistent behavior with Available Items
+            var nodeFlags = ImGuiTreeNodeFlags.Framed | ImGuiTreeNodeFlags.AllowItemOverlap;
+            if (isExpanded) nodeFlags |= ImGuiTreeNodeFlags.DefaultOpen;
+            
             ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.8f, 0.6f, 0.6f, 1));
-            var headerOpen = ImGui.CollapsingHeader(categoryHeaderText, isExpanded ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None);
+            var headerOpen = ImGui.TreeNodeEx(categoryHeaderText, nodeFlags);
             ImGui.PopStyleColor();
             
             if (headerOpen)
@@ -948,6 +956,7 @@ public partial class InventoryManagementModule
                 _expandedCategoriesChanged = true;
                 
                 DrawFilteredItemsTable(category.Items);
+                ImGui.TreePop();
             }
             else
             {
@@ -963,10 +972,14 @@ public partial class InventoryManagementModule
     {
         ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 4));
         
+        // Force table to start at the left edge with window padding
+        var windowPadding = ImGui.GetStyle().WindowPadding.X;
+        ImGui.SetCursorPosX(windowPadding);
+        
         if (ImGui.BeginTable("FilteredItemsTable", Settings.ShowMarketPrices ? 5 : 4, 
-            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingFixedFit))
+            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
         {
-            ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthFixed, 275);
+            ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch);
             ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed, 40);
             ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, 100);
             if (Settings.ShowMarketPrices)

@@ -180,16 +180,7 @@ public partial class InventoryManagementModule : IDisposable
         
         ImGui.Separator();
         
-        // Main content area
-        var contentHeight = ImGui.GetContentRegionAvail().Y - 42; // Leave space for bottom action bar
-        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(4, 4));
-        ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f));
-        
-        ImGui.BeginChild("MainContent", new Vector2(0, contentHeight), true, ImGuiWindowFlags.NoScrollbar);
-        
-        // Content area - removed DrawTabBar() call since we're removing those buttons
-        ImGui.BeginChild("ContentArea", new Vector2(0, 0), false, ImGuiWindowFlags.NoScrollbar);
-        
+        // Tab bar with scrollable content
         if (ImGui.BeginTabBar("InventoryTabs", ImGuiTabBarFlags.None))
         {
             // Calculate filtered items count for tab display
@@ -207,14 +198,19 @@ public partial class InventoryManagementModule : IDisposable
             }
             if (ImGui.BeginTabItem($"Available Items ({availableCount})"))
             {
+                // Add scrollable region for tab content
+                ImGui.BeginChild("AvailableScroll", new Vector2(0, ImGui.GetContentRegionAvail().Y - 50), false);
                 DrawAvailableItemsTab();
+                ImGui.EndChild();
                 ImGui.EndTabItem();
             }
             
             // Protected Items tab
             if (ImGui.BeginTabItem($"Protected Items ({filteredItems.Count})"))
             {
+                ImGui.BeginChild("ProtectedScroll", new Vector2(0, ImGui.GetContentRegionAvail().Y - 50), false);
                 DrawFilteredItemsTab(filteredItems);
+                ImGui.EndChild();
                 ImGui.EndTabItem();
             }
             
@@ -228,13 +224,8 @@ public partial class InventoryManagementModule : IDisposable
             ImGui.EndTabBar();
         }
         
-        ImGui.EndChild(); // ContentArea
-        ImGui.EndChild(); // MainContent
-        
-        ImGui.PopStyleColor();
-        ImGui.PopStyleVar();
-        
-        // Bottom action bar
+        // Bottom action bar at fixed position
+        ImGui.SetCursorPosY(ImGui.GetWindowHeight() - 50);
         DrawBottomActionBar();
     }
     

@@ -181,13 +181,7 @@ public partial class InventoryManagementModule : IDisposable
         
         ImGui.Separator();
         
-        // Calculate remaining height for the tab content
-        var topHeight = ImGui.GetCursorPosY();
-        var windowHeight = ImGui.GetWindowHeight();
-        var bottomBarHeight = 42f + ImGui.GetStyle().ItemSpacing.Y * 2 + 4; // Action bar + separator + spacing
-        var availableHeight = windowHeight - topHeight - bottomBarHeight - 10; // Extra padding
-        
-        // Tab bar with content in a scrollable child to prevent extra space
+        // Tab bar - tables will size to content naturally
         if (ImGui.BeginTabBar("InventoryTabs", ImGuiTabBarFlags.None))
         {
             // Calculate filtered items count for tab display
@@ -205,30 +199,21 @@ public partial class InventoryManagementModule : IDisposable
             }
             if (ImGui.BeginTabItem($"Available Items ({availableCount})"))
             {
-                // Wrap content in a child to control sizing
-                ImGui.BeginChild("AvailableItemsContent", new Vector2(0, availableHeight), false, ImGuiWindowFlags.NoBackground);
                 DrawAvailableItemsTab();
-                ImGui.EndChild();
                 ImGui.EndTabItem();
             }
             
             // Protected Items tab
             if (ImGui.BeginTabItem($"Protected Items ({filteredItems.Count})"))
             {
-                // Wrap content in a child to control sizing
-                ImGui.BeginChild("ProtectedItemsContent", new Vector2(0, availableHeight), false, ImGuiWindowFlags.NoBackground);
                 DrawFilteredItemsTab(filteredItems);
-                ImGui.EndChild();
                 ImGui.EndTabItem();
             }
             
             // Blacklist Management tab
             if (ImGui.BeginTabItem("Blacklist Management"))
             {
-                // Wrap content in a child to control sizing
-                ImGui.BeginChild("BlacklistContent", new Vector2(0, availableHeight), false, ImGuiWindowFlags.NoBackground);
                 DrawBlacklistTab();
-                ImGui.EndChild();
                 ImGui.EndTabItem();
             }
             

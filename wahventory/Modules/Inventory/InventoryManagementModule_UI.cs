@@ -613,6 +613,19 @@ public partial class InventoryManagementModule
                         ImGui.TextColored(ColorHQItem, "[HQ]");
                     }
                     
+                    // Add status tags
+                    if (isBlacklisted)
+                    {
+                        ImGui.SameLine();
+                        ImGui.TextColored(ColorError, "[Blacklisted]");
+                    }
+                    
+                    if (!item.CanBeTraded)
+                    {
+                        ImGui.SameLine();
+                        ImGui.TextColored(ColorNotTradeable, "[Not Tradeable]");
+                    }
+                    
                     DrawItemSafetyFlags(item);
                     DrawItemFilterTags(item);
                     
@@ -919,6 +932,19 @@ public partial class InventoryManagementModule
             ImGui.TextColored(ColorHQItem, "[HQ]");
         }
         
+        // Add status tags
+        if (isBlacklisted)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(ColorError, "[Blacklisted]");
+        }
+        
+        if (!item.CanBeTraded)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(ColorNotTradeable, "[Not Tradeable]");
+        }
+        
         // Safety flags (keep for additional info)
         DrawItemSafetyFlags(item);
         
@@ -1015,16 +1041,13 @@ public partial class InventoryManagementModule
         }
         else
         {
-            // Status column
+            // Status/Price column
             ImGui.TableNextColumn();
             
-            if (isBlacklisted)
+            if (Settings.ShowMarketPrices && item.MarketPrice.HasValue && item.CanBeTraded && !isBlacklisted)
             {
-                ImGui.TextColored(ColorError, "Blacklisted");
-            }
-            else if (!item.CanBeTraded)
-            {
-                ImGui.TextColored(ColorError, "Not Tradeable");
+                // Show price for tradeable, non-blacklisted items
+                ImGui.TextColored(ColorPrice, $"{item.MarketPrice.Value:N0}");
             }
             else if (!item.CanBeDiscarded)
             {

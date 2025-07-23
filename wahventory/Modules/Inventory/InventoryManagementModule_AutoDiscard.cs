@@ -24,6 +24,20 @@ public partial class InventoryManagementModule
     
     private void DrawAutoDiscardTab()
     {
+        // Passive Discard Section at the top in a collapsible header
+        var passiveDiscardOpen = ImGui.CollapsingHeader("Passive Discard Settings", ImGuiTreeNodeFlags.DefaultOpen);
+        if (passiveDiscardOpen)
+        {
+            ImGui.Indent();
+            DrawPassiveDiscardSettings();
+            ImGui.Unindent();
+            ImGui.Spacing();
+        }
+        
+        ImGui.Separator();
+        ImGui.Spacing();
+        
+        // Auto-Discard Management Section
         ImGui.TextWrapped("Manage your auto-discard list. Items added here will be automatically discarded when using the /wahventory auto command.");
         ImGui.TextWrapped("WARNING: This is a powerful feature. Only add items you are absolutely certain you want to discard automatically!");
         ImGui.Spacing();

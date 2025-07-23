@@ -34,6 +34,9 @@ public class InventorySettings
     // UI State
     public Dictionary<uint, bool> ExpandedCategories { get; set; } = new();
     
+    // Passive Discard Settings
+    public PassiveDiscardSettings PassiveDiscard { get; set; } = new();
+    
     // These are now stored in separate files, keeping for migration
     [Obsolete("Use ConfigurationManager to load/save blacklist")]
     public HashSet<uint> BlacklistedItems { get; set; } = new();
@@ -60,3 +63,11 @@ public class SafetyFilters
     public uint MaxGearItemLevel { get; set; } = 600;
     public float MinSpiritbondToFilter { get; set; } = 100.0f;
 }
+
+[Serializable]
+    public class PassiveDiscardSettings
+    {
+        public bool Enabled { get; set; } = false;
+        public int IdleTimeSeconds { get; set; } = 30;
+        public int DiscardIntervalSeconds { get; set; } = 5;
+    }

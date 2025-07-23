@@ -216,6 +216,9 @@ public partial class InventoryManagementModule : IDisposable
             _expandedCategoriesChanged = false;
             _lastConfigSave = DateTime.Now;
         }
+        
+        // Update passive discard
+        UpdatePassiveDiscard();
     }
     
     public void Draw()

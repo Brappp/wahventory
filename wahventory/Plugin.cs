@@ -23,6 +23,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IGameInteropProvider GameInteropProvider { get; private set; } = null!;
     [PluginService] internal static IChatGui ChatGui { get; private set; } = null!;
     [PluginService] internal static IGameGui GameGui { get; private set; } = null!;
+    [PluginService] internal static ICondition Condition { get; private set; } = null!;
 
     private const string CommandName = "/wahventory";
 
@@ -77,12 +78,18 @@ public sealed class Plugin : IDalamudPlugin
         ECommonsMain.Dispose();
     }
     
+    private bool _moduleInitialized = false;
+    
     private void OnFrameworkUpdate(IFramework framework)
     {
-        InventoryModule.Initialize();
+        if (!_moduleInitialized)
+        {
+            InventoryModule.Initialize();
+            _moduleInitialized = true;
+        }
         
-        // Unsubscribe after first initialization
-        Framework.Update -= OnFrameworkUpdate;
+        // Call Update on every frame
+        InventoryModule.Update();
     }
 
     private void OnCommand(string command, string args)

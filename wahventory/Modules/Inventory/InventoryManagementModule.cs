@@ -96,6 +96,9 @@ public partial class InventoryManagementModule : IDisposable
         _inventoryHelpers = new InventoryHelpers(Plugin.DataManager, Plugin.Log);
         _iconCache = new IconCache(Plugin.TextureProvider);
         
+        // Initialize TaskManager now that ECommons is initialized
+        _taskManager = new TaskManager();
+        
         // Load blacklist and auto-discard items from separate files
         BlacklistedItems = _plugin.ConfigManager.LoadBlacklist();
         AutoDiscardItems = _plugin.ConfigManager.LoadAutoDiscard();

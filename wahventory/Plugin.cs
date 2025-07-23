@@ -7,6 +7,7 @@ using Dalamud.Plugin.Services;
 using wahventory.Windows;
 using wahventory.Modules.Inventory;
 using Dalamud.Game;
+using ECommons;
 
 namespace wahventory;
 
@@ -35,6 +36,9 @@ public sealed class Plugin : IDalamudPlugin
 
     public Plugin()
     {
+        // Initialize ECommons first
+        ECommonsMain.Init(PluginInterface, this);
+        
         ConfigManager = new ConfigurationManager(PluginInterface);
 
         ConfigWindow = new ConfigWindow(this);
@@ -68,6 +72,9 @@ public sealed class Plugin : IDalamudPlugin
         InventoryModule.Dispose();
         
         CommandManager.RemoveHandler(CommandName);
+        
+        // Dispose ECommons
+        ECommonsMain.Dispose();
     }
     
     private void OnFrameworkUpdate(IFramework framework)

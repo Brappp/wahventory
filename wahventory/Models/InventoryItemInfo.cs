@@ -77,7 +77,8 @@ public class CategoryGroup
     public bool IsExpanded { get; set; } = true;
     
     public int TotalQuantity => Items.Sum(i => i.Quantity);
-    public long? TotalValue => Items.All(i => i.MarketPrice.HasValue && i.MarketPrice.Value > 0) 
-        ? Items.Sum(i => i.MarketPrice!.Value * i.Quantity) 
+    public long? TotalValue => Items.Any(i => i.MarketPrice.HasValue && i.MarketPrice.Value > 0) 
+        ? Items.Where(i => i.MarketPrice.HasValue && i.MarketPrice.Value > 0)
+               .Sum(i => i.MarketPrice!.Value * i.Quantity) 
         : null;
 }

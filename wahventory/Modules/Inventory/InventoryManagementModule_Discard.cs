@@ -5,7 +5,7 @@ using System.Numerics;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility.Raii;
 using FFXIVClientStructs.FFXIV.Component.GUI;
-using ImGuiNET;
+using Dalamud.Bindings.ImGui;
 using wahventory.Helpers;
 using wahventory.Models;
 
@@ -168,7 +168,7 @@ public partial class InventoryManagementModule
                         var icon = _iconCache.GetIcon(item.IconId);
                         if (icon != null)
                         {
-                            ImGui.Image(icon.ImGuiHandle, new Vector2(20, 20));
+                            ImGui.Image(icon.Handle, new Vector2(20, 20));
                             ImGui.SameLine();
                         }
                     }
@@ -213,7 +213,7 @@ public partial class InventoryManagementModule
             {
                 var startY = ImGui.GetCursorPosY();
                 ImGui.SetCursorPosY(startY - 2);
-                ImGui.Image(icon.ImGuiHandle, iconSize);
+                ImGui.Image(icon.Handle, iconSize);
                 ImGui.SetCursorPosY(startY);
                 ImGui.SameLine(0, 5);
             }
@@ -553,7 +553,9 @@ public partial class InventoryManagementModule
         {
             try
             {
-                var addon = (AtkUnitBase*)Plugin.GameGui.GetAddonByName("SelectYesno", i);
+                var addonPtr = Plugin.GameGui.GetAddonByName("SelectYesno", i);
+                if (addonPtr.IsNull) continue;
+                var addon = (AtkUnitBase*)addonPtr.Address;
                 if (addon == null) return null;
                 
                 if (addon->IsVisible && addon->UldManager.LoadedState == FFXIVClientStructs.FFXIV.Component.GUI.AtkLoadState.Loaded)

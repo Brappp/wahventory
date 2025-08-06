@@ -7,7 +7,7 @@ using Dalamud.Interface.Utility.Raii;
 using ECommons.Automation;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.UI;
-using ImGuiNET;
+using Dalamud.Bindings.ImGui;
 using wahventory.Helpers;
 using wahventory.Models;
 

@@ -7,7 +7,7 @@ using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Component.GUI;
-using ImGuiNET;
+using Dalamud.Bindings.ImGui;
 using wahventory.External;
 using wahventory.Helpers;
 using wahventory.Models;
@@ -271,7 +271,7 @@ public partial class InventoryManagementModule
             ImGui.SetNextItemWidth(40); // Slightly narrower
         
         int maxLevel = (int)filters.MaxGearItemLevel;
-        if (ImGui.InputInt("##MaxGearItemLevel", ref maxLevel, 0, 0, ImGuiInputTextFlags.CharsDecimal))
+        if (ImGui.InputInt("##MaxGearItemLevel", ref maxLevel, 0, 0))
         {
             filters.MaxGearItemLevel = (uint)Math.Max(1, Math.Min(999, maxLevel));
             changed = true;
@@ -577,7 +577,7 @@ public partial class InventoryManagementModule
                         {
                             var startY = ImGui.GetCursorPosY();
                             ImGui.SetCursorPosY(startY + 2);
-                            ImGui.Image(icon.ImGuiHandle, new Vector2(20, 20));
+                            ImGui.Image(icon.Handle, new Vector2(20, 20));
                             ImGui.SetCursorPosY(startY);
                             ImGui.SameLine(0, 5);
                         }
@@ -903,7 +903,7 @@ public partial class InventoryManagementModule
                 // Lower the icon to align with text baseline
                 var startY = ImGui.GetCursorPosY();
                 ImGui.SetCursorPosY(startY - 2);  // Lower the icon by 2 pixels
-                ImGui.Image(icon.ImGuiHandle, iconSize);
+                ImGui.Image(icon.Handle, iconSize);
                 ImGui.SetCursorPosY(startY);
                 ImGui.SameLine(0, 5);
             }
@@ -1425,7 +1425,7 @@ public partial class InventoryManagementModule
                             // Lower the icon to align with text baseline
                             var startY = ImGui.GetCursorPosY();
                             ImGui.SetCursorPosY(startY - 2);
-                            ImGui.Image(icon.ImGuiHandle, new Vector2(20, 20));
+                            ImGui.Image(icon.Handle, new Vector2(20, 20));
                             ImGui.SetCursorPosY(startY);
                             ImGui.SameLine(0, 5);
                         }
@@ -1540,7 +1540,7 @@ public partial class InventoryManagementModule
                 // Lower the icon to align with text baseline
                 var startY = ImGui.GetCursorPosY();
                 ImGui.SetCursorPosY(startY - 2);  // Lower the icon by 2 pixels
-                ImGui.Image(icon.ImGuiHandle, iconSize);
+                ImGui.Image(icon.Handle, iconSize);
                 ImGui.SetCursorPosY(startY);
                 ImGui.SameLine(0, 5);
             }

@@ -6,7 +6,7 @@ using Dalamud.Interface;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
 using FFXIVClientStructs.FFXIV.Client.Game;
-using ImGuiNET;
+using Dalamud.Bindings.ImGui;
 using wahventory.Helpers;
 using wahventory.Models;
 using Lumina.Excel.Sheets;
@@ -139,7 +139,7 @@ public partial class InventoryManagementModule
                     var icon = _iconCache.GetIcon(iconId);
                     if (icon != null)
                     {
-                        ImGui.Image(icon.ImGuiHandle, new Vector2(20, 20));
+                        ImGui.Image(icon.Handle, new Vector2(20, 20));
                         ImGui.SameLine();
                     }
                     else
@@ -347,7 +347,7 @@ public partial class InventoryManagementModule
                             // Lower the icon to align with text baseline
                             var startY = ImGui.GetCursorPosY();
                             ImGui.SetCursorPosY(startY - 2);  // Lower the icon by 2 pixels
-                            ImGui.Image(icon.ImGuiHandle, new Vector2(20, 20));
+                            ImGui.Image(icon.Handle, new Vector2(20, 20));
                             ImGui.SetCursorPosY(startY);
                             ImGui.SameLine(0, 5);
                         }

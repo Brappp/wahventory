@@ -37,7 +37,7 @@ public sealed class Plugin : IDalamudPlugin
 
     public Plugin()
     {
-        // Initialize ECommons first
+        // Initialize ECommons with the API 13 compatible version
         ECommonsMain.Init(PluginInterface, this);
         
         ConfigManager = new ConfigurationManager(PluginInterface);

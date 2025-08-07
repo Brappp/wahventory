@@ -3,15 +3,17 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Dalamud.Plugin;
+using Dalamud.Plugin.Services;
 using Newtonsoft.Json;
 
-namespace wahventory;
+namespace wahventory.Core;
 
 public class ConfigurationManager
 {
     private readonly IDalamudPluginInterface _pluginInterface;
     private readonly string _configDirectory;
-    private Configuration _configuration;
+    private Configuration _configuration = null!;
+    private readonly IPluginLog _log;
     
     private const string CONFIG_FILE = "config.json";
     private const string BLACKLIST_FILE = "blacklist.json";
@@ -23,6 +25,7 @@ public class ConfigurationManager
     {
         _pluginInterface = pluginInterface;
         _configDirectory = Path.Combine(_pluginInterface.ConfigDirectory.FullName, "wahventory");
+        _log = Plugin.Log;
         
         if (!Directory.Exists(_configDirectory))
         {
@@ -30,13 +33,10 @@ public class ConfigurationManager
         }
         
         LoadConfiguration();
-        
-        MigrateIfNeeded();
     }
     
     private void LoadConfiguration()
     {
-        // Try to load from new location first
         var configPath = Path.Combine(_configDirectory, CONFIG_FILE);
         if (File.Exists(configPath))
         {
@@ -47,45 +47,16 @@ public class ConfigurationManager
             }
             catch (Exception ex)
             {
+                _log.Error(ex, "Failed to load configuration");
                 _configuration = new Configuration();
             }
         }
         else
         {
-            // Try old location
             _configuration = _pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         }
         
         _configuration.Save = SaveConfiguration;
-    }
-    
-    private void MigrateIfNeeded()
-    {
-        var blacklistPath = Path.Combine(_configDirectory, BLACKLIST_FILE);
-        var autodiscardPath = Path.Combine(_configDirectory, AUTODISCARD_FILE);
-        
-        // Check if we need to migrate (files don't exist but we have data in config)
-        bool needsMigration = false;
-        
-        if (!File.Exists(blacklistPath) && _configuration.InventorySettings.BlacklistedItems?.Count > 0)
-        {
-            SaveBlacklist(_configuration.InventorySettings.BlacklistedItems);
-            needsMigration = true;
-        }
-        
-        if (!File.Exists(autodiscardPath) && _configuration.InventorySettings.AutoDiscardItems?.Count > 0)
-        {
-            SaveAutoDiscard(_configuration.InventorySettings.AutoDiscardItems);
-            needsMigration = true;
-        }
-        
-        if (needsMigration)
-        {
-            // Clear the lists from main config after migration
-            _configuration.InventorySettings.BlacklistedItems = new HashSet<uint>();
-            _configuration.InventorySettings.AutoDiscardItems = new HashSet<uint>();
-            SaveConfiguration();
-        }
     }
     
     public void SaveConfiguration()
@@ -98,7 +69,7 @@ public class ConfigurationManager
         }
         catch (Exception ex)
         {
-            // Failed to save configuration
+            _log.Error(ex, "Failed to save configuration");
         }
     }
     
@@ -116,6 +87,7 @@ public class ConfigurationManager
         }
         catch (Exception ex)
         {
+            _log.Error(ex, "Failed to load blacklist");
             return new HashSet<uint>();
         }
     }
@@ -135,7 +107,7 @@ public class ConfigurationManager
         }
         catch (Exception ex)
         {
-            // Failed to save blacklist
+            _log.Error(ex, "Failed to save blacklist");
         }
     }
     
@@ -153,6 +125,7 @@ public class ConfigurationManager
         }
         catch (Exception ex)
         {
+            _log.Error(ex, "Failed to load auto-discard list");
             return new HashSet<uint>();
         }
     }
@@ -172,7 +145,7 @@ public class ConfigurationManager
         }
         catch (Exception ex)
         {
-            // Failed to save auto-discard list
+            _log.Error(ex, "Failed to save auto-discard list");
         }
     }
     
@@ -181,4 +154,4 @@ public class ConfigurationManager
         public int Version { get; set; } = 1;
         public List<uint> Items { get; set; } = new();
     }
-} 
+}

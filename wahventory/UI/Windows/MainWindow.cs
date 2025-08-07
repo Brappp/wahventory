@@ -3,8 +3,9 @@ using System.Numerics;
 using Dalamud.Interface.Windowing;
 using Dalamud.Bindings.ImGui;
 using wahventory.Modules.Inventory;
+using wahventory.Core;
 
-namespace wahventory.Windows;
+namespace wahventory.UI.Windows;
 
 public class MainWindow : Window, IDisposable
 {

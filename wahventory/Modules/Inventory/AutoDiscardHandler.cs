@@ -3,56 +3,66 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Dalamud.Interface;
-using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
-using FFXIVClientStructs.FFXIV.Client.Game;
+using FFXIVClientStructs.FFXIV.Component.GUI;
 using Dalamud.Bindings.ImGui;
-using wahventory.Helpers;
-using wahventory.Models;
 using Lumina.Excel.Sheets;
+using wahventory.Services.Helpers;
+using wahventory.Models;
+using wahventory.Core;
 
 namespace wahventory.Modules.Inventory;
 
 public partial class InventoryManagementModule
 {
-    private string _itemNameToAdd = string.Empty;
-    private uint _itemToAdd = 0;
-    private List<(uint Id, string Name, ushort Icon)> _searchResults = new();
+    private string _autoDiscardItemNameToAdd = string.Empty;
+    private uint _autoDiscardItemToAdd = 0;
+    private List<(uint Id, string Name, ushort Icon)> _autoDiscardSearchResults = new();
     
-    private bool _searchingItems = false;
-    private DateTime _lastSearchTime = DateTime.MinValue;
-    private readonly TimeSpan _searchDelay = TimeSpan.FromMilliseconds(300);
+    private bool _autoDiscardSearchingItems = false;
+    private DateTime _autoDiscardLastSearchTime = DateTime.MinValue;
+    private readonly TimeSpan _autoDiscardSearchDelay = TimeSpan.FromMilliseconds(300);
     
-    private void DrawBlacklistTab()
+    private void DrawAutoDiscardTab()
     {
-        ImGui.TextWrapped("Manage your custom blacklist. Items added here will never be selected for discard.");
-        ImGui.TextWrapped("This is in addition to the built-in safety lists shown in the Protected Items tab.");
+        var passiveDiscardOpen = ImGui.CollapsingHeader("Passive Discard Settings", ImGuiTreeNodeFlags.DefaultOpen);
+        if (passiveDiscardOpen)
+        {
+            ImGui.Indent();
+            DrawPassiveDiscardSettings();
+            ImGui.Unindent();
+            ImGui.Spacing();
+        }
+        
+        ImGui.Separator();
+        ImGui.Spacing();
+        ImGui.TextWrapped("Manage your auto-discard list. Items added here will be automatically discarded when using the /wahventory auto command.");
+        ImGui.TextWrapped("WARNING: This is a powerful feature. Only add items you are absolutely certain you want to discard automatically!");
         ImGui.Spacing();
         
-        DrawAddToBlacklistSection();
+        DrawAddToAutoDiscardSection();
         
         ImGui.Separator();
         ImGui.Spacing();
         
-        DrawCurrentBlacklist();
+        DrawCurrentAutoDiscardList();
     }
     
-    private void DrawAddToBlacklistSection()
+    private void DrawAddToAutoDiscardSection()
     {
-        ImGui.Text("Add New Item to Blacklist:");
+        ImGui.Text("Add New Item to Auto-Discard:");
         ImGui.Spacing();
-        
         ImGui.SetNextItemWidth(300);
-        if (ImGui.InputTextWithHint("##AddItemName", "Search item name...", ref _itemNameToAdd, 100))
+        if (ImGui.InputTextWithHint("##AddAutoDiscardItemName", "Search item name...", ref _autoDiscardItemNameToAdd, 100))
         {
-            _lastSearchTime = DateTime.Now;
-            _searchingItems = true;
+            _autoDiscardLastSearchTime = DateTime.Now;
+            _autoDiscardSearchingItems = true;
         }
         
-        if (_searchingItems && DateTime.Now - _lastSearchTime > _searchDelay)
+        if (_autoDiscardSearchingItems && DateTime.Now - _autoDiscardLastSearchTime > _autoDiscardSearchDelay)
         {
-            SearchItems(_itemNameToAdd);
-            _searchingItems = false;
+            SearchAutoDiscardItems(_autoDiscardItemNameToAdd);
+            _autoDiscardSearchingItems = false;
         }
         
         ImGui.SameLine();
@@ -60,38 +70,38 @@ public partial class InventoryManagementModule
         ImGui.Text("or ID:");
         ImGui.SameLine();
         ImGui.SetNextItemWidth(100);
-        int itemId = (int)_itemToAdd;
-        if (ImGui.InputInt("##AddItemId", ref itemId, 0, 0))
+        int itemId = (int)_autoDiscardItemToAdd;
+        if (ImGui.InputInt("##AddAutoDiscardItemId", ref itemId, 0, 0))
         {
-            _itemToAdd = (uint)Math.Max(0, itemId);
+            _autoDiscardItemToAdd = (uint)Math.Max(0, itemId);
         }
         
         ImGui.SameLine();
         
-        var canAdd = _itemToAdd > 0;
+        var canAdd = _autoDiscardItemToAdd > 0;
         
         using (var disabled = ImRaii.Disabled(!canAdd))
         {
-            if (ImGui.Button("Add to Blacklist"))
+            if (ImGui.Button("Add to Auto-Discard"))
             {
-                if (_itemToAdd > 0 && !BlacklistedItems.Contains(_itemToAdd))
+                if (_autoDiscardItemToAdd > 0 && !AutoDiscardItems.Contains(_autoDiscardItemToAdd))
                 {
-                    BlacklistedItems.Add(_itemToAdd);
-                    SaveBlacklist();
+                    AutoDiscardItems.Add(_autoDiscardItemToAdd);
+                    SaveAutoDiscard();
                     RefreshInventory();
-                    _itemToAdd = 0;
-                    _itemNameToAdd = string.Empty;
-                    _searchResults.Clear();
+                    _autoDiscardItemToAdd = 0;
+                    _autoDiscardItemNameToAdd = string.Empty;
+                    _autoDiscardSearchResults.Clear();
                 }
             }
         }
         
-        DrawSearchResults();
+        DrawAutoDiscardSearchResults();
     }
     
-    private void SearchItems(string searchTerm)
+    private void SearchAutoDiscardItems(string searchTerm)
     {
-        _searchResults.Clear();
+        _autoDiscardSearchResults.Clear();
         
         if (string.IsNullOrWhiteSpace(searchTerm) || searchTerm.Length < 2)
             return;
@@ -103,7 +113,7 @@ public partial class InventoryManagementModule
             
             var lowerSearch = searchTerm.ToLower();
             
-            _searchResults = itemSheet
+            _autoDiscardSearchResults = itemSheet
                 .Where(item => item.RowId > 0 && 
                        !string.IsNullOrEmpty(item.Name.ExtractText()) &&
                        item.Name.ExtractText().ToLower().Contains(lowerSearch))
@@ -118,22 +128,18 @@ public partial class InventoryManagementModule
         }
     }
     
-    private void DrawSearchResults()
+    private void DrawAutoDiscardSearchResults()
     {
-        if (!_searchResults.Any())
+        if (!_autoDiscardSearchResults.Any())
             return;
             
         ImGui.Spacing();
-        ImGui.Text($"Search Results ({_searchResults.Count} items):");
-        
-        // Create a child region for scrollable results
-        using (var child = ImRaii.Child("SearchResults", new Vector2(0, 200), true))
+        ImGui.Text($"Search Results ({_autoDiscardSearchResults.Count} items):");
+        using (var child = ImRaii.Child("AutoDiscardSearchResults", new Vector2(0, 200), true))
         {
-            foreach (var (id, name, iconId) in _searchResults)
+            foreach (var (id, name, iconId) in _autoDiscardSearchResults)
             {
-                using var pushId = ImRaii.PushId($"SearchResult_{id}");
-                
-                // Draw item with icon
+                using var pushId = ImRaii.PushId($"AutoDiscardSearchResult_{id}");
                 if (iconId > 0)
                 {
                     var icon = _iconCache.GetIcon(iconId);
@@ -153,50 +159,46 @@ public partial class InventoryManagementModule
                     ImGui.Dummy(new Vector2(20, 20));
                     ImGui.SameLine();
                 }
-                
-                // Item name and ID
-                var isBlacklisted = BlacklistedItems.Contains(id);
-                if (isBlacklisted)
+                var isInAutoDiscard = AutoDiscardItems.Contains(id);
+                if (isInAutoDiscard)
                 {
                     using (var color = ImRaii.PushColor(ImGuiCol.Text, ColorSubdued))
                     {
-                        ImGui.Text($"{name} (ID: {id}) [Already Blacklisted]");
+                        ImGui.Text($"{name} (ID: {id}) [Already in Auto-Discard]");
                     }
                 }
                 else
                 {
                     if (ImGui.Selectable($"{name} (ID: {id})"))
                     {
-                        _itemToAdd = id;
-                        _itemNameToAdd = name;
+                        _autoDiscardItemToAdd = id;
+                        _autoDiscardItemNameToAdd = name;
                     }
                 }
             }
         }
     }
     
-    private void DrawCurrentBlacklist()
+    private void DrawCurrentAutoDiscardList()
     {
-        ImGui.Text($"Your Custom Blacklist ({BlacklistedItems.Count} items)");
+        ImGui.Text($"Your Auto-Discard List ({AutoDiscardItems.Count} items)");
         
         ImGui.Spacing();
         
-        if (!BlacklistedItems.Any())
+        if (!AutoDiscardItems.Any())
         {
-            ImGui.TextColored(ColorSubdued, "No custom blacklisted items.");
-            ImGui.TextColored(ColorInfo, "Add items using the controls above or select items in the Available Items tab and click 'Add to Blacklist'.");
+            ImGui.TextColored(ColorSubdued, "No auto-discard items configured.");
+            ImGui.TextColored(ColorInfo, "Add items using the controls above or select items in the Available Items tab and click 'Add to Auto-Discard'.");
         }
         else
         {
-            // Filter the items using the main search filter
-            var itemsToShow = BlacklistedItems.AsEnumerable();
+            var itemsToShow = AutoDiscardItems.AsEnumerable();
             
             if (!string.IsNullOrWhiteSpace(_searchFilter))
             {
                 var filteredIds = new List<uint>();
-                foreach (var itemId in BlacklistedItems)
+                foreach (var itemId in AutoDiscardItems)
                 {
-                    // Get item info for filtering
                     string itemName = null;
                     lock (_itemsLock)
                     {
@@ -211,17 +213,17 @@ public partial class InventoryManagementModule
                             var itemSheet = Plugin.DataManager.GetExcelSheet<Item>();
                             if (itemSheet != null)
                             {
-                                var gameItem = itemSheet.GetRowOrDefault(itemId);
-                                if (gameItem != null && gameItem.Value.RowId != 0)
+                                var gameItem = itemSheet.GetRow(itemId);
+                                if (gameItem.RowId != 0)
                                 {
-                                    itemName = gameItem.Value.Name.ExtractText();
+                                    itemName = gameItem.Name.ExtractText();
                                 }
                             }
                         }
                         catch { }
                     }
                     
-                    itemName ??= GetItemNameFromComment(itemId);
+                    itemName ??= GetItemNameFromAutoDiscardComment(itemId);
                     
                     if (itemName.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase) ||
                         itemId.ToString().Contains(_searchFilter))
@@ -232,28 +234,26 @@ public partial class InventoryManagementModule
                 itemsToShow = filteredIds;
             }
             
-            DrawCustomBlacklistTable(itemsToShow);
+            DrawAutoDiscardItemsTable(itemsToShow);
             
             ImGui.Spacing();
-            
-            // Bulk actions
-            if (ImGui.Button("Clear All Blacklisted Items"))
+            if (ImGui.Button("Clear All Auto-Discard Items"))
             {
-                ImGui.OpenPopup("ClearBlacklistConfirm");
+                ImGui.OpenPopup("ClearAutoDiscardConfirm");
             }
             
-            using (var popup = ImRaii.PopupModal("ClearBlacklistConfirm"))
+            using (var popup = ImRaii.PopupModal("ClearAutoDiscardConfirm"))
             {
                 if (popup)
                 {
-                    ImGui.Text("Are you sure you want to clear all custom blacklisted items?");
-                    ImGui.Text($"This will remove {BlacklistedItems.Count} items from your blacklist.");
+                    ImGui.Text("Are you sure you want to clear all auto-discard items?");
+                    ImGui.Text($"This will remove {AutoDiscardItems.Count} items from your auto-discard list.");
                     ImGui.Spacing();
                     
                     if (ImGui.Button("Yes, Clear All", new Vector2(120, 0)))
                     {
-                        BlacklistedItems.Clear();
-                        SaveBlacklist();
+                        AutoDiscardItems.Clear();
+                        SaveAutoDiscard();
                         RefreshInventory();
                         ImGui.CloseCurrentPopup();
                     }
@@ -268,17 +268,16 @@ public partial class InventoryManagementModule
         }
     }
     
-    private void DrawCustomBlacklistTable(IEnumerable<uint> itemIds)
+    private void DrawAutoDiscardItemsTable(IEnumerable<uint> itemIds)
     {
         using var style = ImRaii.PushStyle(ImGuiStyleVar.CellPadding, new Vector2(4, 2))
                                 .Push(ImGuiStyleVar.ItemSpacing, new Vector2(4, 2));
         
-        using (var table = ImRaii.Table("CustomBlacklistTable", 5, 
+        using (var table = ImRaii.Table("AutoDiscardTable", 5, 
             ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
         {
             if (table)
             {
-                // Use dynamic widths based on content
                 float idWidth = ImGui.CalcTextSize("99999").X + 8;
                 float ilvlWidth = ImGui.CalcTextSize("999").X + 8;
                 float categoryWidth = ImGui.CalcTextSize("Seasonal Miscellany").X + 8;
@@ -293,7 +292,6 @@ public partial class InventoryManagementModule
                 
                 foreach (var itemId in itemIds)
                 {
-                    // Try to find item info from inventory first
                     InventoryItemInfo itemInfo = null;
                     lock (_itemsLock)
                     {
@@ -303,8 +301,6 @@ public partial class InventoryManagementModule
                     string categoryName = itemInfo?.CategoryName ?? "Unknown";
                     ushort iconId = itemInfo?.IconId ?? 0;
                     int itemLevel = (int)(itemInfo?.ItemLevel ?? 0);
-                    
-                    // If not in inventory, try to get from game data
                     if (string.IsNullOrEmpty(itemName))
                     {
                         try
@@ -312,41 +308,34 @@ public partial class InventoryManagementModule
                             var itemSheet = Plugin.DataManager.GetExcelSheet<Item>();
                             if (itemSheet != null)
                             {
-                                var gameItem = itemSheet.GetRowOrDefault(itemId);
-                                if (gameItem != null && gameItem.Value.RowId != 0)
+                                var gameItem = itemSheet.GetRow(itemId);
+                                if (gameItem.RowId != 0)
                                 {
-                                    itemName = gameItem.Value.Name.ExtractText();
-                                    iconId = gameItem.Value.Icon;
-                                    categoryName = GetItemCategoryName(gameItem.Value.ItemUICategory.RowId);
-                                    itemLevel = (int)gameItem.Value.LevelItem.RowId;
+                                    itemName = gameItem.Name.ExtractText();
+                                    iconId = gameItem.Icon;
+                                    categoryName = GetItemCategoryName(gameItem.ItemUICategory.RowId);
+                                    itemLevel = (int)gameItem.LevelItem.RowId;
                                 }
                             }
                         }
                         catch { }
                     }
-                    
-                    // Fallback to hardcoded names for known items
                     if (string.IsNullOrEmpty(itemName))
                     {
-                        itemName = GetItemNameFromComment(itemId);
+                        itemName = GetItemNameFromAutoDiscardComment(itemId);
                     }
                     
                     ImGui.TableNextRow();
-                    
-                    // ID column
                     ImGui.TableNextColumn();
                     ImGui.Text(itemId.ToString());
-                    
-                    // Name column with icon
                     ImGui.TableNextColumn();
                     if (iconId > 0)
                     {
                         var icon = _iconCache.GetIcon(iconId);
                         if (icon != null)
                         {
-                            // Lower the icon to align with text baseline
                             var startY = ImGui.GetCursorPosY();
-                            ImGui.SetCursorPosY(startY - 2);  // Lower the icon by 2 pixels
+                            ImGui.SetCursorPosY(startY - 2);
                             ImGui.Image(icon.Handle, new Vector2(20, 20));
                             ImGui.SetCursorPosY(startY);
                             ImGui.SameLine(0, 5);
@@ -363,7 +352,11 @@ public partial class InventoryManagementModule
                         ImGui.SameLine(0, 5);
                     }
                     ImGui.Text(itemName);
-                    
+                    if (itemInfo != null)
+                    {
+                        ImGui.SameLine();
+                        ImGui.TextColored(ColorWarning, "[In Inventory]");
+                    }
                     ImGui.TableNextColumn();
                     if (itemLevel > 0)
                     {
@@ -378,10 +371,10 @@ public partial class InventoryManagementModule
                     ImGui.Text(categoryName);
                     
                     ImGui.TableNextColumn();
-                    if (ImGui.SmallButton($"Remove##bl_{itemId}"))
+                    if (ImGui.SmallButton($"Remove##ad_{itemId}"))
                     {
-                        BlacklistedItems.Remove(itemId);
-                        SaveBlacklist();
+                        AutoDiscardItems.Remove(itemId);
+                        SaveAutoDiscard();
                         RefreshInventory();
                     }
                 }
@@ -389,60 +382,37 @@ public partial class InventoryManagementModule
         }
     }
     
-    private string GetItemCategoryName(uint categoryId)
+    private string GetItemNameFromAutoDiscardComment(uint itemId)
     {
-        try
-        {
-            var categorySheet = Plugin.DataManager.GetExcelSheet<ItemUICategory>();
-            if (categorySheet != null)
-            {
-                var category = categorySheet.GetRowOrDefault(categoryId);
-                if (category != null && category.Value.RowId != 0)
-                {
-                    return category.Value.Name.ExtractText();
-                }
-            }
-            return "Unknown";
-        }
-        catch
-        {
-            return "Unknown";
-        }
+        return $"Unknown Item ({itemId})";
     }
     
-    private string GetItemNameFromComment(uint itemId)
+    public void ExecuteAutoDiscard()
     {
-        return itemId switch
+        if (AutoDiscardItems.Count == 0)
         {
-            16039 => "Ala Mhigan Earrings",
-            24589 => "Aetheryte Earrings",
-            33648 => "Menphina's Earrings",
-            41081 => "Azeyma's Earrings",
-            21197 => "UCOB Token",
-            23175 => "UWU Token",
-            28633 => "TEA Token",
-            36810 => "DSR Token",
-            38951 => "TOP Token",
-            10155 => "Ceruleum Tank",
-            10373 => "Magitek Repair Materials",
-            2962 => "Onion Doublet",
-            3279 => "Onion Gaskins",
-            3743 => "Onion Patterns",
-            9387 => "Antique Helm",
-            9388 => "Antique Mail",
-            9389 => "Antique Gauntlets",
-            9390 => "Antique Breeches",
-            9391 => "Antique Sollerets",
-            6223 => "Mended Imperial Pot Helm",
-            6224 => "Mended Imperial Short Robe",
-            7060 => "Durability Draught",
-            14945 => "Squadron Enlistment Manual",
-            15772 => "Contemporary Warfare: Defense",
-            15773 => "Contemporary Warfare: Offense",
-            15774 => "Contemporary Warfare: Magicks",
-            4572 => "Company-issue Tonic",
-            20790 => "High Grade Company-issue Tonic",
-            _ => "Unknown Item"
-        };
+            Plugin.ChatGui.PrintError("No items configured for auto-discard. Add items in the Auto Discard tab.");
+            return;
+        }
+        List<InventoryItemInfo> itemsToDiscard;
+        lock (_itemsLock)
+        {
+            itemsToDiscard = _allItems
+                .Where(item => AutoDiscardItems.Contains(item.ItemId) && 
+                              item.CanBeDiscarded &&
+                              !BlacklistedItems.Contains(item.ItemId))
+                .ToList();
+        }
+        
+        if (!itemsToDiscard.Any())
+        {
+            Plugin.ChatGui.PrintError("No auto-discard items found in inventory.");
+            return;
+        }
+        _itemsToDiscard = itemsToDiscard;
+        _discardProgress = 0;
+        _discardError = null;
+        Plugin.ChatGui.Print($"Auto-discarding {itemsToDiscard.Count} item(s)...");
+        StartDiscarding();
     }
-}
+} 

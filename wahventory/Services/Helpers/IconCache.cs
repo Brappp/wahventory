@@ -4,8 +4,9 @@ using Dalamud.Interface.Internal;
 using Dalamud.Interface.Textures;
 using Dalamud.Interface.Textures.TextureWraps;
 using Dalamud.Plugin.Services;
+using wahventory.Core;
 
-namespace wahventory.Helpers;
+namespace wahventory.Services.Helpers;
 
 public sealed class IconCache : IDisposable
 {

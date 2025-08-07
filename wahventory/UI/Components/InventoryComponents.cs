@@ -8,9 +8,10 @@ using Dalamud.Interface.Utility.Raii;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using Dalamud.Bindings.ImGui;
-using wahventory.External;
-using wahventory.Helpers;
+using wahventory.Services.External;
+using wahventory.Services.Helpers;
 using wahventory.Models;
+using wahventory.Core;
 
 namespace wahventory.Modules.Inventory;
 
@@ -24,7 +25,6 @@ public partial class InventoryManagementModule
         
         using (var child = ImRaii.Child("TopBar", new Vector2(0, 40), true, ImGuiWindowFlags.NoScrollbar))
         {
-            // Center content vertically with more space
             ImGui.SetCursorPosY(ImGui.GetCursorPosY() + 2);
             
             using (var font = ImRaii.PushFont(UiBuilder.IconFont))
@@ -38,8 +38,6 @@ public partial class InventoryManagementModule
         {
                 UpdateCategories();
             }
-            
-            // Show clear button if there's text in the search
             if (!string.IsNullOrWhiteSpace(_searchFilter))
             {
                 ImGui.SameLine();
@@ -124,8 +122,6 @@ public partial class InventoryManagementModule
                     }
                 }
             }
-            
-            // Right-align total value
             var windowWidth = ImGui.GetWindowContentRegionMax().X;
             long totalValue;
             lock (_categoriesLock)
@@ -260,8 +256,6 @@ public partial class InventoryManagementModule
         ImGui.SameLine(0, 0);
         ImGui.TextColored(ColorWarning, "i");
         ImGui.SameLine(0, 2);
-        
-        // Inline editable item level - fix vertical alignment
         using (var styles = ImRaii.PushStyle(ImGuiStyleVar.FramePadding, new Vector2(4, 2))
                                   .Push(ImGuiStyleVar.FrameBorderSize, 0))
         using (var colors = ImRaii.PushColor(ImGuiCol.FrameBg, new Vector4(0.2f, 0.2f, 0.2f, 0.5f))
@@ -282,8 +276,6 @@ public partial class InventoryManagementModule
         ImGui.TextColored(ColorWarning, "+");
         ImGui.SameLine(0, 0);
         ImGui.Text(")");
-        
-        // Help icon
         ImGui.SameLine();
         using (var colors = ImRaii.PushColor(ImGuiCol.Text, new Vector4(0.6f, 0.6f, 0.6f, 1f))
                                   .Push(ImGuiCol.Button, new Vector4(0, 0, 0, 0))
@@ -343,17 +335,12 @@ public partial class InventoryManagementModule
         
         using (var group = ImRaii.Group())
         {
-        // Checkbox
         if (ImGui.Checkbox($"##{label}", ref value))
         {
             changed = true;
         }
-        
-        // Label
         ImGui.SameLine();
         ImGui.Text(label);
-        
-        // Help icon
         ImGui.SameLine();
             using (var colors = ImRaii.PushColor(ImGuiCol.Text, new Vector4(0.6f, 0.6f, 0.6f, 1f))
                                       .Push(ImGuiCol.Button, new Vector4(0, 0, 0, 0))
@@ -380,31 +367,22 @@ public partial class InventoryManagementModule
         {
             categoriesCopy = new List<CategoryGroup>(_categories);
         }
-        
-        // When searching, show all results in a single view
         if (!string.IsNullOrWhiteSpace(_searchFilter))
         {
             DrawSearchResultsView(categoriesCopy);
             return;
         }
-        
-        // Normal category view when not searching
         foreach (var category in categoriesCopy)
         {
             if (category.Items.Count == 0) continue;
             
             var isExpanded = ExpandedCategories.GetValueOrDefault(category.CategoryId, true);
-            
-            // Use a unique ID based on category ID to ensure proper state tracking
             using var id = ImRaii.PushId($"Category_{category.CategoryId}");
-            
-            // Create a custom header with integrated controls
             var nodeFlags = ImGuiTreeNodeFlags.AllowItemOverlap | ImGuiTreeNodeFlags.SpanAvailWidth;
             if (isExpanded) nodeFlags |= ImGuiTreeNodeFlags.DefaultOpen;
             
             using (var node = ImRaii.TreeNode($"{category.Name}###{category.CategoryId}_node", nodeFlags))
             {
-            // Stats on the same line
             ImGui.SameLine();
             ImGui.TextColored(ColorInfo, $"({category.Items.Count} items, {category.TotalQuantity} total)");
             
@@ -413,8 +391,6 @@ public partial class InventoryManagementModule
                 ImGui.SameLine();
                 ImGui.TextColored(ColorPrice, $"{category.TotalValue.Value:N0} gil");
             }
-            
-            // Select All button - positioned with better spacing
             var selectAllWidth = 90f;
             var windowWidth = ImGui.GetWindowContentRegionMax().X;
             ImGui.SameLine(windowWidth - selectAllWidth - 10);
@@ -425,8 +401,6 @@ public partial class InventoryManagementModule
                 ExpandedCategories[category.CategoryId] = true;
                 _expandedCategoriesChanged = true;
                 DrawCategoryItems(category);
-                
-                // Immediately fetch prices for visible tradable items in this category
                 if (Settings.ShowMarketPrices)
                 {
                     lock (_fetchingPricesLock)
@@ -457,8 +431,6 @@ public partial class InventoryManagementModule
         ImGui.TextColored(ColorInfo, $"\"{_searchFilter}\"");
         ImGui.Separator();
         ImGui.Spacing();
-        
-        // Collect all matching items from all categories
         var allMatchingItems = new List<InventoryItemInfo>();
         foreach (var category in categories)
         {
@@ -478,8 +450,6 @@ public partial class InventoryManagementModule
         
         ImGui.Text($"Found {allMatchingItems.Count} items:");
         ImGui.Spacing();
-        
-        // Show all results in a single table for easy viewing
         using var style = ImRaii.PushStyle(ImGuiStyleVar.CellPadding, new Vector2(4, 2))
                                 .Push(ImGuiStyleVar.ItemSpacing, new Vector2(4, 2));
         
@@ -488,7 +458,6 @@ public partial class InventoryManagementModule
         {
             if (table)
             {
-                // Setup columns similar to normal item table
                 float checkboxWidth = 22;
                 float idWidth = ImGui.CalcTextSize("99999").X + 8;
                 float qtyWidth = ImGui.CalcTextSize("999").X + 8;
@@ -511,8 +480,6 @@ public partial class InventoryManagementModule
                 
                 ImGui.TableSetupScrollFreeze(0, 1); // Freeze header row
                 ImGui.TableHeadersRow();
-                
-                // Sort items by category then name for better organization
                 var sortedItems = allMatchingItems
                     .OrderBy(i => i.CategoryName)
                     .ThenBy(i => i.Name)
@@ -521,8 +488,6 @@ public partial class InventoryManagementModule
                 foreach (var item in sortedItems)
                 {
                     ImGui.TableNextRow();
-                    
-                    // Checkbox column
                     ImGui.TableNextColumn();
                     bool isBlacklisted = BlacklistedItems.Contains(item.ItemId);
                     bool isSelected;
@@ -563,12 +528,8 @@ public partial class InventoryManagementModule
                             }
                         }
                     }
-                    
-                    // ID column
                     ImGui.TableNextColumn();
                     ImGui.TextColored(ColorSubdued, item.ItemId.ToString());
-                    
-                    // Item name with icon
                     ImGui.TableNextColumn();
                     if (item.IconId > 0)
                     {
@@ -582,8 +543,6 @@ public partial class InventoryManagementModule
                             ImGui.SameLine(0, 5);
                         }
                     }
-                    
-                    // Highlight the matching part of the name
                     var itemName = item.Name;
                     var matchIndex = itemName.IndexOf(_searchFilter, StringComparison.OrdinalIgnoreCase);
                     if (matchIndex >= 0)
@@ -612,8 +571,6 @@ public partial class InventoryManagementModule
                         ImGui.SameLine();
                         ImGui.TextColored(ColorHQItem, "[HQ]");
                     }
-                    
-                    // Add status tags
                     if (isBlacklisted)
                     {
                         ImGui.SameLine();
@@ -628,12 +585,8 @@ public partial class InventoryManagementModule
                     
                     DrawItemSafetyFlags(item);
                     DrawItemFilterTags(item);
-                    
-                    // Quantity
                     ImGui.TableNextColumn();
                     ImGui.Text(item.Quantity.ToString());
-                    
-                    // Item Level
                     ImGui.TableNextColumn();
                     if (item.ItemLevel > 0)
                     {
@@ -643,16 +596,10 @@ public partial class InventoryManagementModule
                     {
                         ImGui.TextColored(ColorSubdued, "-");
                     }
-                    
-                    // Location
                     ImGui.TableNextColumn();
                     ImGui.Text(GetLocationName(item.Container));
-                    
-                    // Category
                     ImGui.TableNextColumn();
                     ImGui.TextColored(ColorSubdued, item.CategoryName);
-                    
-                    // Price
                     if (Settings.ShowMarketPrices)
                     {
                         ImGui.TableNextColumn();
@@ -683,7 +630,6 @@ public partial class InventoryManagementModule
         else
         {
             ImGui.TextColored(ColorSubdued, "Loading...");
-            // Fetch price if not already fetching
             if (!IsFetchingPrice(item.ItemId))
             {
                 _ = FetchMarketPrice(item);
@@ -693,17 +639,13 @@ public partial class InventoryManagementModule
     
     private void DrawCategoryItems(CategoryGroup category)
     {
-        // Make table more compact
         using var style = ImRaii.PushStyle(ImGuiStyleVar.CellPadding, new Vector2(4, 2))
                                 .Push(ImGuiStyleVar.ItemSpacing, new Vector2(4, 2));
-        
-        // Remove ScrollY and SizingStretchProp to let table size to content
         using (var table = ImRaii.Table($"ItemTable_{category.CategoryId}", Settings.ShowMarketPrices ? 8 : 7, 
             ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
         {
             if (table)
         {
-            // Calculate dynamic widths based on content
             float checkboxWidth = 22;
             float idWidth = ImGui.CalcTextSize("99999").X + 8;
             float qtyWidth = ImGui.CalcTextSize("999").X + 8;
@@ -746,19 +688,15 @@ public partial class InventoryManagementModule
         lock (_selectedItemsLock)
         {
             selectedInCategory = category.Items.Count(i => _selectedItems.Contains(i.ItemId));
-            // Check if all non-blacklisted items are selected
             var selectableItems = category.Items.Where(i => !BlacklistedItems.Contains(i.ItemId)).ToList();
             allSelectableSelected = selectableItems.Count > 0 && selectableItems.All(i => _selectedItems.Contains(i.ItemId));
         }
-        
-        // Show selection info inline with category header
         var buttonText = allSelectableSelected ? "Deselect All" : "Select All";
         
         if (ImGui.SmallButton(buttonText))
         {
             if (allSelectableSelected)
             {
-                // Deselect all items in this category
                 lock (_selectedItemsLock)
                 {
                     foreach (var item in category.Items)
@@ -770,12 +708,10 @@ public partial class InventoryManagementModule
             }
             else
             {
-                // Select all non-blacklisted items in this category
                 lock (_selectedItemsLock)
                 {
                     foreach (var item in category.Items)
                     {
-                        // Skip blacklisted items
                         if (BlacklistedItems.Contains(item.ItemId))
                             continue;
                             
@@ -794,8 +730,6 @@ public partial class InventoryManagementModule
                 ImGui.SetTooltip($"Blacklisted items ({blacklistedCount}) will not be selected");
             }
         }
-        
-        // Add warning for dangerous categories
         if (IsDangerousCategory(category))
         {
             ImGui.SameLine();
@@ -826,35 +760,24 @@ public partial class InventoryManagementModule
     {
         ImGui.TableNextRow();
         using var id = ImRaii.PushId(item.GetUniqueKey());
-        
-        // Check if this row is selected
         bool isSelected;
         lock (_selectedItemsLock)
         {
             isSelected = _selectedItems.Contains(item.ItemId);
         }
-        
-        // Check if item is blacklisted
         bool isBlacklisted = BlacklistedItems.Contains(item.ItemId);
-        
-        // Apply selection or blacklist background using table row bg
         if (isBlacklisted)
         {
-            // Dark red tint for blacklisted items
             ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, ImGui.GetColorU32(new Vector4(0.3f, 0.1f, 0.1f, 0.3f)));
         }
         else if (isSelected)
         {
-            // Blue tint for selected items
             ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, ImGui.GetColorU32(new Vector4(0.3f, 0.5f, 0.7f, 0.3f)));
         }
-        
-        // Checkbox column
         ImGui.TableNextColumn();
         
         if (isBlacklisted)
         {
-            // Show disabled checkbox for blacklisted items
             using (var disabled = ImRaii.Disabled())
             {
             bool blacklistedCheck = false;
@@ -885,22 +808,15 @@ public partial class InventoryManagementModule
                 }
             }
         }
-        
-        // Item ID column
         ImGui.TableNextColumn();
         ImGui.TextColored(ColorSubdued, item.ItemId.ToString());
-        
-        // Item name with icon
         ImGui.TableNextColumn();
-        
-        // Item icon and name aligned properly
         var iconSize = new Vector2(20, 20);
         if (item.IconId > 0)
         {
             var icon = _iconCache.GetIcon(item.IconId);
             if (icon != null)
             {
-                // Lower the icon to align with text baseline
                 var startY = ImGui.GetCursorPosY();
                 ImGui.SetCursorPosY(startY - 2);  // Lower the icon by 2 pixels
                 ImGui.Image(icon.Handle, iconSize);
@@ -909,21 +825,17 @@ public partial class InventoryManagementModule
             }
             else
             {
-                // Reserve space for missing icon
                 ImGui.Dummy(iconSize);
                 ImGui.SameLine(0, 5);
             }
         }
         else
         {
-            // Reserve space for missing icon
             ImGui.Dummy(iconSize);
             ImGui.SameLine(0, 5);
         }
         
         ImGui.Text(item.Name);
-        
-        // Add filter tags right after item name
         DrawItemFilterTags(item);
         
         if (item.IsHQ)
@@ -931,8 +843,6 @@ public partial class InventoryManagementModule
             ImGui.SameLine();
             ImGui.TextColored(ColorHQItem, "[HQ]");
         }
-        
-        // Add status tags
         if (isBlacklisted)
         {
             ImGui.SameLine();
@@ -944,15 +854,9 @@ public partial class InventoryManagementModule
             ImGui.SameLine();
             ImGui.TextColored(ColorNotTradeable, "[Not Tradeable]");
         }
-        
-        // Safety flags (keep for additional info)
         DrawItemSafetyFlags(item);
-        
-        // Quantity
         ImGui.TableNextColumn();
         ImGui.Text(item.Quantity.ToString());
-        
-        // Item Level
         ImGui.TableNextColumn();
         if (item.ItemLevel > 0)
         {
@@ -962,14 +866,11 @@ public partial class InventoryManagementModule
         {
             ImGui.TextColored(ColorSubdued, "-");
         }
-        
-        // Location
         ImGui.TableNextColumn();
         ImGui.Text(GetLocationName(item.Container));
         
         if (Settings.ShowMarketPrices && item.CanBeTraded)
         {
-            // Unit price
             ImGui.TableNextColumn();
             
             bool isFetching;
@@ -980,7 +881,6 @@ public partial class InventoryManagementModule
             
             if (isFetching)
             {
-                // Show loading spinner
                 using (var font = ImRaii.PushFont(UiBuilder.IconFont))
                 {
                 var time = ImGui.GetTime();
@@ -1004,8 +904,6 @@ public partial class InventoryManagementModule
                 else
                 {
                     ImGui.TextColored(ColorSubdued, priceText);
-                    
-                    // Small fetch button
                     ImGui.SameLine();
                     using (var style = ImRaii.PushStyle(ImGuiStyleVar.FramePadding, new Vector2(2, 0)))
                     using (var font = ImRaii.PushFont(UiBuilder.IconFont))
@@ -1019,8 +917,6 @@ public partial class InventoryManagementModule
                         ImGui.SetTooltip("Fetch current market price");
                 }
             }
-            
-            // Total value
             ImGui.TableNextColumn();
             if (item.MarketPrice.HasValue)
             {
@@ -1041,12 +937,10 @@ public partial class InventoryManagementModule
         }
         else
         {
-            // Status/Price column
             ImGui.TableNextColumn();
             
             if (Settings.ShowMarketPrices && item.MarketPrice.HasValue && item.CanBeTraded && !isBlacklisted)
             {
-                // Show price for tradeable, non-blacklisted items
                 ImGui.TextColored(ColorPrice, $"{item.MarketPrice.Value:N0}");
             }
             else if (!item.CanBeDiscarded)
@@ -1206,34 +1100,6 @@ public partial class InventoryManagementModule
         };
     }
     
-    private string GetLocationName(InventoryType type)
-    {
-        return type switch
-        {
-            InventoryType.Inventory1 => "Inventory 1",
-            InventoryType.Inventory2 => "Inventory 2",
-            InventoryType.Inventory3 => "Inventory 3",
-            InventoryType.Inventory4 => "Inventory 4",
-            InventoryType.Crystals => "Crystals",
-            InventoryType.Currency => "Currency",
-            InventoryType.SaddleBag1 => "Saddlebag 1",
-            InventoryType.SaddleBag2 => "Saddlebag 2",
-            InventoryType.PremiumSaddleBag1 => "P.Saddlebag 1",
-            InventoryType.PremiumSaddleBag2 => "P.Saddlebag 2",
-            InventoryType.ArmoryMainHand => "Armory (Main)",
-            InventoryType.ArmoryOffHand => "Armory (Off)",
-            InventoryType.ArmoryHead => "Armory (Head)",
-            InventoryType.ArmoryBody => "Armory (Body)",
-            InventoryType.ArmoryHands => "Armory (Hands)",
-            InventoryType.ArmoryLegs => "Armory (Legs)",
-            InventoryType.ArmoryFeets => "Armory (Feet)",
-            InventoryType.ArmoryEar => "Armory (Ears)",
-            InventoryType.ArmoryNeck => "Armory (Neck)",
-            InventoryType.ArmoryWrist => "Armory (Wrist)",
-            InventoryType.ArmoryRings => "Armory (Rings)",
-            _ => type.ToString()
-        };
-    }
     
     private void DrawProtectedItemsTab(List<InventoryItemInfo> protectedItems)
     {
@@ -1261,13 +1127,9 @@ public partial class InventoryManagementModule
         foreach (var category in filteredCategories)
         {
             var isExpanded = ExpandedCategories.GetValueOrDefault(category.CategoryId, true);
-            
-                // Use unique ID based on category ID and filtered prefix
                 using var id = ImRaii.PushId($"FilteredCategory_{category.CategoryId}");
             
             var categoryHeaderText = $"{category.CategoryName} ({category.Items.Count} protected)";
-            
-                // Use TreeNodeEx for consistent behavior with Available Items - remove Framed
                 var nodeFlags = ImGuiTreeNodeFlags.AllowItemOverlap | ImGuiTreeNodeFlags.SpanAvailWidth;
             if (isExpanded) nodeFlags |= ImGuiTreeNodeFlags.DefaultOpen;
             
@@ -1293,8 +1155,6 @@ public partial class InventoryManagementModule
                 ImGui.Spacing();
             }
         }
-        
-        // Section 2: Built-in protected lists
         ImGui.Spacing();
         ImGui.Separator();
         ImGui.Spacing();
@@ -1306,8 +1166,6 @@ public partial class InventoryManagementModule
     {
         ImGui.Text("Built-in Protected Lists (Always Active):");
         ImGui.Spacing();
-        
-        // Ultimate tokens and special items
         var ultimateNodeFlags = ImGuiTreeNodeFlags.AllowItemOverlap | ImGuiTreeNodeFlags.SpanAvailWidth;
         using (var id = ImRaii.PushId("UltimateTokensProtected"))
         {
@@ -1321,8 +1179,6 @@ public partial class InventoryManagementModule
         }
         
         ImGui.Spacing();
-        
-        // Currency items
         var currencyNodeFlags = ImGuiTreeNodeFlags.AllowItemOverlap | ImGuiTreeNodeFlags.SpanAvailWidth;
         using (var id = ImRaii.PushId("CurrencyItemsProtected"))
         {
@@ -1332,8 +1188,6 @@ public partial class InventoryManagementModule
                 {
                     ImGui.TextWrapped("All items with IDs from 1 to 99 are protected as currency items.");
                     ImGui.Spacing();
-                    
-                    // Show a sample of currency items
                     var currencyItems = new HashSet<uint>();
                     for (uint i = 1; i <= 20; i++) // Just show first 20 as example
                     {
@@ -1358,7 +1212,6 @@ public partial class InventoryManagementModule
         {
             if (table)
             {
-                // Use dynamic widths based on content
                 float idWidth = ImGui.CalcTextSize("99999").X + 8;
                 float ilvlWidth = ImGui.CalcTextSize("999").X + 8;
                 float categoryWidth = ImGui.CalcTextSize("Seasonal Miscellany").X + 8;
@@ -1371,7 +1224,6 @@ public partial class InventoryManagementModule
                 
                 foreach (var itemId in itemIds)
                 {
-                    // Try to find item info from inventory first
                     InventoryItemInfo itemInfo = null;
                     lock (_itemsLock)
                     {
@@ -1381,8 +1233,6 @@ public partial class InventoryManagementModule
                     string categoryName = itemInfo?.CategoryName ?? "Unknown";
                     ushort iconId = itemInfo?.IconId ?? 0;
                     int itemLevel = (int)(itemInfo?.ItemLevel ?? 0);
-                    
-                    // If not in inventory, try to get from game data
                     if (string.IsNullOrEmpty(itemName))
                     {
                         try
@@ -1402,27 +1252,20 @@ public partial class InventoryManagementModule
                         }
                         catch { }
                     }
-                    
-                    // Fallback to hardcoded names for known items
                     if (string.IsNullOrEmpty(itemName))
                     {
                         itemName = GetItemNameFromBlacklist(itemId);
                     }
                     
                     ImGui.TableNextRow();
-                    
-                    // ID column
                     ImGui.TableNextColumn();
                     ImGui.TextColored(ColorSubdued, itemId.ToString());
-                    
-                    // Name column with icon
                     ImGui.TableNextColumn();
                     if (iconId > 0)
                     {
                         var icon = _iconCache.GetIcon(iconId);
                         if (icon != null)
                         {
-                            // Lower the icon to align with text baseline
                             var startY = ImGui.GetCursorPosY();
                             ImGui.SetCursorPosY(startY - 2);
                             ImGui.Image(icon.Handle, new Vector2(20, 20));
@@ -1441,8 +1284,6 @@ public partial class InventoryManagementModule
                         ImGui.SameLine(0, 5);
                     }
                     ImGui.Text(itemName);
-                    
-                    // Item Level column
                     ImGui.TableNextColumn();
                     if (itemLevel > 0)
                     {
@@ -1452,8 +1293,6 @@ public partial class InventoryManagementModule
                     {
                         ImGui.TextColored(ColorSubdued, "-");
                     }
-                    
-                    // Category column
                     ImGui.TableNextColumn();
                     ImGui.Text(categoryName);
                 }
@@ -1477,14 +1316,11 @@ public partial class InventoryManagementModule
     {
         using var style = ImRaii.PushStyle(ImGuiStyleVar.CellPadding, new Vector2(4, 2))
                                 .Push(ImGuiStyleVar.ItemSpacing, new Vector2(4, 2));
-        
-        // Remove unnecessary table flags that cause extra space
         using (var table = ImRaii.Table("FilteredItemsTable", Settings.ShowMarketPrices ? 7 : 6, 
             ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
         {
             if (table)
         {
-            // Calculate dynamic widths based on content
             float idWidth = ImGui.CalcTextSize("99999").X + 8;
             float qtyWidth = ImGui.CalcTextSize("999").X + 8;
             float ilvlWidth = ImGui.CalcTextSize("999").X + 8;
@@ -1522,22 +1358,15 @@ public partial class InventoryManagementModule
     {
         ImGui.TableNextRow();
         using var id = ImRaii.PushId(item.GetUniqueKey());
-        
-        // ID column
         ImGui.TableNextColumn();
         ImGui.TextColored(ColorSubdued, item.ItemId.ToString());
-        
-        // Item name with icon
         ImGui.TableNextColumn();
-        
-        // Icon - same styling as available items
         var iconSize = new Vector2(20, 20);
         if (item.IconId > 0)
         {
             var icon = _iconCache.GetIcon(item.IconId);
             if (icon != null)
             {
-                // Lower the icon to align with text baseline
                 var startY = ImGui.GetCursorPosY();
                 ImGui.SetCursorPosY(startY - 2);  // Lower the icon by 2 pixels
                 ImGui.Image(icon.Handle, iconSize);
@@ -1546,21 +1375,17 @@ public partial class InventoryManagementModule
             }
             else
             {
-                // Reserve space for missing icon
                 ImGui.Dummy(iconSize);
                 ImGui.SameLine(0, 5);
             }
         }
         else
         {
-            // Reserve space for missing icon  
             ImGui.Dummy(iconSize);
             ImGui.SameLine(0, 5);
         }
         
         ImGui.Text(item.Name);
-        
-        // Add filter tags right after item name - same as available items
         DrawItemFilterTags(item);
         
         if (item.IsHQ)
@@ -1568,12 +1393,8 @@ public partial class InventoryManagementModule
             ImGui.SameLine();
             ImGui.TextColored(ColorHQItem, "[HQ]");
         }
-        
-        // Quantity
         ImGui.TableNextColumn();
         ImGui.Text(item.Quantity.ToString());
-        
-        // Item Level
         ImGui.TableNextColumn();
         if (item.ItemLevel > 0)
         {
@@ -1583,14 +1404,11 @@ public partial class InventoryManagementModule
         {
             ImGui.TextColored(ColorSubdued, "-");
         }
-        
-        // Location
         ImGui.TableNextColumn();
         ImGui.Text(GetLocationName(item.Container));
         
         if (Settings.ShowMarketPrices)
         {
-            // Unit price
             ImGui.TableNextColumn();
             var priceText = item.GetFormattedPrice();
             if (priceText == "N/A")
@@ -1605,8 +1423,6 @@ public partial class InventoryManagementModule
             {
                 ImGui.TextColored(ColorSubdued, priceText);
             }
-            
-            // Total value
             ImGui.TableNextColumn();
             if (item.MarketPrice.HasValue && item.MarketPrice.Value > 0)
             {
@@ -1620,7 +1436,6 @@ public partial class InventoryManagementModule
         }
         else
         {
-            // Reason
             ImGui.TableNextColumn();
             ImGui.TextColored(ColorWarning, GetFilterReason(item));
         }
@@ -1654,31 +1469,9 @@ public partial class InventoryManagementModule
         return "Protected";
     }
     
-    private string GetContainerDisplayName(InventoryType container)
-    {
-        return container switch
-        {
-            InventoryType.Inventory1 or InventoryType.Inventory2 or 
-            InventoryType.Inventory3 or InventoryType.Inventory4 => "Inventory",
-            InventoryType.ArmoryMainHand => "Armory (Main)",
-            InventoryType.ArmoryOffHand => "Armory (Off)",
-            InventoryType.ArmoryHead => "Armory (Head)",
-            InventoryType.ArmoryBody => "Armory (Body)",
-            InventoryType.ArmoryHands => "Armory (Hands)",
-            InventoryType.ArmoryLegs => "Armory (Legs)",
-            InventoryType.ArmoryFeets => "Armory (Feet)",
-            InventoryType.ArmoryEar => "Armory (Ears)",
-            InventoryType.ArmoryNeck => "Armory (Neck)",
-            InventoryType.ArmoryWrist => "Armory (Wrists)",
-            InventoryType.ArmoryRings => "Armory (Rings)",
-            InventoryType.ArmorySoulCrystal => "Armory (Soul)",
-            _ => container.ToString()
-        };
-    }
     
     private List<InventoryItemInfo> GetProtectedItems()
     {
-        // NOTE: This method should be called inside a lock(_itemsLock)
         var allItems = _originalItems.AsEnumerable();
         var filteredOutItems = new List<InventoryItemInfo>();
         var filters = Settings.SafetyFilters;
@@ -1724,21 +1517,16 @@ public partial class InventoryManagementModule
         
         using (var child = ImRaii.Child("ActionBar", new Vector2(0, 42), true, ImGuiWindowFlags.NoScrollbar))
         {
-        // Left side - Action buttons
         int selectedCount;
         lock (_selectedItemsLock)
         {
             selectedCount = _selectedItems.Count;
         }
-        
-        // Calculate dynamic button widths based on text
         var clearButtonText = "Clear All";
         var discardButtonText = $"Discard ({selectedCount})";
         var blacklistButtonText = $"Add to Blacklist ({selectedCount})";
             var autoDiscardButtonText = $"Add to Auto-Discard ({selectedCount})";
             var executeAutoDiscardText = "Execute Auto Discard";
-        
-        // Calculate minimum widths based on text size with padding
         var buttonPadding = 20f; // Extra padding for button aesthetics
         var clearButtonWidth = Math.Max(80f, ImGui.CalcTextSize(clearButtonText).X + buttonPadding);
         var discardButtonWidth = Math.Max(80f, ImGui.CalcTextSize(discardButtonText).X + buttonPadding);
@@ -1823,8 +1611,6 @@ public partial class InventoryManagementModule
                     }
                 }
             }
-            
-            // Execute Auto Discard button
         ImGui.SameLine();
             
             using (var btnColors = ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.7f, 0.2f, 0.2f, 1f))

@@ -22,8 +22,6 @@ public class InventoryItemInfo
     public int MaxDurability { get; set; }
     public string CategoryName { get; set; } = string.Empty;
     public uint ItemUICategory { get; set; }
-    
-    // Safety assessment properties
     public uint ItemLevel { get; set; }
     public uint EquipLevel { get; set; }
     public byte Rarity { get; set; }
@@ -32,11 +30,7 @@ public class InventoryItemInfo
     public bool IsIndisposable { get; set; }
     public uint EquipSlotCategory { get; set; }
     public SafetyAssessment? SafetyAssessment { get; set; }
-    
-    // UI state
     public bool IsSelected { get; set; }
-    
-    // Market price data
     public long? MarketPrice { get; set; }
     public DateTime? MarketPriceFetchTime { get; set; }
     

@@ -4,12 +4,12 @@ using Dalamud.Plugin;
 using System.IO;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
-using wahventory.Windows;
+using wahventory.UI.Windows;
 using wahventory.Modules.Inventory;
 using Dalamud.Game;
 using ECommons;
 
-namespace wahventory;
+namespace wahventory.Core;
 
 public sealed class Plugin : IDalamudPlugin
 {
@@ -37,7 +37,6 @@ public sealed class Plugin : IDalamudPlugin
 
     public Plugin()
     {
-        // Initialize ECommons with the API 13 compatible version
         ECommonsMain.Init(PluginInterface, this);
         
         ConfigManager = new ConfigurationManager(PluginInterface);
@@ -57,8 +56,6 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.Draw += DrawUI;
         PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUI;
         PluginInterface.UiBuilder.OpenMainUi += ToggleMainUI;
-        
-        // Initialize module on first framework update
         Framework.Update += OnFrameworkUpdate;
     }
 
@@ -73,8 +70,6 @@ public sealed class Plugin : IDalamudPlugin
         InventoryModule.Dispose();
         
         CommandManager.RemoveHandler(CommandName);
-        
-        // Dispose ECommons
         ECommonsMain.Dispose();
     }
     
@@ -87,8 +82,6 @@ public sealed class Plugin : IDalamudPlugin
             InventoryModule.Initialize();
             _moduleInitialized = true;
         }
-        
-        // Call Update on every frame
         InventoryModule.Update();
     }
 

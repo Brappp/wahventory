@@ -5,8 +5,9 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using Dalamud.Plugin.Services;
 using Newtonsoft.Json;
+using wahventory.Core;
 
-namespace wahventory.External;
+namespace wahventory.Services.External;
 
 public class UniversalisClient : IDisposable
 {
@@ -44,8 +45,6 @@ public class UniversalisClient : IDisposable
             {
                 return null;
             }
-            
-            // Get the cheapest listing (current price)
             long price = 0;
             if (data.Listings != null && data.Listings.Count > 0)
             {
@@ -58,7 +57,6 @@ public class UniversalisClient : IDisposable
                     }
                     else
                     {
-                        // No HQ listings, use NQ price
                         price = data.Listings.Min(l => l.PricePerUnit);
                     }
                 }
@@ -105,8 +103,6 @@ public class MarketPriceResult
     public string WorldName { get; set; } = string.Empty;
     public DateTime LastUpdated { get; set; }
 }
-
-// Universalis API response models
 public class UniversalisResponse
 {
     [JsonProperty("itemID")]

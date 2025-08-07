@@ -6,15 +6,14 @@ using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using Lumina.Excel.Sheets;
 using wahventory.Models;
+using wahventory.Core;
 
-namespace wahventory.Helpers;
+namespace wahventory.Services.Helpers;
 
 public unsafe class InventoryHelpers
 {
     private readonly IDataManager _dataManager;
     private readonly IPluginLog _log;
-    
-    // ARDiscard-level safety lists
     public static readonly HashSet<uint> HardcodedBlacklist = new()
     {
         16039, // Ala Mhigan earrings
@@ -31,12 +30,8 @@ public unsafe class InventoryHelpers
         10155, // Ceruleum Tank
         10373, // Magitek Repair Materials
     };
-    
-    // Currency range (1-99)
     public static readonly HashSet<uint> CurrencyRange = 
         Enumerable.Range(1, 99).Select(x => (uint)x).ToHashSet();
-    
-    // Safe unique items despite being unique/untradeable
     public static readonly HashSet<uint> SafeUniqueItems = new()
     {
         2962, // Onion Doublet
@@ -60,8 +55,6 @@ public unsafe class InventoryHelpers
         4572, // Company-issue Tonic
         20790, // High Grade Company-issue Tonic
     };
-    
-    // Separate inventory type groups
     private static readonly InventoryType[] MainInventories = 
     {
         InventoryType.Inventory1,
@@ -109,14 +102,10 @@ public unsafe class InventoryHelpers
             _log.Error("InventoryManager is null");
             return items;
         }
-        
-        // Always include main inventory
         foreach (var inventoryType in MainInventories)
         {
             AddItemsFromInventory(items, inventoryManager, inventoryType);
         }
-        
-        // Optionally include armory
         if (includeArmory)
         {
             foreach (var inventoryType in ArmoryInventories)
@@ -124,8 +113,6 @@ public unsafe class InventoryHelpers
                 AddItemsFromInventory(items, inventoryManager, inventoryType);
             }
         }
-        
-        // Optionally include saddlebag (currently disabled in original)
         if (includeSaddlebag)
         {
             foreach (var inventoryType in SaddlebagInventories)
@@ -212,8 +199,6 @@ public unsafe class InventoryHelpers
             var gearset = gearsetModule->GetGearset(i);
             if (gearset == null || !gearset->Flags.HasFlag(RaptureGearsetModule.GearsetFlag.Exists))
                 continue;
-            
-            // Check all equipment slots
             for (var j = 0; j < gearset->Items.Length; j++)
             {
                 if (gearset->Items[j].ItemId == itemId)
@@ -224,87 +209,67 @@ public unsafe class InventoryHelpers
         return false;
     }
     
-    public static SafetyAssessment AssessItemSafety(InventoryItemInfo item, InventorySettings settings)
+    public static SafetyAssessment AssessItemSafety(InventoryItemInfo item, InventorySettings settings, HashSet<uint> userBlacklist)
     {
         var assessment = new SafetyAssessment
         {
             ItemId = item.ItemId,
             IsSafeToDiscard = true
         };
-        
-        // Check hardcoded blacklist
         if (HardcodedBlacklist.Contains(item.ItemId))
         {
             assessment.SafetyFlags.Add("Ultimate Token / Special Item");
             assessment.IsSafeToDiscard = false;
             assessment.FlagColor = SafetyFlagColor.Critical;
         }
-        
-        // Check currency range
         if (CurrencyRange.Contains(item.ItemId))
         {
             assessment.SafetyFlags.Add("Currency Item");
             assessment.IsSafeToDiscard = false;
             assessment.FlagColor = SafetyFlagColor.Critical;
         }
-        
-        // Check user blacklist
-        if (settings.BlacklistedItems.Contains(item.ItemId))
+        if (userBlacklist.Contains(item.ItemId))
         {
             assessment.SafetyFlags.Add("User Blacklisted");
             assessment.IsSafeToDiscard = false;
             assessment.FlagColor = SafetyFlagColor.Critical;
         }
-        
-        // Check if in gearset
         if (IsInGearset(item.ItemId))
         {
             assessment.SafetyFlags.Add("In Gearset");
             assessment.IsSafeToDiscard = false;
             assessment.FlagColor = SafetyFlagColor.Warning;
         }
-        
-        // Check if indisposable
         if (item.IsIndisposable || !item.CanBeDiscarded)
         {
             assessment.SafetyFlags.Add("Cannot Be Discarded");
             assessment.IsSafeToDiscard = false;
             assessment.FlagColor = SafetyFlagColor.Critical;
         }
-        
-        // Check for high level gear
         if (item.IsGear && item.ItemLevel >= settings.SafetyFilters.MaxGearItemLevel)
         {
             assessment.SafetyFlags.Add($"High Level Gear (i{item.ItemLevel})");
             if (assessment.FlagColor < SafetyFlagColor.Warning)
                 assessment.FlagColor = SafetyFlagColor.Warning;
         }
-        
-        // Check unique/untradeable combo
         if (item.IsUnique && item.IsUntradable && !SafeUniqueItems.Contains(item.ItemId))
         {
             assessment.SafetyFlags.Add("Unique & Untradeable");
             if (assessment.FlagColor < SafetyFlagColor.Warning)
                 assessment.FlagColor = SafetyFlagColor.Warning;
         }
-        
-        // Check HQ
         if (item.IsHQ)
         {
             assessment.SafetyFlags.Add("High Quality");
             if (assessment.FlagColor < SafetyFlagColor.Caution)
                 assessment.FlagColor = SafetyFlagColor.Caution;
         }
-        
-        // Check collectables
         if (item.IsCollectable)
         {
             assessment.SafetyFlags.Add("Collectable");
             if (assessment.FlagColor < SafetyFlagColor.Info)
                 assessment.FlagColor = SafetyFlagColor.Info;
         }
-        
-        // Check spiritbond
         if (item.SpiritBond >= settings.SafetyFilters.MinSpiritbondToFilter)
         {
             assessment.SafetyFlags.Add($"Spiritbond {item.SpiritBond}%");
@@ -317,17 +282,10 @@ public unsafe class InventoryHelpers
     
     public static bool IsSafeToDiscard(InventoryItemInfo item, HashSet<uint> userBlacklist)
     {
-        // Never discard hardcoded blacklist items
         if (HardcodedBlacklist.Contains(item.ItemId)) return false;
         if (CurrencyRange.Contains(item.ItemId)) return false;
-        
-        // Never discard user blacklisted items
         if (userBlacklist.Contains(item.ItemId)) return false;
-        
-        // Never discard gearset items
         if (IsInGearset(item.ItemId)) return false;
-        
-        // Never discard indisposable items
         if (item.IsIndisposable || !item.CanBeDiscarded) return false;
         
         return true;
@@ -352,8 +310,6 @@ public unsafe class InventoryHelpers
         {
             throw new InvalidOperationException($"Item {item.Name} not found in expected slot");
         }
-        
-        // Use AgentInventoryContext to discard the item
         var agentInventoryContext = FFXIVClientStructs.FFXIV.Client.UI.Agent.AgentInventoryContext.Instance();
         if (agentInventoryContext == null)
         {

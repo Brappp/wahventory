@@ -5,9 +5,11 @@ using System.Numerics;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility.Raii;
 using FFXIVClientStructs.FFXIV.Component.GUI;
+using FFXIVClientStructs.FFXIV.Client.Game;
 using Dalamud.Bindings.ImGui;
-using wahventory.Helpers;
+using wahventory.Services.Helpers;
 using wahventory.Models;
+using wahventory.Core;
 
 namespace wahventory.Modules.Inventory;
 
@@ -597,5 +599,44 @@ public partial class InventoryManagementModule
         _discardStartTime = DateTime.MinValue;
         
         RefreshInventory();
+    }
+    
+    private string GetLocationName(InventoryType container)
+    {
+        return container switch
+        {
+            InventoryType.Inventory1 => "Inventory (1)",
+            InventoryType.Inventory2 => "Inventory (2)",
+            InventoryType.Inventory3 => "Inventory (3)",
+            InventoryType.Inventory4 => "Inventory (4)",
+            InventoryType.ArmoryMainHand => "Armory (Main Hand)",
+            InventoryType.ArmoryOffHand => "Armory (Off Hand)",
+            InventoryType.ArmoryHead => "Armory (Head)",
+            InventoryType.ArmoryBody => "Armory (Body)",
+            InventoryType.ArmoryHands => "Armory (Hands)",
+            InventoryType.ArmoryLegs => "Armory (Legs)",
+            InventoryType.ArmoryFeets => "Armory (Feet)",
+            InventoryType.ArmoryEar => "Armory (Earrings)",
+            InventoryType.ArmoryNeck => "Armory (Necklace)",
+            InventoryType.ArmoryWrist => "Armory (Bracelets)",
+            InventoryType.ArmoryRings => "Armory (Rings)",
+            _ => container.ToString()
+        };
+    }
+    
+    private string GetContainerDisplayName(InventoryType container)
+    {
+        return container switch
+        {
+            InventoryType.Inventory1 or InventoryType.Inventory2 or 
+            InventoryType.Inventory3 or InventoryType.Inventory4 => "Inventory",
+            InventoryType.ArmoryMainHand or InventoryType.ArmoryOffHand or
+            InventoryType.ArmoryHead or InventoryType.ArmoryBody or
+            InventoryType.ArmoryHands or InventoryType.ArmoryLegs or
+            InventoryType.ArmoryFeets or InventoryType.ArmoryEar or
+            InventoryType.ArmoryNeck or InventoryType.ArmoryWrist or
+            InventoryType.ArmoryRings => "Armory Chest",
+            _ => "Unknown"
+        };
     }
 }

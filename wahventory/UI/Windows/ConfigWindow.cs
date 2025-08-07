@@ -2,8 +2,9 @@ using System;
 using System.Numerics;
 using Dalamud.Interface.Windowing;
 using Dalamud.Bindings.ImGui;
+using wahventory.Core;
 
-namespace wahventory.Windows;
+namespace wahventory.UI.Windows;
 
 public class ConfigWindow : Window, IDisposable
 {
@@ -155,8 +156,6 @@ public class ConfigWindow : Window, IDisposable
         
         ImGui.Spacing();
         ImGui.Separator();
-        
-        // Window Settings
         var movable = Configuration.IsConfigWindowMovable;
         if (ImGui.Checkbox("Movable Config Window", ref movable))
         {

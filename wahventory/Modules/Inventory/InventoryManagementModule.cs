@@ -95,6 +95,7 @@ public partial class InventoryManagementModule : IDisposable
         _selectedWorld = "Excalibur";
         _universalisClient = new UniversalisClient(Plugin.Log, _selectedWorld);
         PopulateAvailableWorlds();
+        InitializeTracker();
     }
     
     private void PopulateAvailableWorlds()
@@ -271,6 +272,19 @@ public partial class InventoryManagementModule : IDisposable
                         using (var child = ImRaii.Child("AutoDiscardContent", new Vector2(0, contentHeight), false))
                         {
                             DrawAutoDiscardTab();
+                        }
+                    }
+                }
+                
+                string trackerTabText = "Item Tracker###TrackerTab";
+                
+                using (var tabItem = ImRaii.TabItem(trackerTabText))
+                {
+                    if (tabItem)
+                    {
+                        using (var child = ImRaii.Child("TrackerContent", new Vector2(0, contentHeight), false))
+                        {
+                            DrawItemTrackerTab();
                         }
                     }
                 }
@@ -615,6 +629,7 @@ public partial class InventoryManagementModule : IDisposable
         _iconCache?.Dispose();
         _taskManager?.Dispose();
         _universalisClient?.Dispose();
+        _trackerService?.Dispose();
     }
 
     public void SaveBlacklist()

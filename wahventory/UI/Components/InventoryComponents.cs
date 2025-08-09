@@ -766,9 +766,17 @@ public partial class InventoryManagementModule
             isSelected = _selectedItems.Contains(item.ItemId);
         }
         bool isBlacklisted = BlacklistedItems.Contains(item.ItemId);
+        bool isInGearset = InventoryHelpers.IsInGearset(item.ItemId);
+        
+        // Apply row background colors based on status
         if (isBlacklisted)
         {
             ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, ImGui.GetColorU32(new Vector4(0.3f, 0.1f, 0.1f, 0.3f)));
+        }
+        else if (isInGearset)
+        {
+            // Light purple background for gear set items
+            ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, ImGui.GetColorU32(new Vector4(0.5f, 0.4f, 0.6f, 0.2f)));
         }
         else if (isSelected)
         {
@@ -836,7 +844,13 @@ public partial class InventoryManagementModule
         }
         
         ImGui.Text(item.Name);
-        DrawItemFilterTags(item);
+        
+        // Add gear set tag FIRST, before other tags
+        if (isInGearset)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(new Vector4(0.7f, 0.5f, 0.9f, 1f), "[Gear Set]");
+        }
         
         if (item.IsHQ)
         {
@@ -854,6 +868,8 @@ public partial class InventoryManagementModule
             ImGui.SameLine();
             ImGui.TextColored(ColorNotTradeable, "[Not Tradeable]");
         }
+        
+        DrawItemFilterTags(item);
         DrawItemSafetyFlags(item);
         ImGui.TableNextColumn();
         ImGui.Text(item.Quantity.ToString());
@@ -869,17 +885,23 @@ public partial class InventoryManagementModule
         ImGui.TableNextColumn();
         ImGui.Text(GetLocationName(item.Container));
         
-        if (Settings.ShowMarketPrices && item.CanBeTraded)
+        if (Settings.ShowMarketPrices)
         {
             ImGui.TableNextColumn();
             
-            bool isFetching;
-            lock (_fetchingPricesLock)
+            if (!item.CanBeTraded)
             {
-                isFetching = _fetchingPrices.Contains(item.ItemId);
+                ImGui.TextColored(ColorSubdued, "Untradable");
             }
-            
-            if (isFetching)
+            else
+            {
+                bool isFetching;
+                lock (_fetchingPricesLock)
+                {
+                    isFetching = _fetchingPrices.Contains(item.ItemId);
+                }
+                
+                if (isFetching)
             {
                 using (var font = ImRaii.PushFont(UiBuilder.IconFont))
                 {
@@ -887,52 +909,54 @@ public partial class InventoryManagementModule
                 var spinnerIcon = time % 1.0 < 0.5 ? FontAwesomeIcon.CircleNotch : FontAwesomeIcon.Circle;
                 ImGui.TextColored(ColorLoading, spinnerIcon.ToIconString());
                 }
-                ImGui.SameLine();
-                ImGui.TextColored(ColorLoading, "Loading...");
-            }
-            else
-            {
-                var priceText = item.GetFormattedPrice();
-                if (priceText == "N/A")
-                {
-                    ImGui.TextColored(ColorNotTradeable, priceText);
+                    ImGui.SameLine();
+                    ImGui.TextColored(ColorLoading, "Loading");
                 }
-                else if (priceText != "---")
+                else if (item.MarketPrice.HasValue)
                 {
-                    ImGui.Text(priceText);
+                    if (item.MarketPrice.Value == -1)
+                    {
+                        ImGui.TextColored(ColorSubdued, "No data");
+                    }
+                    else if (item.MarketPrice.Value > 0)
+                    {
+                        ImGui.TextColored(ColorPrice, $"{item.MarketPrice.Value:N0}g");
+                    }
+                    else
+                    {
+                        ImGui.TextColored(ColorSubdued, "0g");
+                    }
                 }
                 else
                 {
-                    ImGui.TextColored(ColorSubdued, priceText);
+                    ImGui.TextColored(ColorSubdued, "---");
                     ImGui.SameLine();
                     using (var style = ImRaii.PushStyle(ImGuiStyleVar.FramePadding, new Vector2(2, 0)))
                     using (var font = ImRaii.PushFont(UiBuilder.IconFont))
                     {
-                    if (ImGui.SmallButton(FontAwesomeIcon.DollarSign.ToIconString() + $"##fetch_{item.GetUniqueKey()}"))
-                    {
-                        _ = FetchMarketPrice(item);
-                    }
+                        if (ImGui.SmallButton(FontAwesomeIcon.DollarSign.ToIconString() + $"##fetch_{item.GetUniqueKey()}"))
+                        {
+                            _ = FetchMarketPrice(item);
+                        }
                     }
                     if (ImGui.IsItemHovered())
                         ImGui.SetTooltip("Fetch current market price");
                 }
             }
+            // Total column
             ImGui.TableNextColumn();
-            if (item.MarketPrice.HasValue)
+            if (!item.CanBeTraded)
             {
-                if (item.MarketPrice.Value == -1)
-                {
-                    ImGui.TextColored(ColorNotTradeable, "N/A");
-                }
-                else
-                {
-                    var total = item.MarketPrice.Value * item.Quantity;
-                    ImGui.Text($"{total:N0}g");
-                }
+                ImGui.TextColored(ColorSubdued, "---");
+            }
+            else if (item.MarketPrice.HasValue && item.MarketPrice.Value > 0)
+            {
+                var total = item.MarketPrice.Value * item.Quantity;
+                ImGui.TextColored(ColorPrice, $"{total:N0}g");
             }
             else
             {
-                ImGui.TextColored(ColorNotTradeable, "---");
+                ImGui.TextColored(ColorSubdued, "---");
             }
         }
         else

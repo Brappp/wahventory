@@ -84,6 +84,11 @@ public partial class InventoryManagementModule : IDisposable
     private DateTime _discardStartTime = DateTime.MinValue;
     private int _confirmRetryCount = 0;
     
+    private int _currentTab = 0; // Track current tab
+    private int _previousTab = -1; // Track previous tab for change detection
+    private bool _isRefreshing = false; // Track refresh state
+    private DateTime _refreshStartTime = DateTime.MinValue;
+    
     public InventoryManagementModule(Plugin plugin)
     {
         _plugin = plugin;
@@ -193,6 +198,13 @@ public partial class InventoryManagementModule : IDisposable
         {
             InitializeOnMainThread();
         }
+        
+        // Draw help window if open
+        DrawHelpWindow();
+        
+        // Draw global search results if open
+        DrawGlobalSearchResults();
+        
         DrawMainContent();
         if (_isDiscarding)
         {
@@ -233,8 +245,43 @@ public partial class InventoryManagementModule : IDisposable
                 {
                     if (tabItem)
                     {
+                        _currentTab = 0;
+                        
+                        // Auto-refresh when switching to Available Items tab
+                        if (_previousTab != 0)
+                        {
+                            Plugin.Log.Debug("Switched to Available Items tab - refreshing inventory");
+                            _isRefreshing = true;
+                            _refreshStartTime = DateTime.Now;
+                            RefreshInventory();
+                            _previousTab = 0;
+                        }
+                        
                         using (var child = ImRaii.Child("AvailableContent", new Vector2(0, contentHeight), false))
                         {
+                            // Show refresh indicator if refreshing
+                            if (_isRefreshing && (DateTime.Now - _refreshStartTime).TotalSeconds < 0.5)
+                            {
+                                var windowWidth = ImGui.GetContentRegionAvail().X;
+                                var text = "Refreshing inventory...";
+                                var textSize = ImGui.CalcTextSize(text);
+                                ImGui.SetCursorPosX((windowWidth - textSize.X) * 0.5f);
+                                ImGui.TextColored(ColorLoading, text);
+                                
+                                using (var font = ImRaii.PushFont(UiBuilder.IconFont))
+                                {
+                                    var time = ImGui.GetTime();
+                                    var spinnerIcon = time % 1.0 < 0.5 ? FontAwesomeIcon.CircleNotch : FontAwesomeIcon.Circle;
+                                    ImGui.SetCursorPosX((windowWidth - 20) * 0.5f);
+                                    ImGui.TextColored(ColorLoading, spinnerIcon.ToIconString());
+                                }
+                                ImGui.Separator();
+                            }
+                            else
+                            {
+                                _isRefreshing = false;
+                            }
+                            
                             DrawAvailableItemsTab();
                         }
                     }
@@ -245,6 +292,12 @@ public partial class InventoryManagementModule : IDisposable
                 {
                     if (tabItem)
                     {
+                        _currentTab = 1;
+                        if (_previousTab != 1)
+                        {
+                            _previousTab = 1;
+                        }
+                        
                         using (var child = ImRaii.Child("ProtectedContent", new Vector2(0, contentHeight), false))
                         {
                             DrawProtectedItemsTab(filteredItems);
@@ -257,6 +310,12 @@ public partial class InventoryManagementModule : IDisposable
                 {
                     if (tabItem)
                     {
+                        _currentTab = 2;
+                        if (_previousTab != 2)
+                        {
+                            _previousTab = 2;
+                        }
+                        
                         using (var child = ImRaii.Child("BlacklistContent", new Vector2(0, contentHeight), false))
                         {
                             DrawBlacklistTab();
@@ -269,6 +328,12 @@ public partial class InventoryManagementModule : IDisposable
                 {
                     if (tabItem)
                     {
+                        _currentTab = 3;
+                        if (_previousTab != 3)
+                        {
+                            _previousTab = 3;
+                        }
+                        
                         using (var child = ImRaii.Child("AutoDiscardContent", new Vector2(0, contentHeight), false))
                         {
                             DrawAutoDiscardTab();
@@ -282,6 +347,12 @@ public partial class InventoryManagementModule : IDisposable
                 {
                     if (tabItem)
                     {
+                        _currentTab = 4;
+                        if (_previousTab != 4)
+                        {
+                            _previousTab = 4;
+                        }
+                        
                         using (var child = ImRaii.Child("TrackerContent", new Vector2(0, contentHeight), false))
                         {
                             DrawItemTrackerTab();

@@ -26,6 +26,7 @@ public class InventorySettings
     public bool ShowMarketPrices { get; set; } = false;
     public int PriceCacheDurationMinutes { get; set; } = 30;
     public bool AutoRefreshPrices { get; set; } = true;
+    public bool UseGlobalSearch { get; set; } = true; // Default to global search
     
     public Dictionary<uint, bool> ExpandedCategories { get; set; } = new();
     

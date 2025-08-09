@@ -27,18 +27,38 @@ public partial class InventoryManagementModule
         {
             ImGui.SetCursorPosY(ImGui.GetCursorPosY() + 2);
             
+            // Unified search bar - always global
             using (var font = ImRaii.PushFont(UiBuilder.IconFont))
             {
-        ImGui.Text(FontAwesomeIcon.Search.ToIconString());
+                ImGui.Text(FontAwesomeIcon.Search.ToIconString());
             }
-        
-        ImGui.SameLine();
-        ImGui.SetNextItemWidth(180f);
-        if (ImGui.InputTextWithHint("##Search", "Search items...", ref _searchFilter, 100))
-        {
+            
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(220f); // Wider since we removed the checkbox
+            
+            // Always use global search
+            bool searchTriggered = ImGui.InputTextWithHint("##UnifiedSearch", 
+                "Search all inventories...", 
+                ref _globalSearchQuery, 
+                100, 
+                ImGuiInputTextFlags.EnterReturnsTrue);
+            
+            // Also update local filter for current tab filtering
+            if (_globalSearchQuery != _searchFilter)
+            {
+                _searchFilter = _globalSearchQuery;
                 UpdateCategories();
             }
-            if (!string.IsNullOrWhiteSpace(_searchFilter))
+            
+            // Perform global search on enter
+            if (searchTriggered && !string.IsNullOrWhiteSpace(_globalSearchQuery))
+            {
+                PerformGlobalSearch();
+                _showGlobalSearchResults = true;
+            }
+            
+            // Clear button
+            if (!string.IsNullOrWhiteSpace(_globalSearchQuery))
             {
                 ImGui.SameLine();
                 using (var colors = ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.3f, 0.3f, 0.3f, 0.3f))
@@ -47,14 +67,31 @@ public partial class InventoryManagementModule
                     if (ImGui.SmallButton("×"))
                     {
                         _searchFilter = string.Empty;
-            UpdateCategories();
+                        _globalSearchQuery = string.Empty;
+                        _globalSearchResults.Clear();
+                        _showGlobalSearchResults = false;
+                        UpdateCategories();
                     }
                 }
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.SetTooltip("Clear search");
                 }
-        }
+                
+                // Show results button if we have results
+                if (_globalSearchResults.Any())
+                {
+                    ImGui.SameLine();
+                    using (var colors = ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.2f, 0.5f, 0.3f, 0.6f))
+                                              .Push(ImGuiCol.ButtonHovered, new Vector4(0.3f, 0.6f, 0.4f, 0.7f)))
+                    {
+                        if (ImGui.Button($"View Results ({_globalSearchResults.Count})"))
+                        {
+                            _showGlobalSearchResults = true;
+                        }
+                    }
+                }
+            }
         
         ImGui.SameLine();
             using (var font = ImRaii.PushFont(UiBuilder.IconFont))
@@ -122,23 +159,34 @@ public partial class InventoryManagementModule
                     }
                 }
             }
+            
             var windowWidth = ImGui.GetWindowContentRegionMax().X;
-            long totalValue;
-            lock (_categoriesLock)
-            {
-                totalValue = _categories.Sum(c => c.TotalValue ?? 0);
-            }
             
-            var totalText = $"Total: {totalValue:N0} gil";
-            var totalTextWidth = ImGui.CalcTextSize(totalText).X;
-            ImGui.SameLine(windowWidth - totalTextWidth);
+            // Add help button on the right
+            var helpButtonWidth = 30f;
+            ImGui.SameLine(windowWidth - helpButtonWidth - 10);
+            DrawHelpButton();
             
-            using (var font = ImRaii.PushFont(UiBuilder.IconFont))
+            // Total value display (move it left of help button)
+            if (Settings.ShowMarketPrices)
             {
-                ImGui.TextColored(ColorWarning, FontAwesomeIcon.Coins.ToIconString());
+                long totalValue;
+                lock (_categoriesLock)
+                {
+                    totalValue = _categories.Sum(c => c.TotalValue ?? 0);
+                }
+                
+                var totalText = $"Total: {totalValue:N0} gil";
+                var totalTextWidth = ImGui.CalcTextSize(totalText).X + 30; // Add space for icon
+                ImGui.SameLine(windowWidth - totalTextWidth - helpButtonWidth - 20);
+                
+                using (var font = ImRaii.PushFont(UiBuilder.IconFont))
+                {
+                    ImGui.TextColored(ColorWarning, FontAwesomeIcon.Coins.ToIconString());
+                }
+                ImGui.SameLine(0, 4);
+                ImGui.TextColored(ColorPrice, $"{totalValue:N0} gil");
             }
-            ImGui.SameLine(0, 4);
-            ImGui.TextColored(ColorPrice, $"{totalValue:N0} gil");
         }
         
         ImGui.Spacing();
@@ -844,6 +892,13 @@ public partial class InventoryManagementModule
         }
         
         ImGui.Text(item.Name);
+        
+        // Add right-click context menu
+        if (ImGui.IsItemClicked(ImGuiMouseButton.Right))
+        {
+            ImGui.OpenPopup($"ItemContext_{item.ItemId}");
+        }
+        DrawItemContextMenu(item, category.Name);
         
         // Add gear set tag FIRST, before other tags
         if (isInGearset)

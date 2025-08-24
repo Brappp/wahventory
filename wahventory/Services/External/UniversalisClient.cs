@@ -15,6 +15,7 @@ public class UniversalisClient : IDisposable
     private readonly IPluginLog _log;
     private readonly string _worldName;
     private readonly string _baseUrl = "https://universalis.app/api/v2";
+    private volatile bool _disposed = false;
     
     public UniversalisClient(IPluginLog log, string worldName)
     {
@@ -27,6 +28,12 @@ public class UniversalisClient : IDisposable
     
     public async Task<MarketPriceResult?> GetMarketPrice(uint itemId, bool hq = false)
     {
+        if (_disposed)
+        {
+            _log.Debug($"Client disposed, skipping price fetch for item {itemId}");
+            return null;
+        }
+        
         try
         {
             var url = $"{_baseUrl}/{_worldName}/{itemId}";
@@ -83,6 +90,11 @@ public class UniversalisClient : IDisposable
             _log.Warning($"Timeout fetching price for item {itemId}");
             return null;
         }
+        catch (ObjectDisposedException)
+        {
+            _log.Debug($"Client disposed during price fetch for item {itemId}");
+            return null;
+        }
         catch (Exception ex)
         {
             _log.Error(ex, $"Error fetching price for item {itemId}");
@@ -92,7 +104,17 @@ public class UniversalisClient : IDisposable
     
     public void Dispose()
     {
-        _httpClient?.Dispose();
+        if (_disposed) return;
+        
+        _disposed = true;
+        try
+        {
+            _httpClient?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            _log.Warning(ex, "Error disposing UniversalisClient");
+        }
     }
 }
 

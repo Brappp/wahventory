@@ -2,99 +2,105 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using System.Threading.Tasks;
 using Dalamud.Interface;
-using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
-using FFXIVClientStructs.FFXIV.Client.Game;
-using FFXIVClientStructs.FFXIV.Client.UI;
-using FFXIVClientStructs.FFXIV.Component.GUI;
 using Dalamud.Bindings.ImGui;
-using wahventory.Services.External;
-using wahventory.Services.Helpers;
-using wahventory.Models;
 using wahventory.Core;
-using ECommons.Automation.NeoTaskManager;
+using wahventory.Models;
+using wahventory.Services;
+using wahventory.Services.Helpers;
 
 namespace wahventory.Modules.Inventory;
 
 public partial class InventoryManagementModule : IDisposable
 {
-    private static readonly Vector4 ColorHQItem = new(0.6f, 0.8f, 1f, 1f);
-    private static readonly Vector4 ColorHQName = new(0.8f, 0.8f, 1f, 1f);
-    private static readonly Vector4 ColorPrice = new(1f, 0.8f, 0.2f, 1f);
-    private static readonly Vector4 ColorNotTradeable = new(0.5f, 0.5f, 0.5f, 1f);
-    private static readonly Vector4 ColorLoading = new(0.8f, 0.8f, 0.2f, 1f);
-    private static readonly Vector4 ColorError = new(0.8f, 0.2f, 0.2f, 1f);
-    private static readonly Vector4 ColorSuccess = new(0.2f, 0.8f, 0.2f, 1f);
-    private static readonly Vector4 ColorSubdued = new(0.6f, 0.6f, 0.6f, 1f);
-    private static readonly Vector4 ColorInfo = new(0.7f, 0.7f, 0.7f, 1f);
-    private static readonly Vector4 ColorWarning = new(0.9f, 0.5f, 0.1f, 1f);
-    private static readonly Vector4 ColorCaution = new(0.9f, 0.9f, 0.2f, 1f);
-    private static readonly Vector4 ColorBlue = new(0.3f, 0.7f, 1.0f, 1f);
-    
     private readonly Plugin _plugin;
     private readonly InventoryHelpers _inventoryHelpers;
-    private UniversalisClient _universalisClient;
-    private readonly TaskManager _taskManager;
     private readonly IconCache _iconCache;
+    
+    // Services
+    private readonly ItemFilterService _filterService;
+    private readonly ItemSearchService _searchService;
+    private readonly PriceService _priceService;
+    public readonly DiscardService DiscardService;
+    private readonly PassiveDiscardService _passiveDiscardService;
+    
+    // Expose filter service for UI
+    internal ItemFilterService FilterService => _filterService;
+    
+    // State
     private bool _initialized = false;
+    private readonly object _stateLock = new object();
     
     public HashSet<uint> BlacklistedItems { get; private set; }
     public HashSet<uint> AutoDiscardItems { get; private set; }
     
-    private readonly object _itemsLock = new object();
-    private readonly object _categoriesLock = new object();
-    private readonly object _selectedItemsLock = new object();
-    private readonly object _priceCacheLock = new object();
-    private readonly object _fetchingPricesLock = new object();
-    private readonly object _initLock = new object();
+    private List<CategoryGroup> _categories = new();
+    private List<InventoryItemInfo> _allItems = new();
+    private List<InventoryItemInfo> _originalItems = new();
+    private readonly HashSet<uint> _selectedItems = new();
     
-    private DateTime _lastPriceFetch = DateTime.MinValue;
-    private readonly TimeSpan _priceFetchDelay = TimeSpan.FromSeconds(0.5);
+    private string _searchFilter = string.Empty;
+    private bool _showArmory = false;
+    private string _selectedWorld = "";
+    private List<string> _availableWorlds = new();
     
     private DateTime _lastRefresh = DateTime.MinValue;
-    private DateTime _lastCategoryUpdate = DateTime.MinValue;
     private readonly TimeSpan _refreshInterval = TimeSpan.FromSeconds(1);
-    private readonly TimeSpan _categoryUpdateInterval = TimeSpan.FromMilliseconds(500);
     private bool _expandedCategoriesChanged = false;
     private DateTime _lastConfigSave = DateTime.MinValue;
     private readonly TimeSpan _configSaveInterval = TimeSpan.FromSeconds(2);
     private bool _windowIsOpen = false;
-    private List<CategoryGroup> _categories = new();
-    private List<InventoryItemInfo> _allItems = new();
-    private List<InventoryItemInfo> _originalItems = new();
-    private string _searchFilter = string.Empty;
-    private Dictionary<uint, bool> ExpandedCategories => Settings.ExpandedCategories;
-    private readonly HashSet<uint> _selectedItems = new();
-    private readonly Dictionary<uint, (long price, DateTime fetchTime)> _priceCache = new();
-    private readonly HashSet<uint> _fetchingPrices = new();
-    private readonly Dictionary<uint, DateTime> _fetchStartTimes = new();
-    private readonly TimeSpan _fetchTimeout = TimeSpan.FromSeconds(30);
-    private bool _showArmory = false;
-    
-    private string _selectedWorld = "";
-    private List<string> _availableWorlds = new();
     
     private InventorySettings Settings => _plugin.Configuration.InventorySettings;
-    private bool _isDiscarding = false;
-    private List<InventoryItemInfo> _itemsToDiscard = new();
-    private int _discardProgress = 0;
-    private string? _discardError = null;
-    private DateTime _discardStartTime = DateTime.MinValue;
-    private int _confirmRetryCount = 0;
+    private Dictionary<uint, bool> ExpandedCategories => Settings.ExpandedCategories;
     
     public InventoryManagementModule(Plugin plugin)
     {
         _plugin = plugin;
         _inventoryHelpers = new InventoryHelpers(Plugin.DataManager, Plugin.Log);
         _iconCache = new IconCache(Plugin.TextureProvider);
-        _taskManager = new TaskManager();
+        
+        // Initialize services
+        _filterService = new ItemFilterService();
+        _searchService = new ItemSearchService(Plugin.DataManager, Plugin.Log);
+        _priceService = new PriceService(Plugin.Log, Settings, "Excalibur");
+        DiscardService = new DiscardService(
+            _inventoryHelpers,
+            Plugin.Log,
+            Plugin.ChatGui,
+            Plugin.GameGui);
+        _passiveDiscardService = new PassiveDiscardService(
+            Plugin.ClientState,
+            Plugin.Condition,
+            Plugin.GameGui,
+            Plugin.Log,
+            Settings);
+        
         BlacklistedItems = _plugin.ConfigManager.LoadBlacklist();
         AutoDiscardItems = _plugin.ConfigManager.LoadAutoDiscard();
         _selectedWorld = "Excalibur";
-        _universalisClient = new UniversalisClient(Plugin.Log, _selectedWorld);
+        
         PopulateAvailableWorlds();
+        InitializeWorld();
+        InitializeUIComponents();
+    }
+    
+    private void InitializeWorld()
+    {
+        try
+        {
+            var currentWorld = Plugin.ClientState.LocalPlayer?.CurrentWorld.Value.Name.ToString();
+            if (!string.IsNullOrEmpty(currentWorld))
+            {
+                _selectedWorld = currentWorld;
+                _priceService.UpdateWorld(_selectedWorld);
+            }
+        }
+        catch
+        {
+            // Ignore errors during initialization
+        }
     }
     
     private void PopulateAvailableWorlds()
@@ -104,211 +110,42 @@ public partial class InventoryManagementModule : IDisposable
         var worldSheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.World>();
         if (worldSheet != null)
         {
-            foreach (var world in worldSheet)
-            {
-                if (world.IsPublic && !string.IsNullOrEmpty(world.Name.ToString()))
-                {
-                    _availableWorlds.Add(world.Name.ToString());
-                }
-            }
-        }
-        
-        _availableWorlds.Sort();
-    }
-    
-    public void Initialize()
-    {
-        lock (_initLock)
-        {
-            if (_initialized)
-                return;
-
-            _initialized = true;
-        }
-        UpdateCurrentWorld();
-        RefreshInventory();
-    }
-    
-    private void UpdateCurrentWorld()
-    {
-        try
-        {
-            var currentWorld = Plugin.ClientState.LocalPlayer?.CurrentWorld.Value.Name.ToString();
-            if (!string.IsNullOrEmpty(currentWorld) && currentWorld != _selectedWorld)
-            {
-                _selectedWorld = currentWorld;
-                _universalisClient.Dispose();
-                _universalisClient = new UniversalisClient(Plugin.Log, _selectedWorld);
-            }
-        }
-        catch
-        {
-        }
-    }
-    
-    public void Update()
-    {
-        if (!_initialized)
-        {
-            InitializeOnMainThread();
-        }
-        CleanupStuckFetches();
-        if (_windowIsOpen && Settings.AutoRefreshPrices && !_isDiscarding && DateTime.Now - _lastRefresh > _refreshInterval)
-        {
-            _lastRefresh = DateTime.Now;
-            List<InventoryItemInfo> visibleItems;
-            lock (_itemsLock)
-            {
-                visibleItems = GetVisibleItems();
-            }
-            var stalePrices = visibleItems.Where(item => 
-                item.CanBeTraded && // Only check prices for tradable items
-                !IsFetchingPrice(item.ItemId) &&
-                !HasValidCachedPrice(item.ItemId))
-                .Take(2) // Reduced to 2 for slower, more stable price fetching
-                .ToList();
-            if (stalePrices.Count > 0)
-            {
-                foreach (var item in stalePrices)
-                {
-                    _ = FetchMarketPrice(item);
-                }
-            }
-        }
-        _windowIsOpen = false;
-        if (_expandedCategoriesChanged && DateTime.Now - _lastConfigSave > _configSaveInterval)
-        {
-            _plugin.ConfigManager.SaveConfiguration();
-            _expandedCategoriesChanged = false;
-            _lastConfigSave = DateTime.Now;
-        }
-        UpdatePassiveDiscard();
-    }
-    
-    public void Draw()
-    {
-        _windowIsOpen = true;
-        if (!_initialized)
-        {
-            InitializeOnMainThread();
-        }
-        DrawMainContent();
-        if (_isDiscarding)
-        {
-            DrawDiscardConfirmation();
-        }
-    }
-    
-    private void DrawMainContent()
-    {
-        DrawTopControls();
-        DrawFiltersAndSettings();
-        
-        ImGui.Separator();
-        var windowHeight = ImGui.GetWindowHeight();
-        var currentY = ImGui.GetCursorPosY();
-        var bottomBarHeight = 42f; // Height of bottom action bar
-        var separatorHeight = ImGui.GetStyle().ItemSpacing.Y * 2 + 2; // Separator spacing
-        var tabBarHeight = ImGui.GetFrameHeight(); // Tab bar header height
-        var contentHeight = windowHeight - currentY - bottomBarHeight - separatorHeight - tabBarHeight - 10f;
-        contentHeight = Math.Max(100f, contentHeight); // Minimum height to prevent negative values
-        using (var tabBar = ImRaii.TabBar("InventoryTabs"))
-        {
-            if (tabBar)
-            {
-                List<InventoryItemInfo> filteredItems;
-                lock (_itemsLock)
-                {
-                    filteredItems = GetProtectedItems();
-                }
-                int availableCount;
-                lock (_categoriesLock)
-                {
-                    availableCount = _categories.Sum(c => c.Items.Count);
-                }
-                string availableTabText = $"Available Items ({availableCount})###AvailableTab";
-                
-                using (var tabItem = ImRaii.TabItem(availableTabText))
-                {
-                    if (tabItem)
-                    {
-                        using (var child = ImRaii.Child("AvailableContent", new Vector2(0, contentHeight), false))
-                        {
-                            DrawAvailableItemsTab();
-                        }
-                    }
-                }
-                string protectedTabText = $"Protected Items ({filteredItems.Count})###ProtectedTab";
-                
-                using (var tabItem = ImRaii.TabItem(protectedTabText))
-                {
-                    if (tabItem)
-                    {
-                        using (var child = ImRaii.Child("ProtectedContent", new Vector2(0, contentHeight), false))
-                        {
-                            DrawProtectedItemsTab(filteredItems);
-                        }
-                    }
-                }
-                string blacklistTabText = "Blacklist Management###BlacklistTab";
-                
-                using (var tabItem = ImRaii.TabItem(blacklistTabText))
-                {
-                    if (tabItem)
-                    {
-                        using (var child = ImRaii.Child("BlacklistContent", new Vector2(0, contentHeight), false))
-                        {
-                            DrawBlacklistTab();
-                        }
-                    }
-                }
-                string autoDiscardTabText = "Auto Discard###AutoDiscardTab";
-                
-                using (var tabItem = ImRaii.TabItem(autoDiscardTabText))
-                {
-                    if (tabItem)
-                    {
-                        using (var child = ImRaii.Child("AutoDiscardContent", new Vector2(0, contentHeight), false))
-                        {
-                            DrawAutoDiscardTab();
-                        }
-                    }
-                }
-            }
-        }
-        ImGui.Separator();
-        DrawBottomActionBar();
-    }
-    
-    private void InitializeOnMainThread()
-    {
-        if (_initialized) return;
-        
-        try
-        {
-            var currentWorld = Plugin.ClientState.LocalPlayer?.CurrentWorld.Value;
-            var worldName = currentWorld?.Name.ExtractText() ?? "Aether";
-            _selectedWorld = worldName;
             try
             {
-                var allWorlds = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.World>();
-                if (allWorlds != null && !string.IsNullOrEmpty(worldName))
+                var currentWorld = Plugin.ClientState.LocalPlayer?.CurrentWorld.Value;
+                var worldName = currentWorld?.Name.ExtractText() ?? "Aether";
+                
+                if (currentWorld != null)
                 {
-                    var currentWorldData = allWorlds.FirstOrDefault(w => w.Name.ExtractText() == worldName);
-                    if (currentWorldData.RowId != 0)
+                    try
                     {
-                        var currentDatacenterId = currentWorldData.DataCenter.RowId;
-                        
-                        var datacenterWorlds = allWorlds
-                            .Where(w => w.DataCenter.RowId == currentDatacenterId && w.IsPublic)
-                            .Select(w => w.Name.ExtractText())
-                            .Where(name => !string.IsNullOrEmpty(name))
-                            .OrderBy(w => w)
-                            .ToList();
-                            
-                        _availableWorlds = datacenterWorlds;
+                        var worldRow = worldSheet.FirstOrDefault(w => w.Name.ExtractText() == worldName);
+                        if (worldRow.RowId > 0)
+                        {
+                            try
+                            {
+                                var currentDatacenterId = worldRow.DataCenter.RowId;
+                                
+                                var datacenterWorlds = worldSheet
+                                    .Where(w => w.DataCenter.RowId == currentDatacenterId && w.IsPublic)
+                                    .Select(w => w.Name.ExtractText())
+                                    .Where(name => !string.IsNullOrEmpty(name))
+                                    .OrderBy(w => w)
+                                    .ToList();
+                                
+                                _availableWorlds = datacenterWorlds;
+                            }
+                            catch
+                            {
+                                _availableWorlds = new List<string> { worldName };
+                            }
+                        }
+                        else
+                        {
+                            _availableWorlds = new List<string> { worldName };
+                        }
                     }
-                    else
+                    catch
                     {
                         _availableWorlds = new List<string> { worldName };
                     }
@@ -321,302 +158,248 @@ public partial class InventoryManagementModule : IDisposable
             catch (Exception ex)
             {
                 Plugin.Log.Warning($"Failed to get datacenter worlds: {ex.Message}");
-                _availableWorlds = new List<string> { worldName };
+                _availableWorlds = new List<string> { "Aether" };
+            }
+        }
+    }
+    
+    public void Initialize()
+    {
+        if (_initialized)
+            return;
+        
+        InitializeWorld();
+        RefreshInventory();
+        _initialized = true;
+    }
+    
+    public void Update()
+    {
+        if (!_initialized)
+        {
+            Initialize();
+        }
+        
+        _priceService.CleanupStuckFetches();
+        
+        // Update price service world if changed
+        try
+        {
+            var currentWorld = Plugin.ClientState.LocalPlayer?.CurrentWorld.Value.Name.ToString();
+            if (!string.IsNullOrEmpty(currentWorld) && currentWorld != _selectedWorld)
+            {
+                _selectedWorld = currentWorld;
+                _priceService.UpdateWorld(_selectedWorld);
+            }
+        }
+        catch
+        {
+            // Ignore
+        }
+        
+        // Auto-refresh prices
+        if (_windowIsOpen && Settings.AutoRefreshPrices && !DiscardService.IsDiscarding && 
+            DateTime.Now - _lastRefresh > _refreshInterval)
+        {
+            _lastRefresh = DateTime.Now;
+            
+            List<InventoryItemInfo> visibleItems;
+            lock (_stateLock)
+            {
+                visibleItems = GetVisibleItems();
             }
             
-            _universalisClient.Dispose();
-            _universalisClient = new UniversalisClient(Plugin.Log, worldName);
-            
-            RefreshInventory();
-            _initialized = true;
+            var itemsNeedingPrice = _priceService.GetItemsNeedingPriceFetch(visibleItems, 2);
+            foreach (var item in itemsNeedingPrice)
+            {
+                _ = _priceService.FetchPrice(item).ContinueWith(task =>
+                {
+                    if (task.IsCompletedSuccessfully && task.Result.HasValue)
+                    {
+                        lock (_stateLock)
+                        {
+                            item.MarketPrice = task.Result.Value;
+                            item.MarketPriceFetchTime = DateTime.Now;
+                        }
+                    }
+                });
+            }
         }
-        catch (Exception ex)
+        
+        _windowIsOpen = false;
+        
+        // Save config if categories changed
+        if (_expandedCategoriesChanged && DateTime.Now - _lastConfigSave > _configSaveInterval)
         {
-            Plugin.Log.Error(ex, "Failed to initialize InventoryManagementModule on main thread");
+            _plugin.ConfigManager.SaveConfiguration();
+            _expandedCategoriesChanged = false;
+            _lastConfigSave = DateTime.Now;
         }
+        
+        // Update passive discard
+        _passiveDiscardService.Update(
+            AutoDiscardItems,
+            _originalItems,
+            BlacklistedItems,
+            ExecuteAutoDiscard);
+    }
+    
+    public void Draw()
+    {
+        _windowIsOpen = true;
+        if (!_initialized)
+        {
+            Initialize();
+        }
+        DrawMainContent();
+    }
+    
+    private void DrawMainContent()
+    {
+        DrawTopControls();
+        DrawFiltersAndSettings();
+        
+        ImGui.Separator();
+        var windowHeight = ImGui.GetWindowHeight();
+        var currentY = ImGui.GetCursorPosY();
+        var bottomBarHeight = 42f;
+        var separatorHeight = ImGui.GetStyle().ItemSpacing.Y * 2 + 2;
+        var tabBarHeight = ImGui.GetFrameHeight();
+        var contentHeight = windowHeight - currentY - bottomBarHeight - separatorHeight - tabBarHeight - 10f;
+        contentHeight = Math.Max(100f, contentHeight);
+        
+        using (var tabBar = ImRaii.TabBar("InventoryTabs"))
+        {
+            if (tabBar)
+            {
+                List<InventoryItemInfo> filteredItems;
+                lock (_stateLock)
+                {
+                    filteredItems = GetProtectedItems();
+                }
+                
+                int availableCount;
+                lock (_stateLock)
+                {
+                    availableCount = _categories.Sum(c => c.Items.Count);
+                }
+                
+                string availableTabText = $"Available Items ({availableCount})###AvailableTab";
+                using (var tabItem = ImRaii.TabItem(availableTabText))
+                {
+                    if (tabItem)
+                    {
+                        using (var child = ImRaii.Child("AvailableContent", new Vector2(0, contentHeight), false))
+                        {
+                            DrawAvailableItemsTab();
+                        }
+                    }
+                }
+                
+                string protectedTabText = $"Protected Items ({filteredItems.Count})###ProtectedTab";
+                using (var tabItem = ImRaii.TabItem(protectedTabText))
+                {
+                    if (tabItem)
+                    {
+                        using (var child = ImRaii.Child("ProtectedContent", new Vector2(0, contentHeight), false))
+                        {
+                            DrawProtectedItemsTab(filteredItems);
+                        }
+                    }
+                }
+                
+                string blacklistTabText = "Blacklist Management###BlacklistTab";
+                using (var tabItem = ImRaii.TabItem(blacklistTabText))
+                {
+                    if (tabItem)
+                    {
+                        using (var child = ImRaii.Child("BlacklistContent", new Vector2(0, contentHeight), false))
+                        {
+                            DrawBlacklistTab();
+                        }
+                    }
+                }
+                
+                string autoDiscardTabText = "Auto Discard###AutoDiscardTab";
+                using (var tabItem = ImRaii.TabItem(autoDiscardTabText))
+                {
+                    if (tabItem)
+                    {
+                        using (var child = ImRaii.Child("AutoDiscardContent", new Vector2(0, contentHeight), false))
+                        {
+                            DrawAutoDiscardTab();
+                        }
+                    }
+                }
+            }
+        }
+        
+        ImGui.Separator();
+        DrawBottomActionBar();
     }
     
     private void RefreshInventory()
     {
         var newItems = _inventoryHelpers.GetAllItems(_showArmory, false);
         
-        lock (_itemsLock)
+        lock (_stateLock)
         {
             _originalItems = newItems;
-            _allItems = new List<InventoryItemInfo>(_originalItems);
-            foreach (var item in _allItems)
+            
+            // Apply safety assessment
+            foreach (var item in _originalItems)
             {
                 item.SafetyAssessment = InventoryHelpers.AssessItemSafety(item, Settings, BlacklistedItems);
                 
-                lock (_priceCacheLock)
-                {
-                    if (_priceCache.TryGetValue(item.ItemId, out var cached))
-                    {
-                        item.MarketPrice = cached.price;
-                        item.MarketPriceFetchTime = cached.fetchTime;
-                    }
-                }
-                lock (_selectedItemsLock)
-                {
-                    item.IsSelected = _selectedItems.Contains(item.ItemId);
-                }
+                // Update price from cache
+                _priceService.UpdateItemPrice(item);
+                
+                // Update selection state
+                item.IsSelected = _selectedItems.Contains(item.ItemId);
             }
+            
+            UpdateCategories();
         }
-        
-        UpdateCategories();
     }
     
     private void UpdateCategories()
     {
         List<InventoryItemInfo> itemsCopy;
-        lock (_itemsLock)
+        lock (_stateLock)
         {
-            itemsCopy = new List<InventoryItemInfo>(_allItems);
+            itemsCopy = new List<InventoryItemInfo>(_originalItems);
         }
         
-        var filteredItems = itemsCopy.AsEnumerable();
-        if (!string.IsNullOrWhiteSpace(_searchFilter))
+        var filteredItems = _filterService.ApplyFilters(
+            itemsCopy,
+            Settings.SafetyFilters,
+            BlacklistedItems,
+            _searchFilter);
+        
+        lock (_stateLock)
         {
-            filteredItems = filteredItems.Where(i => i.Name.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase));
-        }
-        var filters = Settings.SafetyFilters;
-        if (filters.FilterUltimateTokens)
-            filteredItems = filteredItems.Where(i => !InventoryHelpers.HardcodedBlacklist.Contains(i.ItemId));
-        if (filters.FilterCurrencyItems)
-            filteredItems = filteredItems.Where(i => !InventoryHelpers.CurrencyRange.Contains(i.ItemId));
-        if (filters.FilterCrystalsAndShards)
-            filteredItems = filteredItems.Where(i => !(i.ItemUICategory == 63 || i.ItemUICategory == 64));
-        if (filters.FilterGearsetItems)
-            filteredItems = filteredItems.Where(i => !InventoryHelpers.IsInGearset(i.ItemId));
-        if (filters.FilterIndisposableItems)
-            filteredItems = filteredItems.Where(i => !i.IsIndisposable);
-        if (filters.FilterHighLevelGear)
-            filteredItems = filteredItems.Where(i => !(i.EquipSlotCategory > 0 && i.ItemLevel >= filters.MaxGearItemLevel));
-        if (filters.FilterUniqueUntradeable)
-            filteredItems = filteredItems.Where(i => !(i.IsUnique && i.IsUntradable));
-        if (filters.FilterHQItems)
-            filteredItems = filteredItems.Where(i => !i.IsHQ);
-        if (filters.FilterCollectables)
-            filteredItems = filteredItems.Where(i => !i.IsCollectable);
-        if (filters.FilterSpiritbondedItems)
-            filteredItems = filteredItems.Where(i => i.SpiritBond < filters.MinSpiritbondToFilter);
-            
-        lock (_categoriesLock)
-        {
-            _categories = filteredItems
-                .GroupBy(i => new { i.ItemUICategory, i.CategoryName })
-                .Select(categoryGroup => 
-                {
-                    var items = categoryGroup
-                        .GroupBy(i => i.ItemId)
-                        .Select(itemGroup => 
-                        {
-                            var first = itemGroup.First();
-                            return new InventoryItemInfo
-                            {
-                                ItemId = first.ItemId,
-                                Name = first.Name,
-                                Quantity = itemGroup.Sum(i => i.Quantity),
-                                Container = first.Container,
-                                Slot = first.Slot,
-                                IsHQ = first.IsHQ,
-                                IconId = first.IconId,
-                                CanBeDiscarded = first.CanBeDiscarded,
-                                CanBeTraded = first.CanBeTraded,
-                                IsCollectable = first.IsCollectable,
-                                SpiritBond = first.SpiritBond,
-                                Durability = first.Durability,
-                                MaxDurability = first.MaxDurability,
-                                CategoryName = first.CategoryName,
-                                ItemUICategory = first.ItemUICategory,
-                                MarketPrice = first.MarketPrice,
-                                MarketPriceFetchTime = first.MarketPriceFetchTime,
-                                IsSelected = first.IsSelected,
-                                ItemLevel = first.ItemLevel,
-                                EquipLevel = first.EquipLevel,
-                                Rarity = first.Rarity,
-                                IsUnique = first.IsUnique,
-                                IsUntradable = first.IsUntradable,
-                                IsIndisposable = first.IsIndisposable,
-                                EquipSlotCategory = first.EquipSlotCategory,
-                                SafetyAssessment = first.SafetyAssessment
-                            };
-                        })
-                        .OrderBy(i => i.Name)
-                        .ToList();
-                        
-                    return new CategoryGroup
-                    {
-                        CategoryId = categoryGroup.Key.ItemUICategory,
-                        Name = categoryGroup.Key.CategoryName,
-                        Items = items
-                    };
-                })
-                .OrderBy(c => c.Name)
-                .ToList();
+            _allItems = filteredItems.ToList();
+            _categories = _filterService.GroupIntoCategories(_allItems);
         }
     }
     
     private List<InventoryItemInfo> GetVisibleItems()
     {
-        var filteredItems = _allItems.AsEnumerable();
-        
-        if (!string.IsNullOrWhiteSpace(_searchFilter))
-        {
-            filteredItems = filteredItems.Where(i => i.Name.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase));
-        }
-        
-        var filters = Settings.SafetyFilters;
-        if (filters.FilterUltimateTokens)
-            filteredItems = filteredItems.Where(i => !InventoryHelpers.HardcodedBlacklist.Contains(i.ItemId));
-        if (filters.FilterCurrencyItems)
-            filteredItems = filteredItems.Where(i => !InventoryHelpers.CurrencyRange.Contains(i.ItemId));
-        if (filters.FilterCrystalsAndShards)
-            filteredItems = filteredItems.Where(i => !(i.ItemUICategory == 63 || i.ItemUICategory == 64));
-        if (filters.FilterGearsetItems)
-            filteredItems = filteredItems.Where(i => !InventoryHelpers.IsInGearset(i.ItemId));
-        if (filters.FilterIndisposableItems)
-            filteredItems = filteredItems.Where(i => !i.IsIndisposable);
-        if (filters.FilterHighLevelGear)
-            filteredItems = filteredItems.Where(i => !(i.EquipSlotCategory > 0 && i.ItemLevel >= filters.MaxGearItemLevel));
-        if (filters.FilterUniqueUntradeable)
-            filteredItems = filteredItems.Where(i => !(i.IsUnique && i.IsUntradable));
-        if (filters.FilterHQItems)
-            filteredItems = filteredItems.Where(i => !i.IsHQ);
-        if (filters.FilterCollectables)
-            filteredItems = filteredItems.Where(i => !i.IsCollectable);
-        if (filters.FilterSpiritbondedItems)
-            filteredItems = filteredItems.Where(i => i.SpiritBond < filters.MinSpiritbondToFilter);
-        
-        return filteredItems.ToList();
+        return _filterService.ApplyFilters(
+            _originalItems,
+            Settings.SafetyFilters,
+            BlacklistedItems,
+            _searchFilter).ToList();
     }
     
-    private void CleanupStuckFetches()
+    private List<InventoryItemInfo> GetProtectedItems()
     {
-        List<uint> stuckItems;
-        lock (_fetchingPricesLock)
-        {
-            stuckItems = _fetchStartTimes.Where(kvp => 
-                DateTime.Now - kvp.Value > _fetchTimeout).Select(kvp => kvp.Key).ToList();
-        }
-        
-        foreach (var stuckItem in stuckItems)
-        {
-            lock (_fetchingPricesLock)
-            {
-                _fetchingPrices.Remove(stuckItem);
-                _fetchStartTimes.Remove(stuckItem);
-            }
-            
-            lock (_itemsLock)
-            {
-                var stuckItemInfo = _allItems.FirstOrDefault(i => i.ItemId == stuckItem);
-                if (stuckItemInfo != null)
-                {
-                    stuckItemInfo.MarketPrice = -1;
-                    lock (_priceCacheLock)
-                    {
-                        _priceCache[stuckItem] = (-1, DateTime.Now);
-                    }
-                }
-            }
-            
-            Plugin.Log.Warning($"Cleaned up stuck price fetch for item {stuckItem}");
-        }
-    }
-
-    private bool IsFetchingPrice(uint itemId)
-    {
-        lock (_fetchingPricesLock)
-        {
-            return _fetchingPrices.Contains(itemId);
-        }
+        return _filterService.GetProtectedItems(
+            _originalItems,
+            Settings.SafetyFilters,
+            BlacklistedItems);
     }
     
-    private bool HasValidCachedPrice(uint itemId)
-    {
-        lock (_priceCacheLock)
-        {
-            if (_priceCache.TryGetValue(itemId, out var cached))
-            {
-                return DateTime.Now - cached.fetchTime <= TimeSpan.FromMinutes(Settings.PriceCacheDurationMinutes);
-            }
-            return false;
-        }
-    }
-    
-    private async Task FetchMarketPrice(InventoryItemInfo item)
-    {
-        if (IsFetchingPrice(item.ItemId)) return;
-        if (!item.CanBeTraded) return;
-        
-        lock (_fetchingPricesLock)
-        {
-            _fetchingPrices.Add(item.ItemId);
-            _fetchStartTimes[item.ItemId] = DateTime.Now;
-        }
-        
-        try
-        {
-            var result = await _universalisClient.GetMarketPrice(item.ItemId, item.IsHQ);
-            
-            if (result != null)
-            {
-                item.MarketPrice = result.Price;
-                item.MarketPriceFetchTime = DateTime.Now;
-                lock (_priceCacheLock)
-                {
-                    _priceCache[item.ItemId] = (result.Price, DateTime.Now);
-                }
-            }
-            else
-            {
-                item.MarketPrice = -1;
-                lock (_priceCacheLock)
-                {
-                    _priceCache[item.ItemId] = (-1, DateTime.Now);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Plugin.Log.Error(ex, $"Failed to fetch price for {item.Name}");
-            item.MarketPrice = -1;
-            lock (_priceCacheLock)
-            {
-                _priceCache[item.ItemId] = (-1, DateTime.Now);
-            }
-        }
-        finally
-        {
-            lock (_fetchingPricesLock)
-            {
-                _fetchingPrices.Remove(item.ItemId);
-                _fetchStartTimes.Remove(item.ItemId);
-            }
-        }
-    }
-    
-    public void Dispose()
-    {
-        if (_expandedCategoriesChanged)
-        {
-            _plugin.ConfigManager.SaveConfiguration();
-        }
-        
-        lock (_fetchingPricesLock)
-        {
-            _fetchingPrices.Clear();
-            _fetchStartTimes.Clear();
-        }
-        
-        _windowIsOpen = false;
-        
-        _iconCache?.Dispose();
-        _taskManager?.Dispose();
-        _universalisClient?.Dispose();
-    }
-
     public void SaveBlacklist()
     {
         _plugin.ConfigManager.SaveBlacklist(BlacklistedItems);
@@ -627,18 +410,48 @@ public partial class InventoryManagementModule : IDisposable
         _plugin.ConfigManager.SaveAutoDiscard(AutoDiscardItems);
     }
     
-    private string GetItemCategoryName(InventoryItemInfo item)
+    public void ExecuteAutoDiscard()
     {
-        return item.CategoryName ?? "Miscellaneous";
+        if (AutoDiscardItems.Count == 0)
+        {
+            Plugin.ChatGui.PrintError("No items configured for auto-discard. Add items in the Auto Discard tab.");
+            return;
+        }
+        
+        List<InventoryItemInfo> itemsToDiscard;
+        lock (_stateLock)
+        {
+            itemsToDiscard = _allItems
+                .Where(item => AutoDiscardItems.Contains(item.ItemId) && 
+                              item.CanBeDiscarded &&
+                              !BlacklistedItems.Contains(item.ItemId))
+                .ToList();
+        }
+        
+        if (!itemsToDiscard.Any())
+        {
+            Plugin.ChatGui.PrintError("No auto-discard items found in inventory.");
+            return;
+        }
+        
+        List<uint> selectedItemIds;
+        lock (_stateLock)
+        {
+            selectedItemIds = itemsToDiscard.Select(i => i.ItemId).Distinct().ToList();
+        }
+        
+        DiscardService.PrepareDiscard(selectedItemIds, _originalItems, BlacklistedItems);
     }
-
-    private void SaveExpandedState()
+    
+    public void Dispose()
     {
         if (_expandedCategoriesChanged)
         {
-            Settings.ExpandedCategories = ExpandedCategories;
             _plugin.ConfigManager.SaveConfiguration();
-            _expandedCategoriesChanged = false;
         }
+        
+        _priceService?.Dispose();
+        DiscardService?.Dispose();
+        _iconCache?.Dispose();
     }
 }

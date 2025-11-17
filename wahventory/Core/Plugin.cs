@@ -32,6 +32,7 @@ public sealed class Plugin : IDalamudPlugin
     public readonly WindowSystem WindowSystem = new("wahventory");
     private ConfigWindow ConfigWindow { get; init; }
     private MainWindow MainWindow { get; init; }
+    private DiscardConfirmationWindow DiscardConfirmationWindow { get; init; }
     
     private InventoryManagementModule InventoryModule { get; init; }
 
@@ -45,8 +46,15 @@ public sealed class Plugin : IDalamudPlugin
         InventoryModule = new InventoryManagementModule(this);
         MainWindow = new MainWindow(this, InventoryModule);
         
+        // Create discard confirmation window with icon cache from module
+        var iconCache = new Services.Helpers.IconCache(TextureProvider);
+        DiscardConfirmationWindow = new DiscardConfirmationWindow(
+            InventoryModule.DiscardService,
+            iconCache);
+        
         WindowSystem.AddWindow(ConfigWindow);
         WindowSystem.AddWindow(MainWindow);
+        WindowSystem.AddWindow(DiscardConfirmationWindow);
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
@@ -67,6 +75,7 @@ public sealed class Plugin : IDalamudPlugin
         
         ConfigWindow.Dispose();
         MainWindow.Dispose();
+        DiscardConfirmationWindow.Dispose();
         InventoryModule.Dispose();
         
         CommandManager.RemoveHandler(CommandName);

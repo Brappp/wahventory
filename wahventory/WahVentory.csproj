@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Project Sdk="Dalamud.NET.Sdk/13.0.0">
+<Project Sdk="Dalamud.NET.Sdk/14.0.0">
   <PropertyGroup>
     <AssemblyName>wahventory</AssemblyName>
-    <Version>4.0.0.0</Version>
+    <Version>4.1.0.0</Version>
     <Description>Advanced inventory management</Description>
     <PackageProjectUrl>https://github.com/yourusername/wahventory</PackageProjectUrl>
     <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>

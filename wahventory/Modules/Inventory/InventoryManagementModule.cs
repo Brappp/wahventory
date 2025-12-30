@@ -7,6 +7,7 @@ using Dalamud.Interface.Utility.Raii;
 using Dalamud.Bindings.ImGui;
 using wahventory.Core;
 using wahventory.Models;
+using wahventory.Modules.Search;
 using wahventory.Services;
 using wahventory.Services.Helpers;
 
@@ -51,7 +52,8 @@ public partial class InventoryManagementModule : IDisposable
     private DateTime _lastConfigSave = DateTime.MinValue;
     private readonly TimeSpan _configSaveInterval = TimeSpan.FromSeconds(2);
     private bool _windowIsOpen = false;
-    
+    private SearchModule? _currentSearchModule;
+
     private InventorySettings Settings => _plugin.Configuration.InventorySettings;
     private Dictionary<uint, bool> ExpandedCategories => Settings.ExpandedCategories;
     
@@ -81,8 +83,6 @@ public partial class InventoryManagementModule : IDisposable
         AutoDiscardItems = _plugin.ConfigManager.LoadAutoDiscard();
         _selectedWorld = "Excalibur";
         
-        PopulateAvailableWorlds();
-        InitializeWorld();
         InitializeUIComponents();
     }
     
@@ -168,6 +168,7 @@ public partial class InventoryManagementModule : IDisposable
         if (_initialized)
             return;
         
+        PopulateAvailableWorlds();
         InitializeWorld();
         RefreshInventory();
         _initialized = true;
@@ -244,9 +245,10 @@ public partial class InventoryManagementModule : IDisposable
             ExecuteAutoDiscard);
     }
     
-    public void Draw()
+    public void Draw(SearchModule? searchModule = null)
     {
         _windowIsOpen = true;
+        _currentSearchModule = searchModule;
         if (!_initialized)
         {
             Initialize();

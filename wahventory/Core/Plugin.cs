@@ -6,6 +6,7 @@ using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
 using wahventory.UI.Windows;
 using wahventory.Modules.Inventory;
+using wahventory.Modules.Search;
 using Dalamud.Game;
 using ECommons;
 
@@ -24,6 +25,8 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IChatGui ChatGui { get; private set; } = null!;
     [PluginService] internal static IGameGui GameGui { get; private set; } = null!;
     [PluginService] internal static ICondition Condition { get; private set; } = null!;
+    [PluginService] internal static IObjectTable ObjectTable { get; private set; } = null!;
+    [PluginService] internal static IKeyState KeyState { get; private set; } = null!;
 
     private const string CommandName = "/wahventory";
 
@@ -35,6 +38,7 @@ public sealed class Plugin : IDalamudPlugin
     private DiscardConfirmationWindow DiscardConfirmationWindow { get; init; }
     
     private InventoryManagementModule InventoryModule { get; init; }
+    private SearchModule SearchModule { get; init; }
 
     public Plugin()
     {
@@ -44,7 +48,14 @@ public sealed class Plugin : IDalamudPlugin
 
         ConfigWindow = new ConfigWindow(this);
         InventoryModule = new InventoryManagementModule(this);
-        MainWindow = new MainWindow(this, InventoryModule);
+        SearchModule = new SearchModule(
+            GameGui,
+            DataManager,
+            ClientState,
+            KeyState,
+            Configuration.SearchBarSettings,
+            WindowSystem);
+        MainWindow = new MainWindow(this, InventoryModule, SearchModule);
         
         // Create discard confirmation window with icon cache from module
         var iconCache = new Services.Helpers.IconCache(TextureProvider);
@@ -58,7 +69,7 @@ public sealed class Plugin : IDalamudPlugin
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
-            HelpMessage = "Open the wahventory window\n/wahventory auto - Execute auto-discard for configured items"
+            HelpMessage = "Open the wahventory window\n/wahventory auto - Execute auto-discard for configured items\n/wahventory search - Open search bar settings"
         });
 
         PluginInterface.UiBuilder.Draw += DrawUI;
@@ -77,6 +88,7 @@ public sealed class Plugin : IDalamudPlugin
         MainWindow.Dispose();
         DiscardConfirmationWindow.Dispose();
         InventoryModule.Dispose();
+        SearchModule.Dispose();
         
         CommandManager.RemoveHandler(CommandName);
         ECommonsMain.Dispose();
@@ -92,13 +104,20 @@ public sealed class Plugin : IDalamudPlugin
             _moduleInitialized = true;
         }
         InventoryModule.Update();
+        SearchModule.Update();
     }
 
     private void OnCommand(string command, string args)
     {
-        if (!string.IsNullOrEmpty(args) && args.Trim().ToLower() == "auto")
+        var trimmedArgs = args?.Trim().ToLower() ?? "";
+
+        if (trimmedArgs == "auto")
         {
             InventoryModule.ExecuteAutoDiscard();
+        }
+        else if (trimmedArgs == "search")
+        {
+            SearchModule.OpenSettings();
         }
         else
         {
@@ -106,7 +125,11 @@ public sealed class Plugin : IDalamudPlugin
         }
     }
 
-    private void DrawUI() => WindowSystem.Draw();
+    private void DrawUI()
+    {
+        WindowSystem.Draw();
+        SearchModule.Draw();
+    }
 
     public void ToggleConfigUI() => ConfigWindow.Toggle();
     public void ToggleMainUI() => MainWindow.Toggle();

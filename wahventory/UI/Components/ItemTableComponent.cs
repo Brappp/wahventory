@@ -34,24 +34,36 @@ public class ItemTableComponent
     {
         using var style = ImRaii.PushStyle(ImGuiStyleVar.CellPadding, new Vector2(4, 2))
                                 .Push(ImGuiStyleVar.ItemSpacing, new Vector2(4, 2));
-        
+
         var columnCount = config.ShowMarketPrices ? 8 : 7;
         var flags = ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable;
         if (config.Scrollable)
             flags |= ImGuiTableFlags.ScrollY;
-        
+
+        bool anyItemHovered = false;
+
         using (var table = ImRaii.Table($"ItemTable_{config.TableId}", columnCount, flags))
         {
             if (table)
             {
                 SetupColumns(config);
                 ImGui.TableHeadersRow();
-                
+
                 foreach (var item in items)
                 {
-                    DrawItemRow(item, config);
+                    bool wasHovered = DrawItemRow(item, config);
+                    if (wasHovered)
+                    {
+                        anyItemHovered = true;
+                        config.OnItemHovered?.Invoke(item.ItemId);
+                    }
                 }
             }
+        }
+
+        if (!anyItemHovered)
+        {
+            config.OnNoItemHovered?.Invoke();
         }
     }
     
@@ -121,11 +133,14 @@ public class ItemTableComponent
         }
     }
     
-    private void DrawItemRow(InventoryItemInfo item, ItemTableConfig config)
+    private bool DrawItemRow(InventoryItemInfo item, ItemTableConfig config)
     {
         ImGui.TableNextRow();
         using var id = ImRaii.PushId(item.GetUniqueKey());
-        
+
+        // Store row position for hover detection
+        var rowMinY = ImGui.GetCursorScreenPos().Y;
+
         // Row background color
         if (config.IsItemBlacklisted != null && config.IsItemBlacklisted(item))
         {
@@ -214,8 +229,19 @@ public class ItemTableComponent
                 config.OnRemoveItem(item);
             }
         }
+
+        // Detect row hover using the table row rect
+        var rowMaxY = ImGui.GetCursorScreenPos().Y;
+        var mousePos = ImGui.GetMousePos();
+        var tableMinX = ImGui.GetWindowPos().X;
+        var tableMaxX = tableMinX + ImGui.GetWindowWidth();
+        bool isRowHovered = mousePos.Y >= rowMinY && mousePos.Y < rowMaxY &&
+                            mousePos.X >= tableMinX && mousePos.X <= tableMaxX &&
+                            ImGui.IsWindowHovered(ImGuiHoveredFlags.AllowWhenBlockedByActiveItem);
+
+        return isRowHovered;
     }
-    
+
     private void DrawCheckbox(InventoryItemInfo item, ItemTableConfig config)
     {
         if (config.IsItemBlacklisted != null && config.IsItemBlacklisted(item))
@@ -438,5 +464,7 @@ public class ItemTableConfig
     public Action<InventoryItemInfo>? DrawItemTags { get; set; }
     public Func<uint, bool>? IsFetchingPrice { get; set; }
     public Action<InventoryItemInfo>? OnPriceFetchRequested { get; set; }
+    public Action<uint>? OnItemHovered { get; set; }
+    public Action? OnNoItemHovered { get; set; }
 }
 

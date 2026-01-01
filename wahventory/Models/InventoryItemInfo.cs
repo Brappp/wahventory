@@ -28,6 +28,7 @@ public class InventoryItemInfo
     public bool IsUntradable { get; set; }
     public bool IsIndisposable { get; set; }
     public uint EquipSlotCategory { get; set; }
+    public string ClassJobCategoryName { get; set; } = string.Empty;
     public SafetyAssessment? SafetyAssessment { get; set; }
     public bool IsSelected { get; set; }
     public long? MarketPrice { get; set; }

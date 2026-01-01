@@ -135,6 +135,7 @@ public class ItemFilterService
             IsUntradable = first.IsUntradable,
             IsIndisposable = first.IsIndisposable,
             EquipSlotCategory = first.EquipSlotCategory,
+            ClassJobCategoryName = first.ClassJobCategoryName,
             SafetyAssessment = first.SafetyAssessment
         };
     }

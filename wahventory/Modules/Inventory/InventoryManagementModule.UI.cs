@@ -118,10 +118,34 @@ public partial class InventoryManagementModule
             {
                 RefreshInventory();
             }
-            
+
             ImGui.SameLine();
             ImGui.TextColored(new Vector4(0.3f, 0.3f, 0.3f, 1f), "|");
-            
+
+            ImGui.SameLine();
+            ImGui.Text("Job:");
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(70);
+            var jobDisplayText = string.IsNullOrEmpty(_jobFilter) ? "All" : _jobFilter;
+            using (var combo = ImRaii.Combo("##JobFilter", jobDisplayText))
+            {
+                if (combo)
+                {
+                    foreach (var job in JobAbbreviations)
+                    {
+                        var displayName = string.IsNullOrEmpty(job) ? "All" : job;
+                        if (ImGui.Selectable(displayName, job == _jobFilter))
+                        {
+                            _jobFilter = job;
+                            UpdateCategories();
+                        }
+                    }
+                }
+            }
+
+            ImGui.SameLine();
+            ImGui.TextColored(new Vector4(0.3f, 0.3f, 0.3f, 1f), "|");
+
             ImGui.SameLine();
             var showPrices = Settings.ShowMarketPrices;
             if (ImGui.Checkbox("Show Prices", ref showPrices))

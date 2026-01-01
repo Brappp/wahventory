@@ -295,6 +295,8 @@ public class ItemTableComponent
     
     private void DrawItemName(InventoryItemInfo item, ItemTableConfig config)
     {
+        var startPos = ImGui.GetCursorScreenPos();
+
         var iconSize = new Vector2(20, 20);
         if (item.IconId > 0)
         {
@@ -318,7 +320,7 @@ public class ItemTableComponent
             ImGui.Dummy(iconSize);
             ImGui.SameLine(0, 5);
         }
-        
+
         // Highlight search term if provided
         if (!string.IsNullOrWhiteSpace(config.SearchFilter) && !string.IsNullOrEmpty(item.Name))
         {
@@ -330,10 +332,10 @@ public class ItemTableComponent
                     ImGui.Text(item.Name.Substring(0, matchIndex));
                     ImGui.SameLine(0, 0);
                 }
-                
+
                 ImGui.TextColored(ColorWarning, item.Name.Substring(matchIndex, config.SearchFilter.Length));
                 ImGui.SameLine(0, 0);
-                
+
                 if (matchIndex + config.SearchFilter.Length < item.Name.Length)
                 {
                     ImGui.Text(item.Name.Substring(matchIndex + config.SearchFilter.Length));
@@ -348,29 +350,42 @@ public class ItemTableComponent
         {
             ImGui.Text(item.Name ?? string.Empty);
         }
-        
+
         // Item tags
         if (item.IsHQ)
         {
             ImGui.SameLine();
             ImGui.TextColored(ColorHQItem, "[HQ]");
         }
-        
+
         if (config.IsItemBlacklisted != null && config.IsItemBlacklisted(item))
         {
             ImGui.SameLine();
             ImGui.TextColored(ColorError, "[Blacklisted]");
         }
-        
+
         if (!item.CanBeTraded)
         {
             ImGui.SameLine();
             ImGui.TextColored(ColorNotTradeable, "[Not Tradeable]");
         }
-        
+
         if (config.DrawItemTags != null)
         {
             config.DrawItemTags(item);
+        }
+
+        // Tooltip for gear items showing job info - check hover on entire cell area
+        if (item.EquipSlotCategory > 0 && !string.IsNullOrEmpty(item.ClassJobCategoryName))
+        {
+            var endPos = ImGui.GetCursorScreenPos();
+            var cellRect = new Vector2(ImGui.GetColumnWidth(), endPos.Y - startPos.Y + ImGui.GetTextLineHeight());
+            var mousePos = ImGui.GetMousePos();
+            if (mousePos.X >= startPos.X && mousePos.X <= startPos.X + cellRect.X &&
+                mousePos.Y >= startPos.Y && mousePos.Y <= startPos.Y + cellRect.Y)
+            {
+                ImGui.SetTooltip($"Jobs: {item.ClassJobCategoryName}");
+            }
         }
     }
     

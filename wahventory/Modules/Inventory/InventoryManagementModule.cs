@@ -42,8 +42,20 @@ public partial class InventoryManagementModule : IDisposable
     private readonly HashSet<uint> _selectedItems = new();
     
     private string _searchFilter = string.Empty;
+    private string _jobFilter = string.Empty;
     private bool _showArmory = false;
     private string _selectedWorld = "";
+
+    private static readonly string[] JobAbbreviations = new[]
+    {
+        "", "PLD", "WAR", "DRK", "GNB",  // Tanks
+        "WHM", "SCH", "AST", "SGE",       // Healers
+        "MNK", "DRG", "NIN", "SAM", "RPR", "VPR", // Melee DPS
+        "BRD", "MCH", "DNC",              // Ranged DPS
+        "BLM", "SMN", "RDM", "PCT",       // Casters
+        "CRP", "BSM", "ARM", "GSM", "LTW", "WVR", "ALC", "CUL", // Crafters
+        "MIN", "BTN", "FSH"               // Gatherers
+    };
     private List<string> _availableWorlds = new();
     
     private DateTime _lastRefresh = DateTime.MinValue;
@@ -362,13 +374,21 @@ public partial class InventoryManagementModule : IDisposable
         {
             itemsCopy = new List<InventoryItemInfo>(_originalItems);
         }
-        
+
         var filteredItems = _filterService.ApplyFilters(
             itemsCopy,
             Settings.SafetyFilters,
             BlacklistedItems,
             _searchFilter);
-        
+
+        // Apply job filter
+        if (!string.IsNullOrEmpty(_jobFilter))
+        {
+            filteredItems = filteredItems.Where(item =>
+                !string.IsNullOrEmpty(item.ClassJobCategoryName) &&
+                item.ClassJobCategoryName.Contains(_jobFilter, StringComparison.OrdinalIgnoreCase));
+        }
+
         lock (_stateLock)
         {
             _allItems = filteredItems.ToList();

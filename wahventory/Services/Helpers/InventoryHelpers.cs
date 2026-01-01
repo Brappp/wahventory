@@ -161,7 +161,13 @@ public unsafe class InventoryHelpers
                 categoryName = category.Name.ExtractText();
             }
         }
-        
+
+        var classJobCategoryName = string.Empty;
+        if (item.ClassJobCategory.RowId > 0)
+        {
+            classJobCategoryName = item.ClassJobCategory.Value.Name.ExtractText();
+        }
+
         return new InventoryItemInfo
         {
             ItemId = slot->ItemId,
@@ -184,7 +190,8 @@ public unsafe class InventoryHelpers
             IsUnique = item.IsUnique,
             IsUntradable = item.IsUntradable,
             IsIndisposable = item.IsIndisposable,
-            EquipSlotCategory = item.EquipSlotCategory.RowId
+            EquipSlotCategory = item.EquipSlotCategory.RowId,
+            ClassJobCategoryName = classJobCategoryName
         };
     }
     

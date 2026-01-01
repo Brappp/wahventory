@@ -98,69 +98,58 @@ public partial class InventoryManagementModule : IDisposable
                 _priceService.UpdateWorld(_selectedWorld);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore errors during initialization
+            Plugin.Log.Debug($"World initialization deferred: {ex.Message}");
         }
     }
-    
+
     private void PopulateAvailableWorlds()
     {
         _availableWorlds.Clear();
-        
-        var worldSheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.World>();
-        if (worldSheet != null)
+        var fallbackWorld = "Aether";
+
+        try
         {
-            try
+            var worldSheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.World>();
+            if (worldSheet == null)
             {
-                var currentWorld = Plugin.ObjectTable.LocalPlayer?.CurrentWorld.Value;
-                var worldName = currentWorld?.Name.ExtractText() ?? "Aether";
-                
-                if (currentWorld != null)
-                {
-                    try
-                    {
-                        var worldRow = worldSheet.FirstOrDefault(w => w.Name.ExtractText() == worldName);
-                        if (worldRow.RowId > 0)
-                        {
-                            try
-                            {
-                                var currentDatacenterId = worldRow.DataCenter.RowId;
-                                
-                                var datacenterWorlds = worldSheet
-                                    .Where(w => w.DataCenter.RowId == currentDatacenterId && w.IsPublic)
-                                    .Select(w => w.Name.ExtractText())
-                                    .Where(name => !string.IsNullOrEmpty(name))
-                                    .OrderBy(w => w)
-                                    .ToList();
-                                
-                                _availableWorlds = datacenterWorlds;
-                            }
-                            catch
-                            {
-                                _availableWorlds = new List<string> { worldName };
-                            }
-                        }
-                        else
-                        {
-                            _availableWorlds = new List<string> { worldName };
-                        }
-                    }
-                    catch
-                    {
-                        _availableWorlds = new List<string> { worldName };
-                    }
-                }
-                else
-                {
-                    _availableWorlds = new List<string> { worldName };
-                }
+                _availableWorlds = new List<string> { fallbackWorld };
+                return;
             }
-            catch (Exception ex)
+
+            var currentWorld = Plugin.ObjectTable.LocalPlayer?.CurrentWorld.Value;
+            var worldName = currentWorld?.Name.ExtractText();
+
+            if (string.IsNullOrEmpty(worldName))
             {
-                Plugin.Log.Warning($"Failed to get datacenter worlds: {ex.Message}");
-                _availableWorlds = new List<string> { "Aether" };
+                _availableWorlds = new List<string> { fallbackWorld };
+                return;
             }
+
+            fallbackWorld = worldName;
+
+            var worldRow = worldSheet.FirstOrDefault(w => w.Name.ExtractText() == worldName);
+            if (worldRow.RowId == 0)
+            {
+                _availableWorlds = new List<string> { worldName };
+                return;
+            }
+
+            var currentDatacenterId = worldRow.DataCenter.RowId;
+            var datacenterWorlds = worldSheet
+                .Where(w => w.DataCenter.RowId == currentDatacenterId && w.IsPublic)
+                .Select(w => w.Name.ExtractText())
+                .Where(name => !string.IsNullOrEmpty(name))
+                .OrderBy(w => w)
+                .ToList();
+
+            _availableWorlds = datacenterWorlds.Count > 0 ? datacenterWorlds : new List<string> { worldName };
+        }
+        catch (Exception ex)
+        {
+            Plugin.Log.Warning($"Failed to populate worlds: {ex.Message}");
+            _availableWorlds = new List<string> { fallbackWorld };
         }
     }
     
@@ -185,18 +174,19 @@ public partial class InventoryManagementModule : IDisposable
         _priceService.CleanupStuckFetches();
         
         // Update price service world if changed
-        try
+        var player = Plugin.ObjectTable.LocalPlayer;
+        if (player != null)
         {
-            var currentWorld = Plugin.ObjectTable.LocalPlayer?.CurrentWorld.Value.Name.ToString();
-            if (!string.IsNullOrEmpty(currentWorld) && currentWorld != _selectedWorld)
+            var world = player.CurrentWorld;
+            if (world.RowId != 0)
             {
-                _selectedWorld = currentWorld;
-                _priceService.UpdateWorld(_selectedWorld);
+                var currentWorld = world.Value.Name.ToString();
+                if (!string.IsNullOrEmpty(currentWorld) && currentWorld != _selectedWorld)
+                {
+                    _selectedWorld = currentWorld;
+                    _priceService.UpdateWorld(_selectedWorld);
+                }
             }
-        }
-        catch
-        {
-            // Ignore
         }
         
         // Auto-refresh prices

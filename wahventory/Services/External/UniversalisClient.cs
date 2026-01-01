@@ -5,42 +5,50 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using Dalamud.Plugin.Services;
 using Newtonsoft.Json;
-using wahventory.Core;
 
 namespace wahventory.Services.External;
 
 public class UniversalisClient : IDisposable
 {
-    private readonly HttpClient _httpClient;
+    private static readonly HttpClient SharedHttpClient;
     private readonly IPluginLog _log;
-    private readonly string _worldName;
+    private string _worldName;
     private readonly string _baseUrl = "https://universalis.app/api/v2";
-    
+
+    static UniversalisClient()
+    {
+        SharedHttpClient = new HttpClient();
+        SharedHttpClient.DefaultRequestHeaders.Add("User-Agent", "WahventoryFFXIVPlugin/1.0");
+        SharedHttpClient.Timeout = TimeSpan.FromSeconds(10);
+    }
+
     public UniversalisClient(IPluginLog log, string worldName)
     {
         _log = log;
         _worldName = worldName;
-        _httpClient = new HttpClient();
-        _httpClient.DefaultRequestHeaders.Add("User-Agent", "WahventoryFFXIVPlugin/1.0");
-        _httpClient.Timeout = TimeSpan.FromSeconds(10);
     }
-    
+
+    public void UpdateWorld(string worldName)
+    {
+        _worldName = worldName;
+    }
+
     public async Task<MarketPriceResult?> GetMarketPrice(uint itemId, bool hq = false)
     {
         try
         {
             var url = $"{_baseUrl}/{_worldName}/{itemId}";
-            var response = await _httpClient.GetAsync(url);
-            
+            var response = await SharedHttpClient.GetAsync(url);
+
             if (!response.IsSuccessStatusCode)
             {
                 _log.Warning($"Failed to fetch price for item {itemId}: {response.StatusCode}");
                 return null;
             }
-            
+
             var json = await response.Content.ReadAsStringAsync();
             var data = JsonConvert.DeserializeObject<UniversalisResponse>(json);
-            
+
             if (data == null)
             {
                 return null;
@@ -69,7 +77,7 @@ public class UniversalisClient : IDisposable
             {
                 price = data.MinPrice;
             }
-            
+
             return new MarketPriceResult
             {
                 ItemId = itemId,
@@ -89,10 +97,10 @@ public class UniversalisClient : IDisposable
             return null;
         }
     }
-    
+
     public void Dispose()
     {
-        _httpClient?.Dispose();
+        // Don't dispose the shared HttpClient
     }
 }
 
@@ -107,13 +115,13 @@ public class UniversalisResponse
 {
     [JsonProperty("itemID")]
     public uint ItemId { get; set; }
-    
+
     [JsonProperty("listings")]
     public List<UniversalisListing> Listings { get; set; } = new();
-    
+
     [JsonProperty("minPrice")]
     public long MinPrice { get; set; }
-    
+
     [JsonProperty("minPriceHQ")]
     public long MinPriceHq { get; set; }
 }
@@ -122,13 +130,13 @@ public class UniversalisListing
 {
     [JsonProperty("pricePerUnit")]
     public long PricePerUnit { get; set; }
-    
+
     [JsonProperty("quantity")]
     public int Quantity { get; set; }
-    
+
     [JsonProperty("hq")]
     public bool Hq { get; set; }
-    
+
     [JsonProperty("worldName")]
     public string WorldName { get; set; } = string.Empty;
 }

@@ -70,40 +70,36 @@ public abstract unsafe class GameInventory
 
         foreach (var item in items)
         {
-            try
-            {
-                var highlight = false;
+            var highlight = false;
 
-                if (item.ItemData.RowId != 0)
+            if (item.ItemData.RowId != 0)
+            {
+                var successCount = 0;
+                foreach (var term in searchTerms)
                 {
-                    var successCount = 0;
-                    foreach (var term in searchTerms)
+                    foreach (var filter in filters)
                     {
-                        foreach (var filter in filters)
+                        if (filter.FilterItem(item.ItemData, term))
                         {
-                            if (filter.FilterItem(item.ItemData, term))
-                            {
-                                successCount++;
-                                break;
-                            }
+                            successCount++;
+                            break;
                         }
                     }
-
-                    highlight = successCount == searchTerms.Length;
                 }
 
-                var bagIndex = GetBagIndex(item) - FirstBagOffset;
-                if (bagIndex >= 0 && bagIndex < _filter.Count)
+                highlight = successCount == searchTerms.Length;
+            }
+
+            var bagIndex = GetBagIndex(item) - FirstBagOffset;
+            if (bagIndex >= 0 && bagIndex < _filter.Count)
+            {
+                var bag = _filter[bagIndex];
+                var slot = GridItemCount - 1 - item.SortedSlotIndex;
+                if (slot >= 0 && slot < bag.Count)
                 {
-                    var bag = _filter[bagIndex];
-                    var slot = GridItemCount - 1 - item.SortedSlotIndex;
-                    if (slot >= 0 && slot < bag.Count)
-                    {
-                        bag[slot] = highlight;
-                    }
+                    bag[slot] = highlight;
                 }
             }
-            catch { }
         }
     }
 

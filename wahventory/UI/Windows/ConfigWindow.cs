@@ -6,7 +6,7 @@ using wahventory.Core;
 
 namespace wahventory.UI.Windows;
 
-public class ConfigWindow : Window, IDisposable
+public class ConfigWindow : Window
 {
     private Configuration Configuration;
     private Plugin Plugin;
@@ -22,8 +22,6 @@ public class ConfigWindow : Window, IDisposable
         Plugin = plugin;
         Configuration = plugin.Configuration;
     }
-
-    public void Dispose() { }
 
     public override void Draw()
     {

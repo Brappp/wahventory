@@ -207,110 +207,145 @@ public partial class InventoryManagementModule
             return;
         }
 
-        // Draw a persistent header row
-        DrawTableHeader();
-
-        foreach (var category in categoriesCopy)
-        {
-            if (category.Items.Count == 0) continue;
-
-            var isExpanded = ExpandedCategories.GetValueOrDefault(category.CategoryId, true);
-            using var id = ImRaii.PushId($"Category_{category.CategoryId}");
-            var nodeFlags = ImGuiTreeNodeFlags.AllowItemOverlap | ImGuiTreeNodeFlags.SpanAvailWidth;
-            if (isExpanded) nodeFlags |= ImGuiTreeNodeFlags.DefaultOpen;
-
-            using (var node = ImRaii.TreeNode($"{category.Name}###{category.CategoryId}_node", nodeFlags))
-            {
-                ImGui.SameLine();
-                ImGui.TextColored(ColorInfo, $"({category.Items.Count} items, {category.TotalQuantity} total)");
-
-                if (Settings.ShowMarketPrices && category.TotalValue.HasValue)
-                {
-                    ImGui.SameLine();
-                    ImGui.TextColored(ColorPrice, $"{category.TotalValue.Value:N0} gil");
-                }
-
-                var selectAllWidth = 90f;
-                var windowWidth = ImGui.GetWindowContentRegionMax().X;
-                ImGui.SameLine(windowWidth - selectAllWidth - 10);
-                DrawCategoryControls(category);
-
-                if (node)
-                {
-                    ExpandedCategories[category.CategoryId] = true;
-                    _expandedCategoriesChanged = true;
-                    DrawCategoryItems(category, showHeaders: false);
-                }
-                else
-                {
-                    ExpandedCategories[category.CategoryId] = false;
-                    _expandedCategoriesChanged = true;
-                }
-
-                ImGui.Spacing();
-            }
-        }
+        DrawUnifiedItemTable(categoriesCopy);
     }
 
-    private void DrawTableHeader()
+    private void DrawUnifiedItemTable(List<CategoryGroup> categories)
     {
-        using var style = ImRaii.PushStyle(ImGuiStyleVar.CellPadding, new Vector2(4, 2))
+        using var style = ImRaii.PushStyle(ImGuiStyleVar.CellPadding, new Vector2(4, 3))
                                 .Push(ImGuiStyleVar.ItemSpacing, new Vector2(4, 2));
 
         // Column count: Checkbox, ID, Item, Qty, iLvl + (Price, Total) or (Location)
         int columnCount = Settings.ShowMarketPrices ? 7 : 6;
 
-        using (var table = ImRaii.Table("AvailableItemsHeader", columnCount,
-            ImGuiTableFlags.Borders | ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadOuterX))
+        var flags = ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingFixedFit
+                  | ImGuiTableFlags.ScrollY | ImGuiTableFlags.NoPadOuterX;
+
+        using var table = ImRaii.Table("UnifiedItemTable", columnCount, flags);
+        if (!table) return;
+
+        // Setup columns
+        ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 26f);
+        ImGui.TableSetupColumn("ID", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 50f);
+        ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch | ImGuiTableColumnFlags.NoHide);
+        ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 35f);
+        ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 40f);
+
+        if (Settings.ShowMarketPrices)
         {
-            if (table)
+            ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 75f);
+            ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 90f);
+        }
+        else
+        {
+            ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 110f);
+        }
+
+        ImGui.TableSetupScrollFreeze(0, 1);
+        ImGui.TableHeadersRow();
+
+        foreach (var category in categories)
+        {
+            if (category.Items.Count == 0) continue;
+
+            DrawCategoryHeaderRow(category, columnCount);
+
+            var isExpanded = ExpandedCategories.GetValueOrDefault(category.CategoryId, true);
+            if (isExpanded)
             {
-                // Setup columns with same widths as ItemTableComponent
-                ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 26f);
-                ImGui.TableSetupColumn("ID", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 50f);
-                ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch | ImGuiTableColumnFlags.NoHide);
-                ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 35f);
-                ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 40f);
-
-                if (Settings.ShowMarketPrices)
+                foreach (var item in category.Items)
                 {
-                    ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 75f);
-                    ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 90f);
+                    DrawItemRow(item);
                 }
-                else
-                {
-                    ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 110f);
-                }
-
-                ImGui.TableHeadersRow();
             }
         }
     }
-    
-    private void DrawCategoryItems(CategoryGroup category, bool showHeaders = true)
-    {
-        if (_itemTable == null)
-            InitializeUIComponents();
 
-        var config = new ItemTableConfig
+    private void DrawCategoryHeaderRow(CategoryGroup category, int columnCount)
+    {
+        var isExpanded = ExpandedCategories.GetValueOrDefault(category.CategoryId, true);
+
+        ImGui.TableNextRow();
+        ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, ImGui.GetColorU32(new Vector4(0.2f, 0.2f, 0.25f, 1f)));
+
+        // First column - expand/collapse button
+        ImGui.TableNextColumn();
+        using (var font = ImRaii.PushFont(UiBuilder.IconFont))
         {
-            TableId = $"CategoryTable_{category.CategoryId}",
-            ShowCheckbox = true,
-            ShowItemLevel = true,
-            ShowLocation = !Settings.ShowMarketPrices,
-            ShowMarketPrices = Settings.ShowMarketPrices,
-            ShowTotalValue = Settings.ShowMarketPrices,
-            ShowHeaders = showHeaders,
-            SearchFilter = _searchFilter,
-            IsItemSelected = (item) =>
+            var icon = isExpanded ? FontAwesomeIcon.ChevronDown : FontAwesomeIcon.ChevronRight;
+            if (ImGui.SmallButton($"{icon.ToIconString()}##expand_{category.CategoryId}"))
             {
-                lock (_stateLock)
-                {
-                    return _selectedItems.Contains(item.ItemId);
-                }
-            },
-            IsItemBlacklisted = (item) => BlacklistedItems.Contains(item.ItemId),
-            OnItemSelectionChanged = (item, selected) =>
+                ExpandedCategories[category.CategoryId] = !isExpanded;
+                _expandedCategoriesChanged = true;
+            }
+        }
+
+        // Second column - skip (ID column)
+        ImGui.TableNextColumn();
+
+        // Third column - category name and info (Item column - stretches)
+        ImGui.TableNextColumn();
+        ImGui.TextColored(new Vector4(0.9f, 0.9f, 0.9f, 1f), category.Name);
+        ImGui.SameLine();
+        ImGui.TextColored(ColorInfo, $"({category.Items.Count} items, {category.TotalQuantity} total)");
+
+        if (Settings.ShowMarketPrices && category.TotalValue.HasValue)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(ColorPrice, $"{category.TotalValue.Value:N0} gil");
+        }
+
+        // Remaining columns - empty
+        ImGui.TableNextColumn(); // Qty
+        ImGui.TableNextColumn(); // iLvl
+
+        if (Settings.ShowMarketPrices)
+        {
+            ImGui.TableNextColumn(); // Price
+            ImGui.TableNextColumn(); // Total
+        }
+        else
+        {
+            ImGui.TableNextColumn(); // Location
+        }
+    }
+
+    private void DrawItemRow(InventoryItemInfo item)
+    {
+        ImGui.TableNextRow();
+        using var id = ImRaii.PushId(item.GetUniqueKey());
+
+        // Row background color
+        bool isBlacklisted = BlacklistedItems.Contains(item.ItemId);
+        bool isSelected = _selectedItems.Contains(item.ItemId);
+
+        if (isBlacklisted)
+        {
+            ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, ImGui.GetColorU32(new Vector4(0.3f, 0.1f, 0.1f, 0.3f)));
+        }
+        else if (isSelected)
+        {
+            ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, ImGui.GetColorU32(new Vector4(0.3f, 0.5f, 0.7f, 0.3f)));
+        }
+
+        // Checkbox column
+        ImGui.TableNextColumn();
+        if (isBlacklisted)
+        {
+            using (var disabled = ImRaii.Disabled())
+            {
+                bool dummy = false;
+                ImGui.Checkbox($"##check", ref dummy);
+            }
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip("This item is blacklisted");
+            }
+        }
+        else
+        {
+            bool selected = isSelected;
+            if (ImGui.Checkbox($"##check", ref selected))
             {
                 lock (_stateLock)
                 {
@@ -325,62 +360,194 @@ public partial class InventoryManagementModule
                         item.IsSelected = false;
                     }
                 }
-            },
-            IsFetchingPrice = (itemId) => _priceService.IsFetchingPrice(itemId),
-            OnPriceFetchRequested = (item) => _ = _priceService.FetchPrice(item).ContinueWith(task =>
-            {
-                if (task.IsCompletedSuccessfully && task.Result.HasValue)
-                {
-                    lock (_stateLock)
-                    {
-                        item.MarketPrice = task.Result.Value;
-                        item.MarketPriceFetchTime = DateTime.Now;
-                    }
-                }
-            })
-        };
-        
-        _itemTable?.DrawTable(category.Items, config);
-    }
-    
-    private void DrawCategoryControls(CategoryGroup category)
-    {
-        int selectedInCategory;
-        bool allSelectableSelected;
-        lock (_stateLock)
-        {
-            selectedInCategory = category.Items.Count(i => _selectedItems.Contains(i.ItemId));
-            var selectableItems = category.Items.Where(i => !BlacklistedItems.Contains(i.ItemId)).ToList();
-            allSelectableSelected = selectableItems.Count > 0 && selectableItems.All(i => _selectedItems.Contains(i.ItemId));
-        }
-        
-        var buttonText = allSelectableSelected ? "Deselect All" : "Select All";
-        
-        if (ImGui.SmallButton(buttonText))
-        {
-            lock (_stateLock)
-            {
-                if (allSelectableSelected)
-                {
-                    foreach (var item in category.Items)
-                    {
-                        _selectedItems.Remove(item.ItemId);
-                        item.IsSelected = false;
-                    }
-                }
-                else
-                {
-                    foreach (var item in category.Items)
-                    {
-                        if (BlacklistedItems.Contains(item.ItemId))
-                            continue;
-                        
-                        _selectedItems.Add(item.ItemId);
-                        item.IsSelected = true;
-                    }
-                }
             }
         }
+
+        // ID column
+        ImGui.TableNextColumn();
+        ImGui.TextColored(ColorSubdued, item.ItemId.ToString());
+
+        // Item column
+        ImGui.TableNextColumn();
+        DrawItemNameCell(item);
+
+        // Qty column
+        ImGui.TableNextColumn();
+        ImGui.Text(item.Quantity.ToString());
+
+        // iLvl column
+        ImGui.TableNextColumn();
+        if (item.ItemLevel > 0)
+            ImGui.Text(item.ItemLevel.ToString());
+        else
+            ImGui.TextColored(ColorSubdued, "-");
+
+        // Price/Location columns
+        if (Settings.ShowMarketPrices)
+        {
+            // Price column
+            ImGui.TableNextColumn();
+            DrawPriceCell(item);
+
+            // Total column
+            ImGui.TableNextColumn();
+            DrawTotalCell(item);
+        }
+        else
+        {
+            // Location column
+            ImGui.TableNextColumn();
+            ImGui.Text(GetLocationName(item.Container));
+        }
+    }
+
+    private void DrawItemNameCell(InventoryItemInfo item)
+    {
+        var iconSize = new Vector2(20, 20);
+        if (item.IconId > 0)
+        {
+            var icon = _iconCache.GetIcon(item.IconId);
+            if (icon != null)
+            {
+                var startY = ImGui.GetCursorPosY();
+                ImGui.SetCursorPosY(startY - 2);
+                ImGui.Image(icon.Handle, iconSize);
+                ImGui.SetCursorPosY(startY);
+                ImGui.SameLine(0, 5);
+            }
+            else
+            {
+                ImGui.Dummy(iconSize);
+                ImGui.SameLine(0, 5);
+            }
+        }
+        else
+        {
+            ImGui.Dummy(iconSize);
+            ImGui.SameLine(0, 5);
+        }
+
+        // Highlight search term if provided
+        if (!string.IsNullOrWhiteSpace(_searchFilter) && !string.IsNullOrEmpty(item.Name))
+        {
+            var matchIndex = item.Name.IndexOf(_searchFilter, StringComparison.OrdinalIgnoreCase);
+            if (matchIndex >= 0)
+            {
+                if (matchIndex > 0)
+                {
+                    ImGui.Text(item.Name.Substring(0, matchIndex));
+                    ImGui.SameLine(0, 0);
+                }
+
+                ImGui.TextColored(ColorWarning, item.Name.Substring(matchIndex, _searchFilter.Length));
+                ImGui.SameLine(0, 0);
+
+                if (matchIndex + _searchFilter.Length < item.Name.Length)
+                {
+                    ImGui.Text(item.Name.Substring(matchIndex + _searchFilter.Length));
+                }
+            }
+            else
+            {
+                ImGui.Text(item.Name);
+            }
+        }
+        else
+        {
+            ImGui.Text(item.Name ?? string.Empty);
+        }
+
+        // Item tags
+        if (item.IsHQ)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(new Vector4(0.6f, 0.8f, 1f, 1f), "[HQ]");
+        }
+
+        if (BlacklistedItems.Contains(item.ItemId))
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(ColorError, "[Blacklisted]");
+        }
+
+        if (!item.CanBeTraded)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(ColorSubdued, "[Untradeable]");
+        }
+    }
+
+    private void DrawPriceCell(InventoryItemInfo item)
+    {
+        if (!item.CanBeTraded)
+        {
+            ImGui.TextColored(ColorSubdued, "-");
+        }
+        else if (item.MarketPrice.HasValue)
+        {
+            if (item.MarketPrice.Value > 0)
+            {
+                ImGui.TextColored(ColorPrice, $"{item.MarketPrice.Value:N0}");
+            }
+            else
+            {
+                ImGui.TextColored(ColorSubdued, "N/A");
+            }
+        }
+        else
+        {
+            ImGui.TextColored(ColorSubdued, "...");
+            if (!_priceService.IsFetchingPrice(item.ItemId))
+            {
+                _ = _priceService.FetchPrice(item).ContinueWith(task =>
+                {
+                    if (task.IsCompletedSuccessfully && task.Result.HasValue)
+                    {
+                        lock (_stateLock)
+                        {
+                            item.MarketPrice = task.Result.Value;
+                            item.MarketPriceFetchTime = DateTime.Now;
+                        }
+                    }
+                });
+            }
+        }
+    }
+
+    private void DrawTotalCell(InventoryItemInfo item)
+    {
+        if (!item.CanBeTraded || !item.MarketPrice.HasValue || item.MarketPrice.Value <= 0)
+        {
+            ImGui.TextColored(ColorSubdued, "-");
+        }
+        else
+        {
+            var total = item.MarketPrice.Value * item.Quantity;
+            ImGui.Text($"{total:N0}");
+        }
+    }
+
+    private string GetLocationName(FFXIVClientStructs.FFXIV.Client.Game.InventoryType container)
+    {
+        return container switch
+        {
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.Inventory1 => "Inv 1",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.Inventory2 => "Inv 2",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.Inventory3 => "Inv 3",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.Inventory4 => "Inv 4",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.ArmoryMainHand => "Main Hand",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.ArmoryOffHand => "Off Hand",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.ArmoryHead => "Head",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.ArmoryBody => "Body",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.ArmoryHands => "Hands",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.ArmoryLegs => "Legs",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.ArmoryFeets => "Feet",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.ArmoryEar => "Earrings",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.ArmoryNeck => "Necklace",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.ArmoryWrist => "Bracelets",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.ArmoryRings => "Rings",
+            _ => container.ToString()
+        };
     }
     
     private void DrawSearchResultsView(List<CategoryGroup> categories)
@@ -589,72 +756,78 @@ public partial class InventoryManagementModule
         }
     }
     
-    private IEnumerable<uint> GetBlacklistItemsToShow()
+    private IEnumerable<uint> GetBlacklistItemsToShow() => FilterItemIdsBySearch(BlacklistedItems);
+
+    private IEnumerable<uint> FilterItemIdsBySearch(HashSet<uint> itemIds)
     {
-        var itemsToShow = BlacklistedItems.AsEnumerable();
-        
-        if (!string.IsNullOrWhiteSpace(_searchFilter))
+        if (string.IsNullOrWhiteSpace(_searchFilter))
+            return itemIds;
+
+        var filteredIds = new List<uint>();
+        foreach (var itemId in itemIds)
         {
-            var filteredIds = new List<uint>();
-            foreach (var itemId in BlacklistedItems)
+            var itemName = GetItemName(itemId);
+            if (itemName.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase) ||
+                itemId.ToString().Contains(_searchFilter))
             {
-                string itemName = null;
-                lock (_stateLock)
-                {
-                    var itemInfo = _allItems.FirstOrDefault(i => i.ItemId == itemId);
-                    itemName = itemInfo?.Name;
-                }
-                
-                if (string.IsNullOrEmpty(itemName))
-                {
-                    var itemInfo = _searchService.GetItemInfo(itemId);
-                    itemName = itemInfo?.Name ?? $"Unknown Item ({itemId})";
-                }
-                
-                if (itemName.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase) ||
-                    itemId.ToString().Contains(_searchFilter))
-                {
-                    filteredIds.Add(itemId);
-                }
+                filteredIds.Add(itemId);
             }
-            itemsToShow = filteredIds;
         }
-        
-        return itemsToShow;
+        return filteredIds;
     }
-    
+
+    private string GetItemName(uint itemId)
+    {
+        lock (_stateLock)
+        {
+            var itemInfo = _allItems.FirstOrDefault(i => i.ItemId == itemId);
+            if (itemInfo != null)
+                return itemInfo.Name;
+        }
+
+        var info = _searchService.GetItemInfo(itemId);
+        return info?.Name ?? $"Unknown Item ({itemId})";
+    }
+
+    private InventoryItemInfo? GetOrCreateItemInfo(uint itemId)
+    {
+        lock (_stateLock)
+        {
+            var existing = _allItems.FirstOrDefault(i => i.ItemId == itemId);
+            if (existing != null)
+                return existing;
+        }
+
+        var info = _searchService.GetItemInfo(itemId);
+        if (!info.HasValue)
+            return null;
+
+        return new InventoryItemInfo
+        {
+            ItemId = itemId,
+            Name = info.Value.Name,
+            IconId = info.Value.IconId,
+            CategoryName = info.Value.CategoryName,
+            ItemLevel = (uint)info.Value.ItemLevel
+        };
+    }
+
+    private List<InventoryItemInfo> ResolveItemInfos(IEnumerable<uint> itemIds)
+    {
+        return itemIds
+            .Select(GetOrCreateItemInfo)
+            .Where(i => i != null)
+            .Cast<InventoryItemInfo>()
+            .ToList();
+    }
+
     private void DrawBlacklistTable(IEnumerable<uint> itemIds)
     {
         if (_itemTable == null)
             InitializeUIComponents();
-        
-        var items = itemIds.Select(itemId =>
-        {
-            InventoryItemInfo? itemInfo = null;
-            lock (_stateLock)
-            {
-                itemInfo = _allItems.FirstOrDefault(i => i.ItemId == itemId);
-            }
-            
-            if (itemInfo == null)
-            {
-                var info = _searchService.GetItemInfo(itemId);
-                if (info.HasValue)
-                {
-                    itemInfo = new InventoryItemInfo
-                    {
-                        ItemId = itemId,
-                        Name = info.Value.Name,
-                        IconId = info.Value.IconId,
-                        CategoryName = info.Value.CategoryName,
-                        ItemLevel = (uint)info.Value.ItemLevel
-                    };
-                }
-            }
-            
-            return itemInfo;
-        }).Where(i => i != null).Cast<InventoryItemInfo>().ToList();
-        
+
+        var items = ResolveItemInfos(itemIds);
+
         var config = new ItemTableConfig
         {
             TableId = "BlacklistTable",
@@ -668,7 +841,7 @@ public partial class InventoryManagementModule
                 RefreshInventory();
             }
         };
-        
+
         _itemTable?.DrawTable(items, config);
     }
     
@@ -741,72 +914,15 @@ public partial class InventoryManagementModule
         }
     }
     
-    private IEnumerable<uint> GetAutoDiscardItemsToShow()
-    {
-        var itemsToShow = AutoDiscardItems.AsEnumerable();
-        
-        if (!string.IsNullOrWhiteSpace(_searchFilter))
-        {
-            var filteredIds = new List<uint>();
-            foreach (var itemId in AutoDiscardItems)
-            {
-                string itemName = null;
-                lock (_stateLock)
-                {
-                    var itemInfo = _allItems.FirstOrDefault(i => i.ItemId == itemId);
-                    itemName = itemInfo?.Name;
-                }
-                
-                if (string.IsNullOrEmpty(itemName))
-                {
-                    var itemInfo = _searchService.GetItemInfo(itemId);
-                    itemName = itemInfo?.Name ?? $"Unknown Item ({itemId})";
-                }
-                
-                if (itemName.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase) ||
-                    itemId.ToString().Contains(_searchFilter))
-                {
-                    filteredIds.Add(itemId);
-                }
-            }
-            itemsToShow = filteredIds;
-        }
-        
-        return itemsToShow;
-    }
-    
+    private IEnumerable<uint> GetAutoDiscardItemsToShow() => FilterItemIdsBySearch(AutoDiscardItems);
+
     private void DrawAutoDiscardTable(IEnumerable<uint> itemIds)
     {
         if (_itemTable == null)
             InitializeUIComponents();
-        
-        var items = itemIds.Select(itemId =>
-        {
-            InventoryItemInfo? itemInfo = null;
-            lock (_stateLock)
-            {
-                itemInfo = _allItems.FirstOrDefault(i => i.ItemId == itemId);
-            }
-            
-            if (itemInfo == null)
-            {
-                var info = _searchService.GetItemInfo(itemId);
-                if (info.HasValue)
-                {
-                    itemInfo = new InventoryItemInfo
-                    {
-                        ItemId = itemId,
-                        Name = info.Value.Name,
-                        IconId = info.Value.IconId,
-                        CategoryName = info.Value.CategoryName,
-                        ItemLevel = (uint)info.Value.ItemLevel
-                    };
-                }
-            }
-            
-            return itemInfo;
-        }).Where(i => i != null).Cast<InventoryItemInfo>().ToList();
-        
+
+        var items = ResolveItemInfos(itemIds);
+
         var config = new ItemTableConfig
         {
             TableId = "AutoDiscardTable",

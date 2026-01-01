@@ -437,10 +437,6 @@ public class ItemTableComponent
         {
             ImGui.TextColored(ColorWarning, "Collectable");
         }
-        else if (item.SpiritBond >= 100)
-        {
-            ImGui.TextColored(new Vector4(0.2f, 0.8f, 0.2f, 1f), "Spiritbonded");
-        }
     }
     
     private string GetLocationName(InventoryType container)

@@ -1,4 +1,3 @@
-using System;
 using System.Numerics;
 using Dalamud.Interface.Windowing;
 using Dalamud.Bindings.ImGui;
@@ -8,7 +7,7 @@ using wahventory.Core;
 
 namespace wahventory.UI.Windows;
 
-public class MainWindow : Window, IDisposable
+public class MainWindow : Window
 {
     private Plugin Plugin;
     private InventoryManagementModule InventoryModule;
@@ -30,8 +29,6 @@ public class MainWindow : Window, IDisposable
         Size = new Vector2(900, 600);
         SizeCondition = ImGuiCond.FirstUseEver;
     }
-
-    public void Dispose() { }
 
     public override void OnClose()
     {

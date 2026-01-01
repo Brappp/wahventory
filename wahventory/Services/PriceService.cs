@@ -39,11 +39,10 @@ public class PriceService : IDisposable
     {
         if (worldName == _currentWorld)
             return;
-        
+
         _currentWorld = worldName;
-        _universalisClient?.Dispose();
-        _universalisClient = new UniversalisClient(_log, worldName);
-        
+        _universalisClient.UpdateWorld(worldName);
+
         lock (_priceCacheLock)
         {
             _priceCache.Clear();

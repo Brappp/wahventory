@@ -81,15 +81,12 @@ public sealed class Plugin : IDalamudPlugin
     public void Dispose()
     {
         Framework.Update -= OnFrameworkUpdate;
-        
+
         WindowSystem.RemoveAllWindows();
-        
-        ConfigWindow.Dispose();
-        MainWindow.Dispose();
-        DiscardConfirmationWindow.Dispose();
+
         InventoryModule.Dispose();
         SearchModule.Dispose();
-        
+
         CommandManager.RemoveHandler(CommandName);
         ECommonsMain.Dispose();
     }

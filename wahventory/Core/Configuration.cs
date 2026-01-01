@@ -47,10 +47,8 @@ public class SafetyFilters
     public bool FilterUniqueUntradeable { get; set; } = true;
     public bool FilterHQItems { get; set; } = false;
     public bool FilterCollectables { get; set; } = false;
-    public bool FilterSpiritbondedItems { get; set; } = false;
-    
+
     public uint MaxGearItemLevel { get; set; } = 600;
-    public float MinSpiritbondToFilter { get; set; } = 100.0f;
 }
 
 [Serializable]

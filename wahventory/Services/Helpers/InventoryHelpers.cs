@@ -174,7 +174,6 @@ public unsafe class InventoryHelpers
             CanBeDiscarded = !item.IsIndisposable,
             CanBeTraded = !item.IsUntradable,
             IsCollectable = item.IsCollectable,
-            SpiritBond = 0, // Spiritbond not available in current struct
             Durability = slot->Condition,
             MaxDurability = 30000, // Standard max durability
             CategoryName = categoryName,
@@ -270,13 +269,7 @@ public unsafe class InventoryHelpers
             if (assessment.FlagColor < SafetyFlagColor.Info)
                 assessment.FlagColor = SafetyFlagColor.Info;
         }
-        if (item.SpiritBond >= settings.SafetyFilters.MinSpiritbondToFilter)
-        {
-            assessment.SafetyFlags.Add($"Spiritbond {item.SpiritBond}%");
-            if (assessment.FlagColor < SafetyFlagColor.Info)
-                assessment.FlagColor = SafetyFlagColor.Info;
-        }
-        
+
         return assessment;
     }
     

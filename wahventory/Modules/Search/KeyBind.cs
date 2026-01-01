@@ -41,13 +41,9 @@ public class KeyBind
         var active = ctrl && alt && shift && key;
 
         // Block keybind for the game if passthrough is disabled
-        if (active && !_settings.KeybindPassthrough)
+        if (active && !_settings.KeybindPassthrough && _settings.Keybind.Key is >= 0 and <= 254)
         {
-            try
-            {
-                _keyState[_settings.Keybind.Key] = false;
-            }
-            catch { }
+            _keyState[_settings.Keybind.Key] = false;
         }
 
         return active;

@@ -134,27 +134,7 @@ public class FilterPanelComponent
             filters.FilterCollectables = filterCollectables;
             changed = true;
         }
-        
-        var filterSpiritbond = filters.FilterSpiritbondedItems;
-        if (ImGui.Checkbox("Filter Spiritbonded Items", ref filterSpiritbond))
-        {
-            filters.FilterSpiritbondedItems = filterSpiritbond;
-            changed = true;
-        }
-        
-        if (filters.FilterSpiritbondedItems)
-        {
-            ImGui.Indent();
-            ImGui.SetNextItemWidth(100);
-            var minSpiritbond = filters.MinSpiritbondToFilter;
-            if (ImGui.SliderFloat("Min Spiritbond %", ref minSpiritbond, 0f, 100f))
-            {
-                filters.MinSpiritbondToFilter = minSpiritbond;
-                changed = true;
-            }
-            ImGui.Unindent();
-        }
-        
+
         if (changed)
         {
             OnFiltersChanged?.Invoke();

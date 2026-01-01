@@ -37,28 +37,20 @@ internal class LevelFilter : Filter
         byte value = 0;
         var found = false;
 
-        try
+        foreach (var op in OperatorsMap)
         {
-            foreach (var op in OperatorsMap)
+            if (term.StartsWith(op.Key))
             {
-                if (term.StartsWith(op.Key))
-                {
-                    comparison = op.Value;
-                    value = byte.Parse(term[op.Key.Length..]);
-                    found = true;
-                    break;
-                }
+                comparison = op.Value;
+                if (!byte.TryParse(term[op.Key.Length..], out value))
+                    return false;
+                found = true;
+                break;
             }
+        }
 
-            if (!found)
-            {
-                value = byte.Parse(term);
-            }
-        }
-        catch
-        {
+        if (!found && !byte.TryParse(term, out value))
             return false;
-        }
 
         return comparison switch
         {

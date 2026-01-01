@@ -35,8 +35,10 @@ public class ItemTableComponent
         using var style = ImRaii.PushStyle(ImGuiStyleVar.CellPadding, new Vector2(4, 2))
                                 .Push(ImGuiStyleVar.ItemSpacing, new Vector2(4, 2));
 
-        var columnCount = config.ShowMarketPrices ? 8 : 7;
-        var flags = ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable;
+        var columnCount = CalculateColumnCount(config);
+        var flags = ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadOuterX;
+        if (!config.NoBorders)
+            flags |= ImGuiTableFlags.Borders;
         if (config.Scrollable)
             flags |= ImGuiTableFlags.ScrollY;
 
@@ -47,7 +49,8 @@ public class ItemTableComponent
             if (table)
             {
                 SetupColumns(config);
-                ImGui.TableHeadersRow();
+                if (config.ShowHeaders)
+                    ImGui.TableHeadersRow();
 
                 foreach (var item in items)
                 {
@@ -66,67 +69,90 @@ public class ItemTableComponent
             config.OnNoItemHovered?.Invoke();
         }
     }
-    
-    private void SetupColumns(ItemTableConfig config)
+
+    private int CalculateColumnCount(ItemTableConfig config)
     {
-        float checkboxWidth = 22;
-        float idWidth = ImGui.CalcTextSize("99999").X + 8;
-        float qtyWidth = ImGui.CalcTextSize("999").X + 8;
-        float ilvlWidth = ImGui.CalcTextSize("999").X + 8;
-        float locationWidth = ImGui.CalcTextSize("P.Saddlebag 9").X + 8;
-        float categoryWidth = ImGui.CalcTextSize("Seasonal Miscellany").X + 8;
-        
-        if (config.ShowCheckbox)
-        {
-            ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, checkboxWidth);
-        }
-        
-        ImGui.TableSetupColumn("ID", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHide, idWidth);
-        ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch | ImGuiTableColumnFlags.NoHide);
-        ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHide, qtyWidth);
-        
-        if (config.ShowItemLevel)
-        {
-            ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed, ilvlWidth);
-        }
-        
-        if (config.ShowLocation)
-        {
-            ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, locationWidth);
-        }
-        
-        if (config.ShowCategory)
-        {
-            ImGui.TableSetupColumn("Category", ImGuiTableColumnFlags.WidthFixed, categoryWidth);
-        }
-        
+        int count = 3; // ID, Item, Qty are always shown
+
+        if (config.ShowCheckbox) count++;
+        if (config.ShowItemLevel) count++;
+        if (config.ShowLocation) count++;
+        if (config.ShowCategory) count++;
+
+        // These are mutually exclusive last columns
         if (config.ShowMarketPrices)
         {
-            float priceWidth = ImGui.CalcTextSize("999,999g").X + 8;
-            ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, priceWidth);
-            
+            count++; // Price column
+            if (config.ShowTotalValue) count++; // Total column
+        }
+        else if (config.ShowStatus) count++;
+        else if (config.ShowReason) count++;
+        else if (config.ShowActions) count++;
+
+        return count;
+    }
+    
+    // Static column widths for consistency across all tables
+    private static readonly float CheckboxWidth = 26f;
+    private static readonly float IdWidth = 50f;
+    private static readonly float QtyWidth = 35f;
+    private static readonly float ILvlWidth = 40f;
+    private static readonly float LocationWidth = 110f;
+    private static readonly float CategoryWidth = 130f;
+    private static readonly float PriceWidth = 75f;
+    private static readonly float TotalWidth = 90f;
+    private static readonly float StatusWidth = 100f;
+    private static readonly float ReasonWidth = 130f;
+    private static readonly float ActionsWidth = 60f;
+
+    private void SetupColumns(ItemTableConfig config)
+    {
+        if (config.ShowCheckbox)
+        {
+            ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, CheckboxWidth);
+        }
+
+        ImGui.TableSetupColumn("ID", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, IdWidth);
+        ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch | ImGuiTableColumnFlags.NoHide);
+        ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, QtyWidth);
+
+        if (config.ShowItemLevel)
+        {
+            ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, ILvlWidth);
+        }
+
+        if (config.ShowLocation)
+        {
+            ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, LocationWidth);
+        }
+
+        if (config.ShowCategory)
+        {
+            ImGui.TableSetupColumn("Category", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, CategoryWidth);
+        }
+
+        if (config.ShowMarketPrices)
+        {
+            ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, PriceWidth);
+
             if (config.ShowTotalValue)
             {
-                float totalWidth = ImGui.CalcTextSize("9,999,999g").X + 8;
-                ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed, totalWidth);
+                ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, TotalWidth);
             }
         }
         else if (config.ShowStatus)
         {
-            float statusWidth = ImGui.CalcTextSize("Not Discardable").X + 8;
-            ImGui.TableSetupColumn("Status", ImGuiTableColumnFlags.WidthFixed, statusWidth);
+            ImGui.TableSetupColumn("Status", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, StatusWidth);
         }
         else if (config.ShowReason)
         {
-            float reasonWidth = ImGui.CalcTextSize("Unique & Untradeable").X + 8;
-            ImGui.TableSetupColumn("Reason", ImGuiTableColumnFlags.WidthFixed, reasonWidth);
+            ImGui.TableSetupColumn("Reason", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, ReasonWidth);
         }
         else if (config.ShowActions)
         {
-            float actionsWidth = ImGui.CalcTextSize("Remove").X + 16;
-            ImGui.TableSetupColumn("Actions", ImGuiTableColumnFlags.WidthFixed, actionsWidth);
+            ImGui.TableSetupColumn("Actions", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, ActionsWidth);
         }
-        
+
         if (config.Scrollable)
         {
             ImGui.TableSetupScrollFreeze(0, 1);
@@ -454,6 +480,8 @@ public class ItemTableConfig
     public bool ShowReason { get; set; } = false;
     public bool ShowActions { get; set; } = false;
     public bool Scrollable { get; set; } = false;
+    public bool ShowHeaders { get; set; } = true;
+    public bool NoBorders { get; set; } = false;
     public string SearchFilter { get; set; } = string.Empty;
     
     public Func<InventoryItemInfo, bool>? IsItemSelected { get; set; }

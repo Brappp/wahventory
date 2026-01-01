@@ -72,6 +72,7 @@ public partial class InventoryManagementModule : IDisposable
             Plugin.Log,
             Plugin.ChatGui,
             Plugin.GameGui);
+        DiscardService.OnInventoryRefreshNeeded += RefreshInventory;
         _passiveDiscardService = new PassiveDiscardService(
             Plugin.ClientState,
             Plugin.Condition,
@@ -90,7 +91,7 @@ public partial class InventoryManagementModule : IDisposable
     {
         try
         {
-            var currentWorld = Plugin.ClientState.LocalPlayer?.CurrentWorld.Value.Name.ToString();
+            var currentWorld = Plugin.ObjectTable.LocalPlayer?.CurrentWorld.Value.Name.ToString();
             if (!string.IsNullOrEmpty(currentWorld))
             {
                 _selectedWorld = currentWorld;
@@ -112,7 +113,7 @@ public partial class InventoryManagementModule : IDisposable
         {
             try
             {
-                var currentWorld = Plugin.ClientState.LocalPlayer?.CurrentWorld.Value;
+                var currentWorld = Plugin.ObjectTable.LocalPlayer?.CurrentWorld.Value;
                 var worldName = currentWorld?.Name.ExtractText() ?? "Aether";
                 
                 if (currentWorld != null)
@@ -186,7 +187,7 @@ public partial class InventoryManagementModule : IDisposable
         // Update price service world if changed
         try
         {
-            var currentWorld = Plugin.ClientState.LocalPlayer?.CurrentWorld.Value.Name.ToString();
+            var currentWorld = Plugin.ObjectTable.LocalPlayer?.CurrentWorld.Value.Name.ToString();
             if (!string.IsNullOrEmpty(currentWorld) && currentWorld != _selectedWorld)
             {
                 _selectedWorld = currentWorld;
@@ -419,30 +420,39 @@ public partial class InventoryManagementModule : IDisposable
             Plugin.ChatGui.PrintError("No items configured for auto-discard. Add items in the Auto Discard tab.");
             return;
         }
-        
+
+        // Refresh inventory to get fresh data
+        RefreshInventory();
+
         List<InventoryItemInfo> itemsToDiscard;
         lock (_stateLock)
         {
-            itemsToDiscard = _allItems
-                .Where(item => AutoDiscardItems.Contains(item.ItemId) && 
+            itemsToDiscard = _originalItems
+                .Where(item => AutoDiscardItems.Contains(item.ItemId) &&
                               item.CanBeDiscarded &&
                               !BlacklistedItems.Contains(item.ItemId))
                 .ToList();
+
+            // Update prices from cache
+            foreach (var item in itemsToDiscard)
+            {
+                _priceService.UpdateItemPrice(item);
+            }
         }
-        
+
         if (!itemsToDiscard.Any())
         {
             Plugin.ChatGui.PrintError("No auto-discard items found in inventory.");
             return;
         }
-        
+
         List<uint> selectedItemIds;
         lock (_stateLock)
         {
             selectedItemIds = itemsToDiscard.Select(i => i.ItemId).Distinct().ToList();
         }
-        
-        DiscardService.PrepareDiscard(selectedItemIds, _originalItems, BlacklistedItems);
+
+        DiscardService.PrepareDiscard(selectedItemIds, _originalItems, BlacklistedItems, skipConfirmation: true);
     }
     
     public void Dispose()
@@ -451,7 +461,12 @@ public partial class InventoryManagementModule : IDisposable
         {
             _plugin.ConfigManager.SaveConfiguration();
         }
-        
+
+        if (DiscardService != null)
+        {
+            DiscardService.OnInventoryRefreshNeeded -= RefreshInventory;
+        }
+
         _priceService?.Dispose();
         DiscardService?.Dispose();
         _iconCache?.Dispose();

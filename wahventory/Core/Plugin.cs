@@ -51,7 +51,7 @@ public sealed class Plugin : IDalamudPlugin
         SearchModule = new SearchModule(
             GameGui,
             DataManager,
-            ClientState,
+            ObjectTable,
             KeyState,
             Configuration.SearchBarSettings,
             WindowSystem);

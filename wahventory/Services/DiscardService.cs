@@ -31,6 +31,7 @@ public class DiscardService : IDisposable
     public event Action? OnDiscardCancelled;
     public event Action<int, int>? OnDiscardProgress; // current, total
     public event Action<string>? OnDiscardError;
+    public event Action? OnInventoryRefreshNeeded;
     
     public bool IsDiscarding => _isDiscarding;
     public int DiscardProgress => _discardProgress;
@@ -54,30 +55,40 @@ public class DiscardService : IDisposable
     public void PrepareDiscard(
         IEnumerable<uint> selectedItemIds,
         IEnumerable<InventoryItemInfo> allItems,
-        HashSet<uint> blacklistedItems)
+        HashSet<uint> blacklistedItems,
+        bool skipConfirmation = false)
     {
         var actualItemsToDiscard = new List<InventoryItemInfo>();
-        
+
         foreach (var selectedItemId in selectedItemIds)
         {
-            var actualItems = allItems.Where(i => 
-                i.ItemId == selectedItemId && 
+            var actualItems = allItems.Where(i =>
+                i.ItemId == selectedItemId &&
                 InventoryHelpers.IsSafeToDiscard(i, blacklistedItems)).ToList();
-            
+
             _log.Information($"Found {actualItems.Count} instances of item {selectedItemId} to discard");
             actualItemsToDiscard.AddRange(actualItems);
         }
-        
+
         _itemsToDiscard = actualItemsToDiscard;
         _log.Information($"Items to discard after filtering: {_itemsToDiscard.Count}");
-        
+
         if (_itemsToDiscard.Count > 0)
         {
             _isDiscarding = true;
             _discardProgress = 0;
             _discardError = null;
             _log.Information("Discard preparation successful");
-            OnDiscardStarted?.Invoke();
+
+            if (skipConfirmation)
+            {
+                _chatGui.Print($"Auto-discarding {_itemsToDiscard.Count} item(s)...");
+                StartDiscarding();
+            }
+            else
+            {
+                OnDiscardStarted?.Invoke();
+            }
         }
         else
         {
@@ -109,35 +120,53 @@ public class DiscardService : IDisposable
         _discardError = null;
         _confirmRetryCount = 0;
         _discardStartTime = DateTime.MinValue;
-        
+
         OnDiscardCancelled?.Invoke();
+        OnInventoryRefreshNeeded?.Invoke();
     }
     
     private unsafe void DiscardNextItem()
     {
         _log.Information($"DiscardNextItem called. Progress: {_discardProgress}/{_itemsToDiscard.Count}");
-        
+
         if (_discardProgress >= _itemsToDiscard.Count)
         {
             _chatGui.Print("Finished discarding items.");
             _isDiscarding = false;
             OnDiscardCompleted?.Invoke();
-            CancelDiscard();
+            OnInventoryRefreshNeeded?.Invoke();
+            _itemsToDiscard.Clear();
+            _discardProgress = 0;
+            _discardError = null;
+            _confirmRetryCount = 0;
+            _discardStartTime = DateTime.MinValue;
             return;
         }
-        
+
         var item = _itemsToDiscard[_discardProgress];
         _log.Information($"Attempting to discard item: {item.Name} (ID: {item.ItemId})");
-        
+
         try
         {
-            _inventoryHelpers.DiscardItem(item);
+            // Re-fetch fresh item location from inventory to handle slot shifts
+            var freshItem = _inventoryHelpers.FindItemInInventory(item.ItemId, item.Container);
+            if (freshItem == null)
+            {
+                _log.Warning($"Item {item.Name} no longer found in inventory, skipping");
+                _discardProgress++;
+                OnDiscardProgress?.Invoke(_discardProgress, _itemsToDiscard.Count);
+                _taskManager.EnqueueDelay(100);
+                _taskManager.Enqueue(() => DiscardNextItem());
+                return;
+            }
+
+            _inventoryHelpers.DiscardItem(freshItem);
             _discardProgress++;
             OnDiscardProgress?.Invoke(_discardProgress, _itemsToDiscard.Count);
             _log.Information($"Discard call completed for {item.Name}");
-            
+
             _discardStartTime = DateTime.Now;
-            
+
             _taskManager.EnqueueDelay(500);
             _taskManager.Enqueue(() => ConfirmDiscard());
         }

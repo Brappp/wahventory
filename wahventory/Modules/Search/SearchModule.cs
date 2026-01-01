@@ -12,7 +12,7 @@ namespace wahventory.Modules.Search;
 
 public class SearchModule : IDisposable
 {
-    private readonly IClientState _clientState;
+    private readonly IObjectTable _objectTable;
     private readonly SearchBarSettings _settings;
 
     private readonly InventoriesManager _inventoriesManager;
@@ -29,12 +29,12 @@ public class SearchModule : IDisposable
     public SearchModule(
         IGameGui gameGui,
         IDataManager dataManager,
-        IClientState clientState,
+        IObjectTable objectTable,
         IKeyState keyState,
         SearchBarSettings settings,
         WindowSystem windowSystem)
     {
-        _clientState = clientState;
+        _objectTable = objectTable;
         _settings = settings;
 
         KeyboardHelper.Initialize();
@@ -60,7 +60,7 @@ public class SearchModule : IDisposable
 
     public void Update()
     {
-        if (_clientState.LocalPlayer == null) return;
+        if (_objectTable.LocalPlayer == null) return;
 
         KeyboardHelper.Instance?.Update();
         _inventoriesManager.Update();
@@ -77,7 +77,7 @@ public class SearchModule : IDisposable
 
     public void Draw()
     {
-        if (_clientState.LocalPlayer == null) return;
+        if (_objectTable.LocalPlayer == null) return;
 
         if (_highlightedItemId.HasValue)
         {

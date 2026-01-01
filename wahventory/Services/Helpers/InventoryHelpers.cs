@@ -291,6 +291,49 @@ public unsafe class InventoryHelpers
         return true;
     }
     
+    public InventoryItemInfo? FindItemInInventory(uint itemId, InventoryType preferredContainer)
+    {
+        var inventoryManager = InventoryManager.Instance();
+        if (inventoryManager == null)
+            return null;
+
+        // First try the preferred container
+        var container = inventoryManager->GetInventoryContainer(preferredContainer);
+        if (container != null)
+        {
+            for (var i = 0; i < container->Size; i++)
+            {
+                var slot = container->GetInventorySlot(i);
+                if (slot != null && slot->ItemId == itemId)
+                {
+                    return CreateItemInfo(slot, preferredContainer, (short)i);
+                }
+            }
+        }
+
+        // If not found, search all main inventories
+        foreach (var inventoryType in MainInventories)
+        {
+            if (inventoryType == preferredContainer)
+                continue;
+
+            container = inventoryManager->GetInventoryContainer(inventoryType);
+            if (container == null)
+                continue;
+
+            for (var i = 0; i < container->Size; i++)
+            {
+                var slot = container->GetInventorySlot(i);
+                if (slot != null && slot->ItemId == itemId)
+                {
+                    return CreateItemInfo(slot, inventoryType, (short)i);
+                }
+            }
+        }
+
+        return null;
+    }
+
     public void DiscardItem(InventoryItemInfo item)
     {
         var inventoryManager = InventoryManager.Instance();
@@ -298,13 +341,13 @@ public unsafe class InventoryHelpers
         {
             throw new InvalidOperationException("InventoryManager is null");
         }
-        
+
         var container = inventoryManager->GetInventoryContainer(item.Container);
         if (container == null)
         {
             throw new InvalidOperationException($"Container {item.Container} not found");
         }
-        
+
         var slot = container->GetInventorySlot(item.Slot);
         if (slot == null || slot->ItemId != item.ItemId)
         {
@@ -315,7 +358,7 @@ public unsafe class InventoryHelpers
         {
             throw new InvalidOperationException("AgentInventoryContext is null");
         }
-        
+
         agentInventoryContext->DiscardItem(slot, item.Container, item.Slot, 0);
     }
 }

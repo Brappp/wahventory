@@ -200,68 +200,107 @@ public partial class InventoryManagementModule
         {
             categoriesCopy = new List<CategoryGroup>(_categories);
         }
-        
+
         if (!string.IsNullOrWhiteSpace(_searchFilter))
         {
             DrawSearchResultsView(categoriesCopy);
             return;
         }
-        
+
+        // Draw a persistent header row
+        DrawTableHeader();
+
         foreach (var category in categoriesCopy)
         {
             if (category.Items.Count == 0) continue;
-            
+
             var isExpanded = ExpandedCategories.GetValueOrDefault(category.CategoryId, true);
             using var id = ImRaii.PushId($"Category_{category.CategoryId}");
             var nodeFlags = ImGuiTreeNodeFlags.AllowItemOverlap | ImGuiTreeNodeFlags.SpanAvailWidth;
             if (isExpanded) nodeFlags |= ImGuiTreeNodeFlags.DefaultOpen;
-            
+
             using (var node = ImRaii.TreeNode($"{category.Name}###{category.CategoryId}_node", nodeFlags))
             {
                 ImGui.SameLine();
                 ImGui.TextColored(ColorInfo, $"({category.Items.Count} items, {category.TotalQuantity} total)");
-                
+
                 if (Settings.ShowMarketPrices && category.TotalValue.HasValue)
                 {
                     ImGui.SameLine();
                     ImGui.TextColored(ColorPrice, $"{category.TotalValue.Value:N0} gil");
                 }
-                
+
                 var selectAllWidth = 90f;
                 var windowWidth = ImGui.GetWindowContentRegionMax().X;
                 ImGui.SameLine(windowWidth - selectAllWidth - 10);
                 DrawCategoryControls(category);
-                
+
                 if (node)
                 {
                     ExpandedCategories[category.CategoryId] = true;
                     _expandedCategoriesChanged = true;
-                    DrawCategoryItems(category);
+                    DrawCategoryItems(category, showHeaders: false);
                 }
                 else
                 {
                     ExpandedCategories[category.CategoryId] = false;
                     _expandedCategoriesChanged = true;
                 }
-                
+
                 ImGui.Spacing();
             }
         }
     }
+
+    private void DrawTableHeader()
+    {
+        using var style = ImRaii.PushStyle(ImGuiStyleVar.CellPadding, new Vector2(4, 2))
+                                .Push(ImGuiStyleVar.ItemSpacing, new Vector2(4, 2));
+
+        // Column count: Checkbox, ID, Item, Qty, iLvl + (Price, Total) or (Location)
+        int columnCount = Settings.ShowMarketPrices ? 7 : 6;
+
+        using (var table = ImRaii.Table("AvailableItemsHeader", columnCount,
+            ImGuiTableFlags.Borders | ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadOuterX))
+        {
+            if (table)
+            {
+                // Setup columns with same widths as ItemTableComponent
+                ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 26f);
+                ImGui.TableSetupColumn("ID", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 50f);
+                ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch | ImGuiTableColumnFlags.NoHide);
+                ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 35f);
+                ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 40f);
+
+                if (Settings.ShowMarketPrices)
+                {
+                    ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 75f);
+                    ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 90f);
+                }
+                else
+                {
+                    ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 110f);
+                }
+
+                ImGui.TableHeadersRow();
+            }
+        }
+    }
     
-    private void DrawCategoryItems(CategoryGroup category)
+    private void DrawCategoryItems(CategoryGroup category, bool showHeaders = true)
     {
         if (_itemTable == null)
             InitializeUIComponents();
-        
+
         var config = new ItemTableConfig
         {
             TableId = $"CategoryTable_{category.CategoryId}",
             ShowCheckbox = true,
             ShowItemLevel = true,
-            ShowLocation = true,
+            ShowLocation = !Settings.ShowMarketPrices,
             ShowMarketPrices = Settings.ShowMarketPrices,
             ShowTotalValue = Settings.ShowMarketPrices,
+            ShowHeaders = showHeaders,
             SearchFilter = _searchFilter,
             IsItemSelected = (item) =>
             {
@@ -921,6 +960,12 @@ public partial class InventoryManagementModule
                         lock (_stateLock)
                         {
                             selectedItemIds = _selectedItems.ToList();
+
+                            // Update prices from cache before preparing discard
+                            foreach (var item in _originalItems.Where(i => selectedItemIds.Contains(i.ItemId)))
+                            {
+                                _priceService.UpdateItemPrice(item);
+                            }
                         }
                         DiscardService.PrepareDiscard(selectedItemIds, _originalItems, BlacklistedItems);
                     }

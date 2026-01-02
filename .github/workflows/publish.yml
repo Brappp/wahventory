@@ -1,0 +1,48 @@
+name: Publish to Dynamis
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Download Dalamud
+        run: |
+          wget https://goatcorp.github.io/dalamud-distrib/latest.zip -O dalamud.zip
+          unzip dalamud.zip -d dalamud
+
+      - name: Build
+        run: |
+          dotnet restore
+          dotnet build -c Release -p:DalamudLibPath=$PWD/dalamud
+        env:
+          DOTNET_NOLOGO: true
+
+      - name: Find plugin zip
+        id: find_zip
+        run: |
+          ZIP_PATH=$(find . -name "latest.zip" -path "*/Release/*" | head -1)
+          echo "zip_path=$ZIP_PATH" >> $GITHUB_OUTPUT
+          echo "Found zip at: $ZIP_PATH"
+
+      - name: Publish to Dynamis
+        uses: PunishXIV/dynamis-action@manifestparsing
+        with:
+          plugin_id: "91"
+          internal_name: "wahventory"
+          path: ${{ steps.find_zip.outputs.zip_path }}
+          type: "testing"
+        env:
+          PUBLISHER_KEY: ${{ secrets.PUBLISHER_KEY }}

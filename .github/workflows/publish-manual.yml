@@ -1,0 +1,52 @@
+name: Publish to Dynamis (Manual Test)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  Build:
+    runs-on: ubuntu-latest
+    env:
+      DALAMUD_HOME: /tmp/dalamud
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Download Dalamud Latest
+        run: |
+          wget https://goatcorp.github.io/dalamud-distrib/latest.zip -O ${{ env.DALAMUD_HOME }}.zip
+          unzip ${{ env.DALAMUD_HOME }}.zip -d ${{ env.DALAMUD_HOME }}
+
+      - name: Restore Project
+        run: dotnet restore
+
+      - name: Build Project
+        run: dotnet build --configuration Release wahventory/wahventory.csproj
+
+      - name: Create plugin zip
+        run: |
+          cd wahventory/bin/Release
+          zip wahventory.zip wahventory.json wahventory.dll
+
+      - name: Publish to Dynamis (OLD WAY - manual inputs)
+        uses: PunishXIV/dynamis-action@manifestparsing
+        with:
+          plugin_id: "91"
+          internal_name: "wahventory"
+          path: "wahventory/bin/Release/wahventory.zip"
+          type: "testing"
+          version_number: "4.1.0.2"
+          dalamud_version: "14"
+          changelog: "Testing manual input mode"
+        env:
+          PUBLISHER_KEY: ${{ secrets.PUBLISHER_KEY }}

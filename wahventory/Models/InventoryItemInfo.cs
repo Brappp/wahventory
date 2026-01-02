@@ -17,7 +17,6 @@ public class InventoryItemInfo
     public bool CanBeDiscarded { get; set; }
     public bool CanBeTraded { get; set; }
     public bool IsCollectable { get; set; }
-    public int SpiritBond { get; set; }
     public int Durability { get; set; }
     public int MaxDurability { get; set; }
     public string CategoryName { get; set; } = string.Empty;
@@ -29,6 +28,7 @@ public class InventoryItemInfo
     public bool IsUntradable { get; set; }
     public bool IsIndisposable { get; set; }
     public uint EquipSlotCategory { get; set; }
+    public string ClassJobCategoryName { get; set; } = string.Empty;
     public SafetyAssessment? SafetyAssessment { get; set; }
     public bool IsSelected { get; set; }
     public long? MarketPrice { get; set; }

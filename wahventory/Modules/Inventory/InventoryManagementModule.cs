@@ -7,6 +7,7 @@ using Dalamud.Interface.Utility.Raii;
 using Dalamud.Bindings.ImGui;
 using wahventory.Core;
 using wahventory.Models;
+using wahventory.Modules.Search;
 using wahventory.Services;
 using wahventory.Services.Helpers;
 
@@ -41,8 +42,20 @@ public partial class InventoryManagementModule : IDisposable
     private readonly HashSet<uint> _selectedItems = new();
     
     private string _searchFilter = string.Empty;
+    private string _jobFilter = string.Empty;
     private bool _showArmory = false;
     private string _selectedWorld = "";
+
+    private static readonly string[] JobAbbreviations = new[]
+    {
+        "", "PLD", "WAR", "DRK", "GNB",  // Tanks
+        "WHM", "SCH", "AST", "SGE",       // Healers
+        "MNK", "DRG", "NIN", "SAM", "RPR", "VPR", // Melee DPS
+        "BRD", "MCH", "DNC",              // Ranged DPS
+        "BLM", "SMN", "RDM", "PCT",       // Casters
+        "CRP", "BSM", "ARM", "GSM", "LTW", "WVR", "ALC", "CUL", // Crafters
+        "MIN", "BTN", "FSH"               // Gatherers
+    };
     private List<string> _availableWorlds = new();
     
     private DateTime _lastRefresh = DateTime.MinValue;
@@ -51,7 +64,8 @@ public partial class InventoryManagementModule : IDisposable
     private DateTime _lastConfigSave = DateTime.MinValue;
     private readonly TimeSpan _configSaveInterval = TimeSpan.FromSeconds(2);
     private bool _windowIsOpen = false;
-    
+    private SearchModule? _currentSearchModule;
+
     private InventorySettings Settings => _plugin.Configuration.InventorySettings;
     private Dictionary<uint, bool> ExpandedCategories => Settings.ExpandedCategories;
     
@@ -70,6 +84,7 @@ public partial class InventoryManagementModule : IDisposable
             Plugin.Log,
             Plugin.ChatGui,
             Plugin.GameGui);
+        DiscardService.OnInventoryRefreshNeeded += RefreshInventory;
         _passiveDiscardService = new PassiveDiscardService(
             Plugin.ClientState,
             Plugin.Condition,
@@ -81,8 +96,6 @@ public partial class InventoryManagementModule : IDisposable
         AutoDiscardItems = _plugin.ConfigManager.LoadAutoDiscard();
         _selectedWorld = "Excalibur";
         
-        PopulateAvailableWorlds();
-        InitializeWorld();
         InitializeUIComponents();
     }
     
@@ -90,76 +103,65 @@ public partial class InventoryManagementModule : IDisposable
     {
         try
         {
-            var currentWorld = Plugin.ClientState.LocalPlayer?.CurrentWorld.Value.Name.ToString();
+            var currentWorld = Plugin.ObjectTable.LocalPlayer?.CurrentWorld.Value.Name.ToString();
             if (!string.IsNullOrEmpty(currentWorld))
             {
                 _selectedWorld = currentWorld;
                 _priceService.UpdateWorld(_selectedWorld);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore errors during initialization
+            Plugin.Log.Debug($"World initialization deferred: {ex.Message}");
         }
     }
-    
+
     private void PopulateAvailableWorlds()
     {
         _availableWorlds.Clear();
-        
-        var worldSheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.World>();
-        if (worldSheet != null)
+        var fallbackWorld = "Aether";
+
+        try
         {
-            try
+            var worldSheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.World>();
+            if (worldSheet == null)
             {
-                var currentWorld = Plugin.ClientState.LocalPlayer?.CurrentWorld.Value;
-                var worldName = currentWorld?.Name.ExtractText() ?? "Aether";
-                
-                if (currentWorld != null)
-                {
-                    try
-                    {
-                        var worldRow = worldSheet.FirstOrDefault(w => w.Name.ExtractText() == worldName);
-                        if (worldRow.RowId > 0)
-                        {
-                            try
-                            {
-                                var currentDatacenterId = worldRow.DataCenter.RowId;
-                                
-                                var datacenterWorlds = worldSheet
-                                    .Where(w => w.DataCenter.RowId == currentDatacenterId && w.IsPublic)
-                                    .Select(w => w.Name.ExtractText())
-                                    .Where(name => !string.IsNullOrEmpty(name))
-                                    .OrderBy(w => w)
-                                    .ToList();
-                                
-                                _availableWorlds = datacenterWorlds;
-                            }
-                            catch
-                            {
-                                _availableWorlds = new List<string> { worldName };
-                            }
-                        }
-                        else
-                        {
-                            _availableWorlds = new List<string> { worldName };
-                        }
-                    }
-                    catch
-                    {
-                        _availableWorlds = new List<string> { worldName };
-                    }
-                }
-                else
-                {
-                    _availableWorlds = new List<string> { worldName };
-                }
+                _availableWorlds = new List<string> { fallbackWorld };
+                return;
             }
-            catch (Exception ex)
+
+            var currentWorld = Plugin.ObjectTable.LocalPlayer?.CurrentWorld.Value;
+            var worldName = currentWorld?.Name.ExtractText();
+
+            if (string.IsNullOrEmpty(worldName))
             {
-                Plugin.Log.Warning($"Failed to get datacenter worlds: {ex.Message}");
-                _availableWorlds = new List<string> { "Aether" };
+                _availableWorlds = new List<string> { fallbackWorld };
+                return;
             }
+
+            fallbackWorld = worldName;
+
+            var worldRow = worldSheet.FirstOrDefault(w => w.Name.ExtractText() == worldName);
+            if (worldRow.RowId == 0)
+            {
+                _availableWorlds = new List<string> { worldName };
+                return;
+            }
+
+            var currentDatacenterId = worldRow.DataCenter.RowId;
+            var datacenterWorlds = worldSheet
+                .Where(w => w.DataCenter.RowId == currentDatacenterId && w.IsPublic)
+                .Select(w => w.Name.ExtractText())
+                .Where(name => !string.IsNullOrEmpty(name))
+                .OrderBy(w => w)
+                .ToList();
+
+            _availableWorlds = datacenterWorlds.Count > 0 ? datacenterWorlds : new List<string> { worldName };
+        }
+        catch (Exception ex)
+        {
+            Plugin.Log.Warning($"Failed to populate worlds: {ex.Message}");
+            _availableWorlds = new List<string> { fallbackWorld };
         }
     }
     
@@ -168,6 +170,7 @@ public partial class InventoryManagementModule : IDisposable
         if (_initialized)
             return;
         
+        PopulateAvailableWorlds();
         InitializeWorld();
         RefreshInventory();
         _initialized = true;
@@ -183,18 +186,19 @@ public partial class InventoryManagementModule : IDisposable
         _priceService.CleanupStuckFetches();
         
         // Update price service world if changed
-        try
+        var player = Plugin.ObjectTable.LocalPlayer;
+        if (player != null)
         {
-            var currentWorld = Plugin.ClientState.LocalPlayer?.CurrentWorld.Value.Name.ToString();
-            if (!string.IsNullOrEmpty(currentWorld) && currentWorld != _selectedWorld)
+            var world = player.CurrentWorld;
+            if (world.RowId != 0)
             {
-                _selectedWorld = currentWorld;
-                _priceService.UpdateWorld(_selectedWorld);
+                var currentWorld = world.Value.Name.ToString();
+                if (!string.IsNullOrEmpty(currentWorld) && currentWorld != _selectedWorld)
+                {
+                    _selectedWorld = currentWorld;
+                    _priceService.UpdateWorld(_selectedWorld);
+                }
             }
-        }
-        catch
-        {
-            // Ignore
         }
         
         // Auto-refresh prices
@@ -244,9 +248,10 @@ public partial class InventoryManagementModule : IDisposable
             ExecuteAutoDiscard);
     }
     
-    public void Draw()
+    public void Draw(SearchModule? searchModule = null)
     {
         _windowIsOpen = true;
+        _currentSearchModule = searchModule;
         if (!_initialized)
         {
             Initialize();
@@ -256,86 +261,103 @@ public partial class InventoryManagementModule : IDisposable
     
     private void DrawMainContent()
     {
-        DrawTopControls();
-        DrawFiltersAndSettings();
-        
-        ImGui.Separator();
         var windowHeight = ImGui.GetWindowHeight();
-        var currentY = ImGui.GetCursorPosY();
-        var bottomBarHeight = 42f;
-        var separatorHeight = ImGui.GetStyle().ItemSpacing.Y * 2 + 2;
-        var tabBarHeight = ImGui.GetFrameHeight();
-        var contentHeight = windowHeight - currentY - bottomBarHeight - separatorHeight - tabBarHeight - 10f;
+        var windowWidth = ImGui.GetWindowWidth();
+        var bottomBarHeight = 28f;
+        var sidebarWidth = 170f;
+        var contentHeight = windowHeight - ImGui.GetCursorPosY() - bottomBarHeight - 8f;
         contentHeight = Math.Max(100f, contentHeight);
-        
-        using (var tabBar = ImRaii.TabBar("InventoryTabs"))
+
+        // Sidebar
+        using (var sidebar = ImRaii.Child("Sidebar", new Vector2(sidebarWidth, contentHeight), true))
         {
-            if (tabBar)
+            if (sidebar)
             {
-                List<InventoryItemInfo> filteredItems;
-                lock (_stateLock)
-                {
-                    filteredItems = GetProtectedItems();
-                }
-                
-                int availableCount;
-                lock (_stateLock)
-                {
-                    availableCount = _categories.Sum(c => c.Items.Count);
-                }
-                
-                string availableTabText = $"Available Items ({availableCount})###AvailableTab";
-                using (var tabItem = ImRaii.TabItem(availableTabText))
-                {
-                    if (tabItem)
-                    {
-                        using (var child = ImRaii.Child("AvailableContent", new Vector2(0, contentHeight), false))
-                        {
-                            DrawAvailableItemsTab();
-                        }
-                    }
-                }
-                
-                string protectedTabText = $"Protected Items ({filteredItems.Count})###ProtectedTab";
-                using (var tabItem = ImRaii.TabItem(protectedTabText))
-                {
-                    if (tabItem)
-                    {
-                        using (var child = ImRaii.Child("ProtectedContent", new Vector2(0, contentHeight), false))
-                        {
-                            DrawProtectedItemsTab(filteredItems);
-                        }
-                    }
-                }
-                
-                string blacklistTabText = "Blacklist Management###BlacklistTab";
-                using (var tabItem = ImRaii.TabItem(blacklistTabText))
-                {
-                    if (tabItem)
-                    {
-                        using (var child = ImRaii.Child("BlacklistContent", new Vector2(0, contentHeight), false))
-                        {
-                            DrawBlacklistTab();
-                        }
-                    }
-                }
-                
-                string autoDiscardTabText = "Auto Discard###AutoDiscardTab";
-                using (var tabItem = ImRaii.TabItem(autoDiscardTabText))
-                {
-                    if (tabItem)
-                    {
-                        using (var child = ImRaii.Child("AutoDiscardContent", new Vector2(0, contentHeight), false))
-                        {
-                            DrawAutoDiscardTab();
-                        }
-                    }
-                }
+                DrawSidebar();
             }
         }
-        
-        ImGui.Separator();
-        DrawBottomActionBar();
+
+        ImGui.SameLine();
+
+        // Main content area (includes bottom bar)
+        using (var mainArea = ImRaii.Child("MainArea", new Vector2(0, contentHeight + bottomBarHeight), false))
+        {
+            if (mainArea)
+            {
+                var tabContentHeight = ImGui.GetContentRegionAvail().Y - ImGui.GetFrameHeight() - bottomBarHeight - 4;
+
+                using (var tabBar = ImRaii.TabBar("InventoryTabs"))
+                {
+                    // Draw search bar on the right side of tab bar
+                    DrawSearchBar();
+                    if (tabBar)
+                    {
+                        List<InventoryItemInfo> filteredItems;
+                        lock (_stateLock)
+                        {
+                            filteredItems = GetProtectedItems();
+                        }
+
+                        int availableCount;
+                        lock (_stateLock)
+                        {
+                            availableCount = _categories.Sum(c => c.Items.Count);
+                        }
+
+                        string availableTabText = $"Available ({availableCount})###AvailableTab";
+                        using (var tabItem = ImRaii.TabItem(availableTabText))
+                        {
+                            if (tabItem)
+                            {
+                                using (var child = ImRaii.Child("AvailableContent", new Vector2(0, tabContentHeight - ImGui.GetFrameHeight() - 8), false))
+                                {
+                                    DrawAvailableItemsTab();
+                                }
+                            }
+                        }
+
+                        string protectedTabText = $"Protected ({filteredItems.Count})###ProtectedTab";
+                        using (var tabItem = ImRaii.TabItem(protectedTabText))
+                        {
+                            if (tabItem)
+                            {
+                                using (var child = ImRaii.Child("ProtectedContent", new Vector2(0, tabContentHeight - ImGui.GetFrameHeight() - 8), false))
+                                {
+                                    DrawProtectedItemsTab(filteredItems);
+                                }
+                            }
+                        }
+
+                        string blacklistTabText = "Blacklist###BlacklistTab";
+                        using (var tabItem = ImRaii.TabItem(blacklistTabText))
+                        {
+                            if (tabItem)
+                            {
+                                using (var child = ImRaii.Child("BlacklistContent", new Vector2(0, tabContentHeight - ImGui.GetFrameHeight() - 8), false))
+                                {
+                                    DrawBlacklistTab();
+                                }
+                            }
+                        }
+
+                        string autoDiscardTabText = "Auto Discard###AutoDiscardTab";
+                        using (var tabItem = ImRaii.TabItem(autoDiscardTabText))
+                        {
+                            if (tabItem)
+                            {
+                                using (var child = ImRaii.Child("AutoDiscardContent", new Vector2(0, tabContentHeight - ImGui.GetFrameHeight() - 8), false))
+                                {
+                                    DrawAutoDiscardTab();
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Bottom action bar inside main content area
+                DrawBottomActionBar();
+            }
+        }
     }
     
     private void RefreshInventory()
@@ -369,13 +391,21 @@ public partial class InventoryManagementModule : IDisposable
         {
             itemsCopy = new List<InventoryItemInfo>(_originalItems);
         }
-        
+
         var filteredItems = _filterService.ApplyFilters(
             itemsCopy,
             Settings.SafetyFilters,
             BlacklistedItems,
             _searchFilter);
-        
+
+        // Apply job filter
+        if (!string.IsNullOrEmpty(_jobFilter))
+        {
+            filteredItems = filteredItems.Where(item =>
+                !string.IsNullOrEmpty(item.ClassJobCategoryName) &&
+                item.ClassJobCategoryName.Contains(_jobFilter, StringComparison.OrdinalIgnoreCase));
+        }
+
         lock (_stateLock)
         {
             _allItems = filteredItems.ToList();
@@ -417,30 +447,39 @@ public partial class InventoryManagementModule : IDisposable
             Plugin.ChatGui.PrintError("No items configured for auto-discard. Add items in the Auto Discard tab.");
             return;
         }
-        
+
+        // Refresh inventory to get fresh data
+        RefreshInventory();
+
         List<InventoryItemInfo> itemsToDiscard;
         lock (_stateLock)
         {
-            itemsToDiscard = _allItems
-                .Where(item => AutoDiscardItems.Contains(item.ItemId) && 
+            itemsToDiscard = _originalItems
+                .Where(item => AutoDiscardItems.Contains(item.ItemId) &&
                               item.CanBeDiscarded &&
                               !BlacklistedItems.Contains(item.ItemId))
                 .ToList();
+
+            // Update prices from cache
+            foreach (var item in itemsToDiscard)
+            {
+                _priceService.UpdateItemPrice(item);
+            }
         }
-        
+
         if (!itemsToDiscard.Any())
         {
             Plugin.ChatGui.PrintError("No auto-discard items found in inventory.");
             return;
         }
-        
+
         List<uint> selectedItemIds;
         lock (_stateLock)
         {
             selectedItemIds = itemsToDiscard.Select(i => i.ItemId).Distinct().ToList();
         }
-        
-        DiscardService.PrepareDiscard(selectedItemIds, _originalItems, BlacklistedItems);
+
+        DiscardService.PrepareDiscard(selectedItemIds, _originalItems, BlacklistedItems, skipConfirmation: true);
     }
     
     public void Dispose()
@@ -449,7 +488,12 @@ public partial class InventoryManagementModule : IDisposable
         {
             _plugin.ConfigManager.SaveConfiguration();
         }
-        
+
+        if (DiscardService != null)
+        {
+            DiscardService.OnInventoryRefreshNeeded -= RefreshInventory;
+        }
+
         _priceService?.Dispose();
         DiscardService?.Dispose();
         _iconCache?.Dispose();

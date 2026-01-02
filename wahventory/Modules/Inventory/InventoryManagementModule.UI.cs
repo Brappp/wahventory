@@ -14,27 +14,23 @@ namespace wahventory.Modules.Inventory;
 
 public partial class InventoryManagementModule
 {
-    private FilterPanelComponent? _filterPanel;
     private ItemTableComponent? _itemTable;
     private SearchComponent? _blacklistSearch;
     private SearchComponent? _autoDiscardSearch;
-    
+
+    // Sort state for available items table
+    private int _availableSortColumn = -1;
+    private bool _availableSortAscending = true;
+
     private static readonly Vector4 ColorPrice = new(1f, 0.8f, 0.2f, 1f);
     private static readonly Vector4 ColorWarning = new(0.9f, 0.5f, 0.1f, 1f);
     private static readonly Vector4 ColorInfo = new(0.7f, 0.7f, 0.7f, 1f);
     private static readonly Vector4 ColorSubdued = new(0.6f, 0.6f, 0.6f, 1f);
     private static readonly Vector4 ColorError = new(0.8f, 0.2f, 0.2f, 1f);
     private static readonly Vector4 ColorSuccess = new(0.2f, 0.8f, 0.2f, 1f);
-    
+
     private void InitializeUIComponents()
     {
-        _filterPanel = new FilterPanelComponent();
-        _filterPanel.OnFiltersChanged += () =>
-        {
-            _plugin.ConfigManager.SaveConfiguration();
-            UpdateCategories();
-        };
-        
         _itemTable = new ItemTableComponent(_iconCache);
         _blacklistSearch = new SearchComponent(_searchService, _iconCache);
         _blacklistSearch.OnItemSelected += (itemId) =>
@@ -46,7 +42,7 @@ public partial class InventoryManagementModule
                 RefreshInventory();
             }
         };
-        
+
         _autoDiscardSearch = new SearchComponent(_searchService, _iconCache);
         _autoDiscardSearch.OnItemSelected += (itemId) =>
         {
@@ -59,140 +55,234 @@ public partial class InventoryManagementModule
         };
     }
     
-    private void DrawTopControls()
+    private void DrawSidebar()
     {
-        using var style = ImRaii.PushStyle(ImGuiStyleVar.FramePadding, new Vector2(6, 5))
-                                .Push(ImGuiStyleVar.ItemSpacing, new Vector2(8, 4));
-        using var color = ImRaii.PushColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f));
-        
-        using (var child = ImRaii.Child("TopBar", new Vector2(0, 40), true, ImGuiWindowFlags.NoScrollbar))
+        using var style = ImRaii.PushStyle(ImGuiStyleVar.ItemSpacing, new Vector2(4, 6));
+
+        // Source Section
+        ImGui.TextColored(ColorInfo, "SOURCE");
+        ImGui.Separator();
+        if (ImGui.Checkbox("Include Armory", ref _showArmory))
         {
-            ImGui.SetCursorPosY(ImGui.GetCursorPosY() + 2);
-            
-            using (var font = ImRaii.PushFont(UiBuilder.IconFont))
+            RefreshInventory();
+        }
+
+        ImGui.Spacing();
+        ImGui.Spacing();
+
+        // Job Filter Section
+        ImGui.TextColored(ColorInfo, "JOB FILTER");
+        ImGui.Separator();
+        ImGui.SetNextItemWidth(-1);
+        var jobDisplayText = string.IsNullOrEmpty(_jobFilter) ? "All Jobs" : _jobFilter;
+        using (var combo = ImRaii.Combo("##JobFilter", jobDisplayText))
+        {
+            if (combo)
             {
-                ImGui.Text(FontAwesomeIcon.Search.ToIconString());
-            }
-            
-            ImGui.SameLine();
-            ImGui.SetNextItemWidth(180f);
-            if (ImGui.InputTextWithHint("##Search", "Search items...", ref _searchFilter, 100))
-            {
-                UpdateCategories();
-            }
-            
-            if (!string.IsNullOrWhiteSpace(_searchFilter))
-            {
-                ImGui.SameLine();
-                using (var colors = ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.3f, 0.3f, 0.3f, 0.3f))
-                                          .Push(ImGuiCol.ButtonHovered, new Vector4(0.4f, 0.4f, 0.4f, 0.5f)))
+                foreach (var job in JobAbbreviations)
                 {
-                    if (ImGui.SmallButton("×"))
+                    var displayName = string.IsNullOrEmpty(job) ? "All Jobs" : job;
+                    if (ImGui.Selectable(displayName, job == _jobFilter))
                     {
-                        _searchFilter = string.Empty;
+                        _jobFilter = job;
                         UpdateCategories();
                     }
                 }
-                if (ImGui.IsItemHovered())
+            }
+        }
+
+        ImGui.Spacing();
+        ImGui.Spacing();
+
+        // Safety Filters Section
+        ImGui.TextColored(ColorInfo, "SAFETY FILTERS");
+        ImGui.Separator();
+        DrawSidebarSafetyFilters();
+
+        ImGui.Spacing();
+        ImGui.Spacing();
+
+        // Market Section
+        ImGui.TextColored(ColorInfo, "MARKET");
+        ImGui.Separator();
+        var showPrices = Settings.ShowMarketPrices;
+        if (ImGui.Checkbox("Show Prices", ref showPrices))
+        {
+            Settings.ShowMarketPrices = showPrices;
+            _plugin.ConfigManager.SaveConfiguration();
+        }
+
+        if (Settings.ShowMarketPrices)
+        {
+            ImGui.Text("World:");
+            ImGui.SetNextItemWidth(-1);
+            using (var combo = ImRaii.Combo("##World", _selectedWorld))
+            {
+                if (combo)
                 {
-                    ImGui.SetTooltip("Clear search");
-                }
-            }
-            
-            ImGui.SameLine();
-            using (var font = ImRaii.PushFont(UiBuilder.IconFont))
-            {
-                if (ImGui.Button(FontAwesomeIcon.Sync.ToIconString() + "##Refresh", new Vector2(28, 0)))
-                {
-                    RefreshInventory();
-                }
-            }
-            ImGui.SameLine();
-            ImGui.Text("Refresh");
-            
-            ImGui.SameLine();
-            ImGui.TextColored(new Vector4(0.3f, 0.3f, 0.3f, 1f), "|");
-            
-            ImGui.SameLine();
-            if (ImGui.Checkbox("Armory", ref _showArmory))
-            {
-                RefreshInventory();
-            }
-            
-            ImGui.SameLine();
-            ImGui.TextColored(new Vector4(0.3f, 0.3f, 0.3f, 1f), "|");
-            
-            ImGui.SameLine();
-            var showPrices = Settings.ShowMarketPrices;
-            if (ImGui.Checkbox("Show Prices", ref showPrices))
-            {
-                Settings.ShowMarketPrices = showPrices;
-                _plugin.ConfigManager.SaveConfiguration();
-            }
-            
-            if (Settings.ShowMarketPrices)
-            {
-                ImGui.SameLine();
-                ImGui.Text("World:");
-                ImGui.SameLine();
-                ImGui.SetNextItemWidth(100);
-                using (var combo = ImRaii.Combo("##World", _selectedWorld))
-                {
-                    if (combo)
+                    foreach (var world in _availableWorlds)
                     {
-                        foreach (var world in _availableWorlds)
+                        bool isSelected = world == _selectedWorld;
+                        if (ImGui.Selectable(world, isSelected))
                         {
-                            bool isSelected = world == _selectedWorld;
-                            if (ImGui.Selectable(world, isSelected))
+                            _selectedWorld = world;
+                            _priceService.UpdateWorld(_selectedWorld);
+                            _priceService.ClearCache();
+
+                            lock (_stateLock)
                             {
-                                _selectedWorld = world;
-                                _priceService.UpdateWorld(_selectedWorld);
-                                _priceService.ClearCache();
-                                
-                                lock (_stateLock)
+                                foreach (var item in _allItems)
                                 {
-                                    foreach (var item in _allItems)
-                                    {
-                                        item.MarketPrice = null;
-                                        item.MarketPriceFetchTime = null;
-                                    }
+                                    item.MarketPrice = null;
+                                    item.MarketPriceFetchTime = null;
                                 }
                             }
                         }
                     }
                 }
             }
-            
-            var windowWidth = ImGui.GetWindowContentRegionMax().X;
+
+            ImGui.Spacing();
+
+            // Total value
             long totalValue;
             lock (_stateLock)
             {
                 totalValue = _categories.Sum(c => c.TotalValue ?? 0);
             }
-            
-            var totalText = $"Total: {totalValue:N0} gil";
-            var totalTextWidth = ImGui.CalcTextSize(totalText).X;
-            ImGui.SameLine(windowWidth - totalTextWidth);
-            
+
             using (var font = ImRaii.PushFont(UiBuilder.IconFont))
             {
                 ImGui.TextColored(ColorWarning, FontAwesomeIcon.Coins.ToIconString());
             }
             ImGui.SameLine(0, 4);
-            ImGui.TextColored(ColorPrice, $"{totalValue:N0} gil");
+            ImGui.TextColored(ColorPrice, $"{totalValue:N0}");
+
+            ImGui.Spacing();
+            ImGui.TextColored(ColorSubdued, "via Universalis");
         }
-        
-        ImGui.Spacing();
     }
-    
-    private void DrawFiltersAndSettings()
+
+    private void DrawSidebarSafetyFilters()
     {
-        if (_filterPanel == null)
-            InitializeUIComponents();
-        
-        _filterPanel?.Draw(Settings);
+        var filters = Settings.SafetyFilters;
+        bool changed = false;
+
+        // Hardcoded filters (always on) - shown as disabled checkboxes
+        ImGui.TextColored(ColorSubdued, "Always Protected:");
+        using (var disabled = ImRaii.Disabled())
+        {
+            bool alwaysOn = true;
+            ImGui.Checkbox("Ultimate Tokens", ref alwaysOn);
+            ImGui.Checkbox("Currency", ref alwaysOn);
+            ImGui.Checkbox("Crystals/Shards", ref alwaysOn);
+        }
+
+        ImGui.Spacing();
+        ImGui.TextColored(ColorSubdued, "Toggleable:");
+
+        var filterGearset = filters.FilterGearsetItems;
+        if (ImGui.Checkbox("Gearset Items", ref filterGearset))
+        {
+            filters.FilterGearsetItems = filterGearset;
+            changed = true;
+        }
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Items currently equipped in any gearset");
+
+        var filterIndisposable = filters.FilterIndisposableItems;
+        if (ImGui.Checkbox("Protected Items", ref filterIndisposable))
+        {
+            filters.FilterIndisposableItems = filterIndisposable;
+            changed = true;
+        }
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Items flagged by the game as indisposable");
+
+        var filterHighLevel = filters.FilterHighLevelGear;
+        if (ImGui.Checkbox("High iLvl Gear", ref filterHighLevel))
+        {
+            filters.FilterHighLevelGear = filterHighLevel;
+            changed = true;
+        }
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Gear at or above the specified item level");
+
+        if (filters.FilterHighLevelGear)
+        {
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(45);
+            int maxLevel = (int)filters.MaxGearItemLevel;
+            if (ImGui.InputInt("##MaxiLvl", ref maxLevel, 0, 0))
+            {
+                filters.MaxGearItemLevel = (uint)Math.Max(1, Math.Min(999, maxLevel));
+                changed = true;
+            }
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip("Minimum item level to protect");
+        }
+
+        var filterUnique = filters.FilterUniqueUntradeable;
+        if (ImGui.Checkbox("Unique & Untrade", ref filterUnique))
+        {
+            filters.FilterUniqueUntradeable = filterUnique;
+            changed = true;
+        }
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Items that are both unique AND untradeable");
+
+        var filterHQ = filters.FilterHQItems;
+        if (ImGui.Checkbox("HQ Items", ref filterHQ))
+        {
+            filters.FilterHQItems = filterHQ;
+            changed = true;
+        }
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("High quality crafted items");
+
+        var filterCollectables = filters.FilterCollectables;
+        if (ImGui.Checkbox("Collectables", ref filterCollectables))
+        {
+            filters.FilterCollectables = filterCollectables;
+            changed = true;
+        }
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Items marked as collectable for turn-ins");
+
+        if (changed)
+        {
+            _plugin.ConfigManager.SaveConfiguration();
+            UpdateCategories();
+        }
     }
-    
+
+    private void DrawSearchBar()
+    {
+        // Calculate position for right-aligned search
+        var searchWidth = 160f;
+        var totalWidth = searchWidth + 4f;
+        var availWidth = ImGui.GetContentRegionAvail().X;
+
+        ImGui.SameLine(availWidth - totalWidth);
+
+        // Search input with integrated refresh
+        ImGui.SetNextItemWidth(searchWidth);
+        if (ImGui.InputTextWithHint("##Search", "Search...", ref _searchFilter, 100))
+        {
+            UpdateCategories();
+        }
+
+        // Refresh on right-click of search box
+        if (ImGui.IsItemClicked(ImGuiMouseButton.Right))
+        {
+            RefreshInventory();
+        }
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.SetTooltip("Right-click to refresh");
+        }
+    }
+
     private void DrawAvailableItemsTab()
     {
         List<CategoryGroup> categoriesCopy;
@@ -200,78 +290,196 @@ public partial class InventoryManagementModule
         {
             categoriesCopy = new List<CategoryGroup>(_categories);
         }
-        
+
         if (!string.IsNullOrWhiteSpace(_searchFilter))
         {
             DrawSearchResultsView(categoriesCopy);
             return;
         }
-        
-        foreach (var category in categoriesCopy)
+
+        DrawUnifiedItemTable(categoriesCopy);
+    }
+
+    private void DrawUnifiedItemTable(List<CategoryGroup> categories)
+    {
+        using var style = ImRaii.PushStyle(ImGuiStyleVar.CellPadding, new Vector2(4, 3))
+                                .Push(ImGuiStyleVar.ItemSpacing, new Vector2(4, 2));
+
+        // Column count: Checkbox, ID, Item, Qty, iLvl + (Price, Total) or (Location)
+        int columnCount = Settings.ShowMarketPrices ? 7 : 6;
+
+        var flags = ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingFixedFit
+                  | ImGuiTableFlags.ScrollY | ImGuiTableFlags.NoPadOuterX | ImGuiTableFlags.Sortable;
+
+        using var table = ImRaii.Table("UnifiedItemTable", columnCount, flags);
+        if (!table) return;
+
+        // Setup columns - checkbox not sortable, others are
+        ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize | ImGuiTableColumnFlags.NoSort, 26f);
+        ImGui.TableSetupColumn("ID", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 50f);
+        ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch | ImGuiTableColumnFlags.NoHide);
+        ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 35f);
+        ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 40f);
+
+        if (Settings.ShowMarketPrices)
+        {
+            ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 75f);
+            ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 90f);
+        }
+        else
+        {
+            ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 110f);
+        }
+
+        ImGui.TableSetupScrollFreeze(0, 1);
+        ImGui.TableHeadersRow();
+
+        // Handle sorting
+        var sortSpecs = ImGui.TableGetSortSpecs();
+        if (sortSpecs.SpecsDirty)
+        {
+            if (sortSpecs.SpecsCount > 0)
+            {
+                var spec = sortSpecs.Specs;
+                _availableSortColumn = spec.ColumnIndex;
+                _availableSortAscending = spec.SortDirection == ImGuiSortDirection.Ascending;
+            }
+            else
+            {
+                _availableSortColumn = -1;
+            }
+            sortSpecs.SpecsDirty = false;
+        }
+
+        // Show category groups, sort items within each category if sorting is active
+        foreach (var category in categories)
         {
             if (category.Items.Count == 0) continue;
-            
+
+            DrawCategoryHeaderRow(category, columnCount);
+
             var isExpanded = ExpandedCategories.GetValueOrDefault(category.CategoryId, true);
-            using var id = ImRaii.PushId($"Category_{category.CategoryId}");
-            var nodeFlags = ImGuiTreeNodeFlags.AllowItemOverlap | ImGuiTreeNodeFlags.SpanAvailWidth;
-            if (isExpanded) nodeFlags |= ImGuiTreeNodeFlags.DefaultOpen;
-            
-            using (var node = ImRaii.TreeNode($"{category.Name}###{category.CategoryId}_node", nodeFlags))
+            if (isExpanded)
             {
-                ImGui.SameLine();
-                ImGui.TextColored(ColorInfo, $"({category.Items.Count} items, {category.TotalQuantity} total)");
-                
-                if (Settings.ShowMarketPrices && category.TotalValue.HasValue)
+                var itemsToShow = _availableSortColumn > 0
+                    ? SortAvailableItems(category.Items.ToList())
+                    : category.Items;
+
+                foreach (var item in itemsToShow)
                 {
-                    ImGui.SameLine();
-                    ImGui.TextColored(ColorPrice, $"{category.TotalValue.Value:N0} gil");
+                    DrawItemRow(item);
                 }
-                
-                var selectAllWidth = 90f;
-                var windowWidth = ImGui.GetWindowContentRegionMax().X;
-                ImGui.SameLine(windowWidth - selectAllWidth - 10);
-                DrawCategoryControls(category);
-                
-                if (node)
-                {
-                    ExpandedCategories[category.CategoryId] = true;
-                    _expandedCategoriesChanged = true;
-                    DrawCategoryItems(category);
-                }
-                else
-                {
-                    ExpandedCategories[category.CategoryId] = false;
-                    _expandedCategoriesChanged = true;
-                }
-                
-                ImGui.Spacing();
             }
         }
     }
-    
-    private void DrawCategoryItems(CategoryGroup category)
+
+    private List<InventoryItemInfo> SortAvailableItems(List<InventoryItemInfo> items)
     {
-        if (_itemTable == null)
-            InitializeUIComponents();
-        
-        var config = new ItemTableConfig
+        if (_availableSortColumn < 0 || items.Count == 0)
+            return items;
+
+        // Column indices: 0=checkbox, 1=ID, 2=Item, 3=Qty, 4=iLvl, 5=Price/Location, 6=Total
+        IOrderedEnumerable<InventoryItemInfo> sorted = _availableSortColumn switch
         {
-            TableId = $"CategoryTable_{category.CategoryId}",
-            ShowCheckbox = true,
-            ShowItemLevel = true,
-            ShowLocation = true,
-            ShowMarketPrices = Settings.ShowMarketPrices,
-            ShowTotalValue = Settings.ShowMarketPrices,
-            SearchFilter = _searchFilter,
-            IsItemSelected = (item) =>
+            1 => _availableSortAscending ? items.OrderBy(i => i.ItemId) : items.OrderByDescending(i => i.ItemId),
+            2 => _availableSortAscending ? items.OrderBy(i => i.Name) : items.OrderByDescending(i => i.Name),
+            3 => _availableSortAscending ? items.OrderBy(i => i.Quantity) : items.OrderByDescending(i => i.Quantity),
+            4 => _availableSortAscending ? items.OrderBy(i => i.ItemLevel) : items.OrderByDescending(i => i.ItemLevel),
+            5 => Settings.ShowMarketPrices
+                ? (_availableSortAscending ? items.OrderBy(i => i.MarketPrice ?? 0) : items.OrderByDescending(i => i.MarketPrice ?? 0))
+                : (_availableSortAscending ? items.OrderBy(i => i.Container.ToString()) : items.OrderByDescending(i => i.Container.ToString())),
+            6 => _availableSortAscending ? items.OrderBy(i => (i.MarketPrice ?? 0) * i.Quantity) : items.OrderByDescending(i => (i.MarketPrice ?? 0) * i.Quantity),
+            _ => items.OrderBy(i => i.Name)
+        };
+
+        return sorted.ToList();
+    }
+
+    private void DrawCategoryHeaderRow(CategoryGroup category, int columnCount)
+    {
+        var isExpanded = ExpandedCategories.GetValueOrDefault(category.CategoryId, true);
+
+        ImGui.TableNextRow();
+        ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, ImGui.GetColorU32(new Vector4(0.2f, 0.2f, 0.25f, 1f)));
+
+        // First column - expand/collapse button
+        ImGui.TableNextColumn();
+        using (var font = ImRaii.PushFont(UiBuilder.IconFont))
+        {
+            var icon = isExpanded ? FontAwesomeIcon.ChevronDown : FontAwesomeIcon.ChevronRight;
+            if (ImGui.SmallButton($"{icon.ToIconString()}##expand_{category.CategoryId}"))
             {
-                lock (_stateLock)
-                {
-                    return _selectedItems.Contains(item.ItemId);
-                }
-            },
-            IsItemBlacklisted = (item) => BlacklistedItems.Contains(item.ItemId),
-            OnItemSelectionChanged = (item, selected) =>
+                ExpandedCategories[category.CategoryId] = !isExpanded;
+                _expandedCategoriesChanged = true;
+            }
+        }
+
+        // Second column - skip (ID column)
+        ImGui.TableNextColumn();
+
+        // Third column - category name and info (Item column - stretches)
+        ImGui.TableNextColumn();
+        ImGui.TextColored(new Vector4(0.9f, 0.9f, 0.9f, 1f), category.Name);
+        ImGui.SameLine();
+        ImGui.TextColored(ColorInfo, $"({category.Items.Count} items, {category.TotalQuantity} total)");
+
+        if (Settings.ShowMarketPrices && category.TotalValue.HasValue)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(ColorPrice, $"{category.TotalValue.Value:N0} gil");
+        }
+
+        // Remaining columns - empty
+        ImGui.TableNextColumn(); // Qty
+        ImGui.TableNextColumn(); // iLvl
+
+        if (Settings.ShowMarketPrices)
+        {
+            ImGui.TableNextColumn(); // Price
+            ImGui.TableNextColumn(); // Total
+        }
+        else
+        {
+            ImGui.TableNextColumn(); // Location
+        }
+    }
+
+    private void DrawItemRow(InventoryItemInfo item)
+    {
+        ImGui.TableNextRow();
+        using var id = ImRaii.PushId(item.GetUniqueKey());
+
+        // Row background color
+        bool isBlacklisted = BlacklistedItems.Contains(item.ItemId);
+        bool isSelected = _selectedItems.Contains(item.ItemId);
+
+        if (isBlacklisted)
+        {
+            ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, ImGui.GetColorU32(new Vector4(0.3f, 0.1f, 0.1f, 0.3f)));
+        }
+        else if (isSelected)
+        {
+            ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, ImGui.GetColorU32(new Vector4(0.3f, 0.5f, 0.7f, 0.3f)));
+        }
+
+        // Checkbox column
+        ImGui.TableNextColumn();
+        if (isBlacklisted)
+        {
+            using (var disabled = ImRaii.Disabled())
+            {
+                bool dummy = false;
+                ImGui.Checkbox($"##check", ref dummy);
+            }
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip("This item is blacklisted");
+            }
+        }
+        else
+        {
+            bool selected = isSelected;
+            if (ImGui.Checkbox($"##check", ref selected))
             {
                 lock (_stateLock)
                 {
@@ -286,62 +494,194 @@ public partial class InventoryManagementModule
                         item.IsSelected = false;
                     }
                 }
-            },
-            IsFetchingPrice = (itemId) => _priceService.IsFetchingPrice(itemId),
-            OnPriceFetchRequested = (item) => _ = _priceService.FetchPrice(item).ContinueWith(task =>
-            {
-                if (task.IsCompletedSuccessfully && task.Result.HasValue)
-                {
-                    lock (_stateLock)
-                    {
-                        item.MarketPrice = task.Result.Value;
-                        item.MarketPriceFetchTime = DateTime.Now;
-                    }
-                }
-            })
-        };
-        
-        _itemTable?.DrawTable(category.Items, config);
-    }
-    
-    private void DrawCategoryControls(CategoryGroup category)
-    {
-        int selectedInCategory;
-        bool allSelectableSelected;
-        lock (_stateLock)
-        {
-            selectedInCategory = category.Items.Count(i => _selectedItems.Contains(i.ItemId));
-            var selectableItems = category.Items.Where(i => !BlacklistedItems.Contains(i.ItemId)).ToList();
-            allSelectableSelected = selectableItems.Count > 0 && selectableItems.All(i => _selectedItems.Contains(i.ItemId));
-        }
-        
-        var buttonText = allSelectableSelected ? "Deselect All" : "Select All";
-        
-        if (ImGui.SmallButton(buttonText))
-        {
-            lock (_stateLock)
-            {
-                if (allSelectableSelected)
-                {
-                    foreach (var item in category.Items)
-                    {
-                        _selectedItems.Remove(item.ItemId);
-                        item.IsSelected = false;
-                    }
-                }
-                else
-                {
-                    foreach (var item in category.Items)
-                    {
-                        if (BlacklistedItems.Contains(item.ItemId))
-                            continue;
-                        
-                        _selectedItems.Add(item.ItemId);
-                        item.IsSelected = true;
-                    }
-                }
             }
         }
+
+        // ID column
+        ImGui.TableNextColumn();
+        ImGui.TextColored(ColorSubdued, item.ItemId.ToString());
+
+        // Item column
+        ImGui.TableNextColumn();
+        DrawItemNameCell(item);
+
+        // Qty column
+        ImGui.TableNextColumn();
+        ImGui.Text(item.Quantity.ToString());
+
+        // iLvl column
+        ImGui.TableNextColumn();
+        if (item.ItemLevel > 0)
+            ImGui.Text(item.ItemLevel.ToString());
+        else
+            ImGui.TextColored(ColorSubdued, "-");
+
+        // Price/Location columns
+        if (Settings.ShowMarketPrices)
+        {
+            // Price column
+            ImGui.TableNextColumn();
+            DrawPriceCell(item);
+
+            // Total column
+            ImGui.TableNextColumn();
+            DrawTotalCell(item);
+        }
+        else
+        {
+            // Location column
+            ImGui.TableNextColumn();
+            ImGui.Text(GetLocationName(item.Container));
+        }
+    }
+
+    private void DrawItemNameCell(InventoryItemInfo item)
+    {
+        var iconSize = new Vector2(20, 20);
+        if (item.IconId > 0)
+        {
+            var icon = _iconCache.GetIcon(item.IconId);
+            if (icon != null)
+            {
+                var startY = ImGui.GetCursorPosY();
+                ImGui.SetCursorPosY(startY - 2);
+                ImGui.Image(icon.Handle, iconSize);
+                ImGui.SetCursorPosY(startY);
+                ImGui.SameLine(0, 5);
+            }
+            else
+            {
+                ImGui.Dummy(iconSize);
+                ImGui.SameLine(0, 5);
+            }
+        }
+        else
+        {
+            ImGui.Dummy(iconSize);
+            ImGui.SameLine(0, 5);
+        }
+
+        // Highlight search term if provided
+        if (!string.IsNullOrWhiteSpace(_searchFilter) && !string.IsNullOrEmpty(item.Name))
+        {
+            var matchIndex = item.Name.IndexOf(_searchFilter, StringComparison.OrdinalIgnoreCase);
+            if (matchIndex >= 0)
+            {
+                if (matchIndex > 0)
+                {
+                    ImGui.Text(item.Name.Substring(0, matchIndex));
+                    ImGui.SameLine(0, 0);
+                }
+
+                ImGui.TextColored(ColorWarning, item.Name.Substring(matchIndex, _searchFilter.Length));
+                ImGui.SameLine(0, 0);
+
+                if (matchIndex + _searchFilter.Length < item.Name.Length)
+                {
+                    ImGui.Text(item.Name.Substring(matchIndex + _searchFilter.Length));
+                }
+            }
+            else
+            {
+                ImGui.Text(item.Name);
+            }
+        }
+        else
+        {
+            ImGui.Text(item.Name ?? string.Empty);
+        }
+
+        // Item tags
+        if (item.IsHQ)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(new Vector4(0.6f, 0.8f, 1f, 1f), "[HQ]");
+        }
+
+        if (BlacklistedItems.Contains(item.ItemId))
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(ColorError, "[Blacklisted]");
+        }
+
+        if (!item.CanBeTraded)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(ColorSubdued, "[Untradeable]");
+        }
+    }
+
+    private void DrawPriceCell(InventoryItemInfo item)
+    {
+        if (!item.CanBeTraded)
+        {
+            ImGui.TextColored(ColorSubdued, "-");
+        }
+        else if (item.MarketPrice.HasValue)
+        {
+            if (item.MarketPrice.Value > 0)
+            {
+                ImGui.TextColored(ColorPrice, $"{item.MarketPrice.Value:N0}");
+            }
+            else
+            {
+                ImGui.TextColored(ColorSubdued, "N/A");
+            }
+        }
+        else
+        {
+            ImGui.TextColored(ColorSubdued, "...");
+            if (!_priceService.IsFetchingPrice(item.ItemId))
+            {
+                _ = _priceService.FetchPrice(item).ContinueWith(task =>
+                {
+                    if (task.IsCompletedSuccessfully && task.Result.HasValue)
+                    {
+                        lock (_stateLock)
+                        {
+                            item.MarketPrice = task.Result.Value;
+                            item.MarketPriceFetchTime = DateTime.Now;
+                        }
+                    }
+                });
+            }
+        }
+    }
+
+    private void DrawTotalCell(InventoryItemInfo item)
+    {
+        if (!item.CanBeTraded || !item.MarketPrice.HasValue || item.MarketPrice.Value <= 0)
+        {
+            ImGui.TextColored(ColorSubdued, "-");
+        }
+        else
+        {
+            var total = item.MarketPrice.Value * item.Quantity;
+            ImGui.Text($"{total:N0}");
+        }
+    }
+
+    private string GetLocationName(FFXIVClientStructs.FFXIV.Client.Game.InventoryType container)
+    {
+        return container switch
+        {
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.Inventory1 => "Inv 1",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.Inventory2 => "Inv 2",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.Inventory3 => "Inv 3",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.Inventory4 => "Inv 4",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.ArmoryMainHand => "Main Hand",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.ArmoryOffHand => "Off Hand",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.ArmoryHead => "Head",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.ArmoryBody => "Body",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.ArmoryHands => "Hands",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.ArmoryLegs => "Legs",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.ArmoryFeets => "Feet",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.ArmoryEar => "Earrings",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.ArmoryNeck => "Necklace",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.ArmoryWrist => "Bracelets",
+            FFXIVClientStructs.FFXIV.Client.Game.InventoryType.ArmoryRings => "Rings",
+            _ => container.ToString()
+        };
     }
     
     private void DrawSearchResultsView(List<CategoryGroup> categories)
@@ -550,72 +890,78 @@ public partial class InventoryManagementModule
         }
     }
     
-    private IEnumerable<uint> GetBlacklistItemsToShow()
+    private IEnumerable<uint> GetBlacklistItemsToShow() => FilterItemIdsBySearch(BlacklistedItems);
+
+    private IEnumerable<uint> FilterItemIdsBySearch(HashSet<uint> itemIds)
     {
-        var itemsToShow = BlacklistedItems.AsEnumerable();
-        
-        if (!string.IsNullOrWhiteSpace(_searchFilter))
+        if (string.IsNullOrWhiteSpace(_searchFilter))
+            return itemIds;
+
+        var filteredIds = new List<uint>();
+        foreach (var itemId in itemIds)
         {
-            var filteredIds = new List<uint>();
-            foreach (var itemId in BlacklistedItems)
+            var itemName = GetItemName(itemId);
+            if (itemName.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase) ||
+                itemId.ToString().Contains(_searchFilter))
             {
-                string itemName = null;
-                lock (_stateLock)
-                {
-                    var itemInfo = _allItems.FirstOrDefault(i => i.ItemId == itemId);
-                    itemName = itemInfo?.Name;
-                }
-                
-                if (string.IsNullOrEmpty(itemName))
-                {
-                    var itemInfo = _searchService.GetItemInfo(itemId);
-                    itemName = itemInfo?.Name ?? $"Unknown Item ({itemId})";
-                }
-                
-                if (itemName.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase) ||
-                    itemId.ToString().Contains(_searchFilter))
-                {
-                    filteredIds.Add(itemId);
-                }
+                filteredIds.Add(itemId);
             }
-            itemsToShow = filteredIds;
         }
-        
-        return itemsToShow;
+        return filteredIds;
     }
-    
+
+    private string GetItemName(uint itemId)
+    {
+        lock (_stateLock)
+        {
+            var itemInfo = _allItems.FirstOrDefault(i => i.ItemId == itemId);
+            if (itemInfo != null)
+                return itemInfo.Name;
+        }
+
+        var info = _searchService.GetItemInfo(itemId);
+        return info?.Name ?? $"Unknown Item ({itemId})";
+    }
+
+    private InventoryItemInfo? GetOrCreateItemInfo(uint itemId)
+    {
+        lock (_stateLock)
+        {
+            var existing = _allItems.FirstOrDefault(i => i.ItemId == itemId);
+            if (existing != null)
+                return existing;
+        }
+
+        var info = _searchService.GetItemInfo(itemId);
+        if (!info.HasValue)
+            return null;
+
+        return new InventoryItemInfo
+        {
+            ItemId = itemId,
+            Name = info.Value.Name,
+            IconId = info.Value.IconId,
+            CategoryName = info.Value.CategoryName,
+            ItemLevel = (uint)info.Value.ItemLevel
+        };
+    }
+
+    private List<InventoryItemInfo> ResolveItemInfos(IEnumerable<uint> itemIds)
+    {
+        return itemIds
+            .Select(GetOrCreateItemInfo)
+            .Where(i => i != null)
+            .Cast<InventoryItemInfo>()
+            .ToList();
+    }
+
     private void DrawBlacklistTable(IEnumerable<uint> itemIds)
     {
         if (_itemTable == null)
             InitializeUIComponents();
-        
-        var items = itemIds.Select(itemId =>
-        {
-            InventoryItemInfo? itemInfo = null;
-            lock (_stateLock)
-            {
-                itemInfo = _allItems.FirstOrDefault(i => i.ItemId == itemId);
-            }
-            
-            if (itemInfo == null)
-            {
-                var info = _searchService.GetItemInfo(itemId);
-                if (info.HasValue)
-                {
-                    itemInfo = new InventoryItemInfo
-                    {
-                        ItemId = itemId,
-                        Name = info.Value.Name,
-                        IconId = info.Value.IconId,
-                        CategoryName = info.Value.CategoryName,
-                        ItemLevel = (uint)info.Value.ItemLevel
-                    };
-                }
-            }
-            
-            return itemInfo;
-        }).Where(i => i != null).Cast<InventoryItemInfo>().ToList();
-        
+
+        var items = ResolveItemInfos(itemIds);
+
         var config = new ItemTableConfig
         {
             TableId = "BlacklistTable",
@@ -629,7 +975,7 @@ public partial class InventoryManagementModule
                 RefreshInventory();
             }
         };
-        
+
         _itemTable?.DrawTable(items, config);
     }
     
@@ -702,72 +1048,15 @@ public partial class InventoryManagementModule
         }
     }
     
-    private IEnumerable<uint> GetAutoDiscardItemsToShow()
-    {
-        var itemsToShow = AutoDiscardItems.AsEnumerable();
-        
-        if (!string.IsNullOrWhiteSpace(_searchFilter))
-        {
-            var filteredIds = new List<uint>();
-            foreach (var itemId in AutoDiscardItems)
-            {
-                string itemName = null;
-                lock (_stateLock)
-                {
-                    var itemInfo = _allItems.FirstOrDefault(i => i.ItemId == itemId);
-                    itemName = itemInfo?.Name;
-                }
-                
-                if (string.IsNullOrEmpty(itemName))
-                {
-                    var itemInfo = _searchService.GetItemInfo(itemId);
-                    itemName = itemInfo?.Name ?? $"Unknown Item ({itemId})";
-                }
-                
-                if (itemName.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase) ||
-                    itemId.ToString().Contains(_searchFilter))
-                {
-                    filteredIds.Add(itemId);
-                }
-            }
-            itemsToShow = filteredIds;
-        }
-        
-        return itemsToShow;
-    }
-    
+    private IEnumerable<uint> GetAutoDiscardItemsToShow() => FilterItemIdsBySearch(AutoDiscardItems);
+
     private void DrawAutoDiscardTable(IEnumerable<uint> itemIds)
     {
         if (_itemTable == null)
             InitializeUIComponents();
-        
-        var items = itemIds.Select(itemId =>
-        {
-            InventoryItemInfo? itemInfo = null;
-            lock (_stateLock)
-            {
-                itemInfo = _allItems.FirstOrDefault(i => i.ItemId == itemId);
-            }
-            
-            if (itemInfo == null)
-            {
-                var info = _searchService.GetItemInfo(itemId);
-                if (info.HasValue)
-                {
-                    itemInfo = new InventoryItemInfo
-                    {
-                        ItemId = itemId,
-                        Name = info.Value.Name,
-                        IconId = info.Value.IconId,
-                        CategoryName = info.Value.CategoryName,
-                        ItemLevel = (uint)info.Value.ItemLevel
-                    };
-                }
-            }
-            
-            return itemInfo;
-        }).Where(i => i != null).Cast<InventoryItemInfo>().ToList();
-        
+
+        var items = ResolveItemInfos(itemIds);
+
         var config = new ItemTableConfig
         {
             TableId = "AutoDiscardTable",
@@ -872,31 +1161,77 @@ public partial class InventoryManagementModule
     
     private void DrawBottomActionBar()
     {
-        using var style = ImRaii.PushStyle(ImGuiStyleVar.FramePadding, new Vector2(8, 6));
-        using var color = ImRaii.PushColor(ImGuiCol.ChildBg, new Vector4(0.165f, 0.165f, 0.165f, 1f));
-        
-        using (var child = ImRaii.Child("ActionBar", new Vector2(0, 42), true, ImGuiWindowFlags.NoScrollbar))
+        int selectedCount;
+        lock (_stateLock)
         {
-            int selectedCount;
-            lock (_stateLock)
+            selectedCount = _selectedItems.Count;
+        }
+
+        var hasSelection = selectedCount > 0;
+        var hasAutoDiscardItems = AutoDiscardItems.Count > 0;
+
+        ImGui.Spacing();
+
+        // Selection count on left
+        if (hasSelection)
+        {
+            ImGui.TextColored(ColorInfo, $"{selectedCount} selected");
+        }
+        else
+        {
+            ImGui.TextColored(ColorSubdued, "No items selected");
+        }
+
+        ImGui.SameLine();
+        ImGui.TextColored(ColorSubdued, "|");
+        ImGui.SameLine();
+
+        // Discard button
+        using (var disabled = ImRaii.Disabled(!hasSelection))
+        {
+            if (ImGui.SmallButton("Discard"))
             {
-                selectedCount = _selectedItems.Count;
+                List<uint> selectedItemIds;
+                lock (_stateLock)
+                {
+                    selectedItemIds = _selectedItems.ToList();
+                    foreach (var item in _originalItems.Where(i => selectedItemIds.Contains(i.ItemId)))
+                    {
+                        _priceService.UpdateItemPrice(item);
+                    }
+                }
+                DiscardService.PrepareDiscard(selectedItemIds, _originalItems, BlacklistedItems);
             }
-            
-            var clearButtonText = "Clear All";
-            var discardButtonText = $"Discard ({selectedCount})";
-            var blacklistButtonText = $"Add to Blacklist ({selectedCount})";
-            var autoDiscardButtonText = $"Add to Auto-Discard ({selectedCount})";
-            var executeAutoDiscardText = "Execute Auto Discard";
-            
-            var buttonPadding = 20f;
-            var clearButtonWidth = Math.Max(80f, ImGui.CalcTextSize(clearButtonText).X + buttonPadding);
-            var discardButtonWidth = Math.Max(80f, ImGui.CalcTextSize(discardButtonText).X + buttonPadding);
-            var blacklistButtonWidth = Math.Max(120f, ImGui.CalcTextSize(blacklistButtonText).X + buttonPadding);
-            var autoDiscardButtonWidth = Math.Max(140f, ImGui.CalcTextSize(autoDiscardButtonText).X + buttonPadding);
-            var executeAutoDiscardWidth = Math.Max(140f, ImGui.CalcTextSize(executeAutoDiscardText).X + buttonPadding);
-            
-            if (ImGui.Button(clearButtonText, new Vector2(clearButtonWidth, 0)))
+        }
+
+        ImGui.SameLine();
+
+        // Add to Blacklist button
+        using (var disabled = ImRaii.Disabled(!hasSelection))
+        {
+            if (ImGui.SmallButton("Add to Blacklist"))
+            {
+                AddSelectedToBlacklist();
+            }
+        }
+
+        ImGui.SameLine();
+
+        // Add to Auto-Discard button
+        using (var disabled = ImRaii.Disabled(!hasSelection))
+        {
+            if (ImGui.SmallButton("Add to Auto-Discard"))
+            {
+                AddSelectedToAutoDiscard();
+            }
+        }
+
+        ImGui.SameLine();
+
+        // Clear button
+        using (var disabled = ImRaii.Disabled(!hasSelection))
+        {
+            if (ImGui.SmallButton("Clear"))
             {
                 lock (_stateLock)
                 {
@@ -907,107 +1242,26 @@ public partial class InventoryManagementModule
                     }
                 }
             }
-            
-            ImGui.SameLine();
-            
-            using (var btnColors = ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.541f, 0.227f, 0.227f, 1f))
-                                         .Push(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.327f, 0.327f, 1f)))
+        }
+
+        // Run Auto-Discard on right side
+        var runText = hasAutoDiscardItems ? $"Run Auto-Discard ({AutoDiscardItems.Count})" : "Run Auto-Discard";
+        var textWidth = ImGui.CalcTextSize(runText).X + 16;
+        var availWidth = ImGui.GetContentRegionAvail().X;
+        ImGui.SameLine(ImGui.GetCursorPosX() + availWidth - textWidth);
+
+        using (var disabled = ImRaii.Disabled(!hasAutoDiscardItems))
+        {
+            if (ImGui.SmallButton(runText))
             {
-                if (selectedCount > 0)
-                {
-                    if (ImGui.Button(discardButtonText, new Vector2(discardButtonWidth, 0)))
-                    {
-                        List<uint> selectedItemIds;
-                        lock (_stateLock)
-                        {
-                            selectedItemIds = _selectedItems.ToList();
-                        }
-                        DiscardService.PrepareDiscard(selectedItemIds, _originalItems, BlacklistedItems);
-                    }
-                }
-                else
-                {
-                    using (var disabled = ImRaii.Disabled())
-                    {
-                        ImGui.Button(discardButtonText, new Vector2(discardButtonWidth, 0));
-                    }
-                }
+                ExecuteAutoDiscard();
             }
-            
-            ImGui.SameLine();
-            
-            using (var btnColors = ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.227f, 0.227f, 0.541f, 1f))
-                                         .Push(ImGuiCol.ButtonHovered, new Vector4(0.327f, 0.327f, 0.641f, 1f)))
-            {
-                if (selectedCount > 0)
-                {
-                    if (ImGui.Button(blacklistButtonText, new Vector2(blacklistButtonWidth, 0)))
-                    {
-                        AddSelectedToBlacklist();
-                    }
-                }
-                else
-                {
-                    using (var disabled = ImRaii.Disabled())
-                    {
-                        ImGui.Button(blacklistButtonText, new Vector2(blacklistButtonWidth, 0));
-                    }
-                }
-            }
-            
-            ImGui.SameLine();
-            
-            using (var btnColors = ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.541f, 0.341f, 0.127f, 1f))
-                                         .Push(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.441f, 0.227f, 1f)))
-            {
-                if (selectedCount > 0)
-                {
-                    if (ImGui.Button(autoDiscardButtonText, new Vector2(autoDiscardButtonWidth, 0)))
-                    {
-                        AddSelectedToAutoDiscard();
-                    }
-                }
-                else
-                {
-                    using (var disabled = ImRaii.Disabled())
-                    {
-                        ImGui.Button(autoDiscardButtonText, new Vector2(autoDiscardButtonWidth, 0));
-                    }
-                }
-            }
-            
-            ImGui.SameLine();
-            
-            using (var btnColors = ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.7f, 0.2f, 0.2f, 1f))
-                                         .Push(ImGuiCol.ButtonHovered, new Vector4(0.8f, 0.3f, 0.3f, 1f)))
-            {
-                bool hasAutoDiscardItems = AutoDiscardItems.Count > 0;
-                
-                if (hasAutoDiscardItems)
-                {
-                    if (ImGui.Button(executeAutoDiscardText, new Vector2(executeAutoDiscardWidth, 0)))
-                    {
-                        ExecuteAutoDiscard();
-                    }
-                    
-                    if (ImGui.IsItemHovered())
-                    {
-                        ImGui.SetTooltip("Execute auto-discard for configured items");
-                    }
-                }
-                else
-                {
-                    using (var disabled = ImRaii.Disabled())
-                    {
-                        ImGui.Button(executeAutoDiscardText, new Vector2(executeAutoDiscardWidth, 0));
-                    }
-                    
-                    if (ImGui.IsItemHovered())
-                    {
-                        ImGui.SetTooltip("No items configured for auto-discard");
-                    }
-                }
-            }
+        }
+        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+        {
+            ImGui.SetTooltip(hasAutoDiscardItems
+                ? "Discard all items in your auto-discard list"
+                : "No items configured for auto-discard");
         }
     }
     

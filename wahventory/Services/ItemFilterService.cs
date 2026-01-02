@@ -12,13 +12,14 @@ public class ItemFilterService
     // Filter check result - null means not filtered, string is the reason
     private string? GetFilterReasonInternal(InventoryItemInfo item, SafetyFilters filters)
     {
-        if (filters.FilterUltimateTokens && InventoryHelpers.HardcodedBlacklist.Contains(item.ItemId))
+        // Hardcoded filters - always protected regardless of settings
+        if (InventoryHelpers.HardcodedBlacklist.Contains(item.ItemId))
             return "Ultimate/Special";
 
-        if (filters.FilterCurrencyItems && InventoryHelpers.CurrencyRange.Contains(item.ItemId))
+        if (InventoryHelpers.CurrencyRange.Contains(item.ItemId))
             return "Currency";
 
-        if (filters.FilterCrystalsAndShards && (item.ItemUICategory == 63 || item.ItemUICategory == 64))
+        if (item.ItemUICategory == 63 || item.ItemUICategory == 64)
             return "Crystal/Shard";
 
         if (filters.FilterGearsetItems && InventoryHelpers.IsInGearset(item.ItemId))

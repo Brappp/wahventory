@@ -14,7 +14,7 @@ namespace wahventory.UI.Components;
 public class ItemTableComponent
 {
     private readonly IconCache _iconCache;
-    
+
     // Color constants
     private static readonly Vector4 ColorHQItem = new(0.6f, 0.8f, 1f, 1f);
     private static readonly Vector4 ColorError = new(0.8f, 0.2f, 0.2f, 1f);
@@ -22,7 +22,11 @@ public class ItemTableComponent
     private static readonly Vector4 ColorSubdued = new(0.6f, 0.6f, 0.6f, 1f);
     private static readonly Vector4 ColorPrice = new(1f, 0.8f, 0.2f, 1f);
     private static readonly Vector4 ColorWarning = new(0.9f, 0.5f, 0.1f, 1f);
-    
+
+    // Sort state
+    private int _sortColumnIndex = -1;
+    private bool _sortAscending = true;
+
     public ItemTableComponent(IconCache iconCache)
     {
         _iconCache = iconCache;
@@ -36,7 +40,7 @@ public class ItemTableComponent
                                 .Push(ImGuiStyleVar.ItemSpacing, new Vector2(4, 2));
 
         var columnCount = CalculateColumnCount(config);
-        var flags = ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadOuterX;
+        var flags = ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadOuterX | ImGuiTableFlags.Sortable;
         if (!config.NoBorders)
             flags |= ImGuiTableFlags.Borders;
         if (config.Scrollable)
@@ -52,7 +56,23 @@ public class ItemTableComponent
                 if (config.ShowHeaders)
                     ImGui.TableHeadersRow();
 
-                foreach (var item in items)
+                // Handle sorting
+                var sortSpecs = ImGui.TableGetSortSpecs();
+                if (sortSpecs.SpecsDirty)
+                {
+                    if (sortSpecs.SpecsCount > 0)
+                    {
+                        var spec = sortSpecs.Specs;
+                        _sortColumnIndex = spec.ColumnIndex;
+                        _sortAscending = spec.SortDirection == ImGuiSortDirection.Ascending;
+                    }
+                    sortSpecs.SpecsDirty = false;
+                }
+
+                // Sort items
+                var sortedItems = SortItems(items.ToList(), config);
+
+                foreach (var item in sortedItems)
                 {
                     bool wasHovered = DrawItemRow(item, config);
                     if (wasHovered)
@@ -68,6 +88,53 @@ public class ItemTableComponent
         {
             config.OnNoItemHovered?.Invoke();
         }
+    }
+
+    private List<InventoryItemInfo> SortItems(List<InventoryItemInfo> items, ItemTableConfig config)
+    {
+        if (_sortColumnIndex < 0 || items.Count == 0)
+            return items;
+
+        // Map column index to actual column based on config
+        var columnName = GetColumnNameByIndex(_sortColumnIndex, config);
+
+        IOrderedEnumerable<InventoryItemInfo> sorted = columnName switch
+        {
+            "ID" => _sortAscending ? items.OrderBy(i => i.ItemId) : items.OrderByDescending(i => i.ItemId),
+            "Item" => _sortAscending ? items.OrderBy(i => i.Name) : items.OrderByDescending(i => i.Name),
+            "Qty" => _sortAscending ? items.OrderBy(i => i.Quantity) : items.OrderByDescending(i => i.Quantity),
+            "iLvl" => _sortAscending ? items.OrderBy(i => i.ItemLevel) : items.OrderByDescending(i => i.ItemLevel),
+            "Price" => _sortAscending ? items.OrderBy(i => i.MarketPrice ?? 0) : items.OrderByDescending(i => i.MarketPrice ?? 0),
+            "Total" => _sortAscending ? items.OrderBy(i => (i.MarketPrice ?? 0) * i.Quantity) : items.OrderByDescending(i => (i.MarketPrice ?? 0) * i.Quantity),
+            "Location" => _sortAscending ? items.OrderBy(i => i.Container.ToString()) : items.OrderByDescending(i => i.Container.ToString()),
+            "Category" => _sortAscending ? items.OrderBy(i => i.CategoryName) : items.OrderByDescending(i => i.CategoryName),
+            _ => items.OrderBy(i => i.Name)
+        };
+
+        return sorted.ToList();
+    }
+
+    private string GetColumnNameByIndex(int index, ItemTableConfig config)
+    {
+        var columns = new List<string>();
+
+        if (config.ShowCheckbox) columns.Add("");
+        columns.Add("ID");
+        columns.Add("Item");
+        columns.Add("Qty");
+        if (config.ShowItemLevel) columns.Add("iLvl");
+        if (config.ShowLocation) columns.Add("Location");
+        if (config.ShowCategory) columns.Add("Category");
+        if (config.ShowMarketPrices)
+        {
+            columns.Add("Price");
+            if (config.ShowTotalValue) columns.Add("Total");
+        }
+        else if (config.ShowStatus) columns.Add("Status");
+        else if (config.ShowReason) columns.Add("Reason");
+        else if (config.ShowActions) columns.Add("Actions");
+
+        return index >= 0 && index < columns.Count ? columns[index] : "";
     }
 
     private int CalculateColumnCount(ItemTableConfig config)

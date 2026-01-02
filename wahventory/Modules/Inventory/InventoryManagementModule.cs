@@ -261,86 +261,103 @@ public partial class InventoryManagementModule : IDisposable
     
     private void DrawMainContent()
     {
-        DrawTopControls();
-        DrawFiltersAndSettings();
-        
-        ImGui.Separator();
         var windowHeight = ImGui.GetWindowHeight();
-        var currentY = ImGui.GetCursorPosY();
-        var bottomBarHeight = 42f;
-        var separatorHeight = ImGui.GetStyle().ItemSpacing.Y * 2 + 2;
-        var tabBarHeight = ImGui.GetFrameHeight();
-        var contentHeight = windowHeight - currentY - bottomBarHeight - separatorHeight - tabBarHeight - 10f;
+        var windowWidth = ImGui.GetWindowWidth();
+        var bottomBarHeight = 28f;
+        var sidebarWidth = 170f;
+        var contentHeight = windowHeight - ImGui.GetCursorPosY() - bottomBarHeight - 8f;
         contentHeight = Math.Max(100f, contentHeight);
-        
-        using (var tabBar = ImRaii.TabBar("InventoryTabs"))
+
+        // Sidebar
+        using (var sidebar = ImRaii.Child("Sidebar", new Vector2(sidebarWidth, contentHeight), true))
         {
-            if (tabBar)
+            if (sidebar)
             {
-                List<InventoryItemInfo> filteredItems;
-                lock (_stateLock)
-                {
-                    filteredItems = GetProtectedItems();
-                }
-                
-                int availableCount;
-                lock (_stateLock)
-                {
-                    availableCount = _categories.Sum(c => c.Items.Count);
-                }
-                
-                string availableTabText = $"Available Items ({availableCount})###AvailableTab";
-                using (var tabItem = ImRaii.TabItem(availableTabText))
-                {
-                    if (tabItem)
-                    {
-                        using (var child = ImRaii.Child("AvailableContent", new Vector2(0, contentHeight), false))
-                        {
-                            DrawAvailableItemsTab();
-                        }
-                    }
-                }
-                
-                string protectedTabText = $"Protected Items ({filteredItems.Count})###ProtectedTab";
-                using (var tabItem = ImRaii.TabItem(protectedTabText))
-                {
-                    if (tabItem)
-                    {
-                        using (var child = ImRaii.Child("ProtectedContent", new Vector2(0, contentHeight), false))
-                        {
-                            DrawProtectedItemsTab(filteredItems);
-                        }
-                    }
-                }
-                
-                string blacklistTabText = "Blacklist Management###BlacklistTab";
-                using (var tabItem = ImRaii.TabItem(blacklistTabText))
-                {
-                    if (tabItem)
-                    {
-                        using (var child = ImRaii.Child("BlacklistContent", new Vector2(0, contentHeight), false))
-                        {
-                            DrawBlacklistTab();
-                        }
-                    }
-                }
-                
-                string autoDiscardTabText = "Auto Discard###AutoDiscardTab";
-                using (var tabItem = ImRaii.TabItem(autoDiscardTabText))
-                {
-                    if (tabItem)
-                    {
-                        using (var child = ImRaii.Child("AutoDiscardContent", new Vector2(0, contentHeight), false))
-                        {
-                            DrawAutoDiscardTab();
-                        }
-                    }
-                }
+                DrawSidebar();
             }
         }
-        
-        ImGui.Separator();
-        DrawBottomActionBar();
+
+        ImGui.SameLine();
+
+        // Main content area (includes bottom bar)
+        using (var mainArea = ImRaii.Child("MainArea", new Vector2(0, contentHeight + bottomBarHeight), false))
+        {
+            if (mainArea)
+            {
+                var tabContentHeight = ImGui.GetContentRegionAvail().Y - ImGui.GetFrameHeight() - bottomBarHeight - 4;
+
+                using (var tabBar = ImRaii.TabBar("InventoryTabs"))
+                {
+                    // Draw search bar on the right side of tab bar
+                    DrawSearchBar();
+                    if (tabBar)
+                    {
+                        List<InventoryItemInfo> filteredItems;
+                        lock (_stateLock)
+                        {
+                            filteredItems = GetProtectedItems();
+                        }
+
+                        int availableCount;
+                        lock (_stateLock)
+                        {
+                            availableCount = _categories.Sum(c => c.Items.Count);
+                        }
+
+                        string availableTabText = $"Available ({availableCount})###AvailableTab";
+                        using (var tabItem = ImRaii.TabItem(availableTabText))
+                        {
+                            if (tabItem)
+                            {
+                                using (var child = ImRaii.Child("AvailableContent", new Vector2(0, tabContentHeight - ImGui.GetFrameHeight() - 8), false))
+                                {
+                                    DrawAvailableItemsTab();
+                                }
+                            }
+                        }
+
+                        string protectedTabText = $"Protected ({filteredItems.Count})###ProtectedTab";
+                        using (var tabItem = ImRaii.TabItem(protectedTabText))
+                        {
+                            if (tabItem)
+                            {
+                                using (var child = ImRaii.Child("ProtectedContent", new Vector2(0, tabContentHeight - ImGui.GetFrameHeight() - 8), false))
+                                {
+                                    DrawProtectedItemsTab(filteredItems);
+                                }
+                            }
+                        }
+
+                        string blacklistTabText = "Blacklist###BlacklistTab";
+                        using (var tabItem = ImRaii.TabItem(blacklistTabText))
+                        {
+                            if (tabItem)
+                            {
+                                using (var child = ImRaii.Child("BlacklistContent", new Vector2(0, tabContentHeight - ImGui.GetFrameHeight() - 8), false))
+                                {
+                                    DrawBlacklistTab();
+                                }
+                            }
+                        }
+
+                        string autoDiscardTabText = "Auto Discard###AutoDiscardTab";
+                        using (var tabItem = ImRaii.TabItem(autoDiscardTabText))
+                        {
+                            if (tabItem)
+                            {
+                                using (var child = ImRaii.Child("AutoDiscardContent", new Vector2(0, tabContentHeight - ImGui.GetFrameHeight() - 8), false))
+                                {
+                                    DrawAutoDiscardTab();
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Bottom action bar inside main content area
+                DrawBottomActionBar();
+            }
+        }
     }
     
     private void RefreshInventory()

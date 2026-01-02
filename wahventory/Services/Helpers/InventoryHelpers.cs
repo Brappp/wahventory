@@ -21,11 +21,12 @@ public unsafe class InventoryHelpers
         33648, // Menphina's earrings
         41081, // Azeyma's earrings
         
-        21197, // UCOB token
-        23175, // UWU token
-        28633, // TEA token
-        36810, // DSR token
-        38951, // TOP token
+        21197, // UCOB token (The Unending Coil of Bahamut)
+        23175, // UWU token (The Weapon's Refrain)
+        28633, // TEA token (The Epic of Alexander)
+        36810, // DSR token (Dragonsong's Reprise)
+        38951, // TOP token (The Omega Protocol)
+        44743, // FRU token (Futures Rewritten)
         
         10155, // Ceruleum Tank
         10373, // Magitek Repair Materials

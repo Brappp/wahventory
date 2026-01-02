@@ -33,17 +33,17 @@ jobs:
       - name: Build Project
         run: dotnet build --configuration Release wahventory/wahventory.csproj
 
-      - name: List build output
+      - name: Create plugin zip
         run: |
-          echo "=== Build output ==="
-          find wahventory/bin -type f -name "*.zip" -o -name "*.dll" -o -name "*.json" | head -50
+          cd wahventory/bin/Release
+          zip wahventory.zip wahventory.json wahventory.dll
 
       - name: Publish to Dynamis
         uses: PunishXIV/dynamis-action@manifestparsing
         with:
           plugin_id: "91"
           internal_name: "wahventory"
-          path: "wahventory/bin/Release/wahventory/latest.zip"
+          path: "wahventory/bin/Release/wahventory.zip"
           type: "testing"
         env:
           PUBLISHER_KEY: ${{ secrets.PUBLISHER_KEY }}

@@ -60,7 +60,7 @@ jobs:
           zip wahventory.zip wahventory.json wahventory.dll
 
       - name: Publish to Dynamis (OLD WAY - manual inputs)
-        uses: PunishXIV/dynamis-action@manifestparsing
+        uses: PunishXIV/dynamis-action@v2
         with:
           plugin_id: "91"
           internal_name: "wahventory"

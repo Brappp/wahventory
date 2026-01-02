@@ -3,46 +3,47 @@ name: Publish to Dynamis
 on:
   workflow_dispatch:
 
-jobs:
-  build-and-publish:
-    runs-on: ubuntu-latest
+permissions:
+  actions: write
 
+jobs:
+  Build:
+    runs-on: ubuntu-latest
+    env:
+      DALAMUD_HOME: /tmp/dalamud
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: true
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v3
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.x
 
-      - name: Download Dalamud
+      - name: Download Dalamud Latest
         run: |
-          wget https://goatcorp.github.io/dalamud-distrib/latest.zip -O dalamud.zip
-          unzip dalamud.zip -d dalamud
+          wget https://goatcorp.github.io/dalamud-distrib/latest.zip -O ${{ env.DALAMUD_HOME }}.zip
+          unzip ${{ env.DALAMUD_HOME }}.zip -d ${{ env.DALAMUD_HOME }}
 
-      - name: Build
-        run: |
-          dotnet restore
-          dotnet build -c Release -p:DalamudLibPath=$PWD/dalamud
-        env:
-          DOTNET_NOLOGO: true
+      - name: Restore Project
+        run: dotnet restore
 
-      - name: Find plugin zip
-        id: find_zip
+      - name: Build Project
+        run: dotnet build --configuration Release wahventory/wahventory.csproj
+
+      - name: List build output
         run: |
-          ZIP_PATH=$(find . -name "latest.zip" -path "*/Release/*" | head -1)
-          echo "zip_path=$ZIP_PATH" >> $GITHUB_OUTPUT
-          echo "Found zip at: $ZIP_PATH"
+          echo "=== Build output ==="
+          find wahventory/bin -type f -name "*.zip" -o -name "*.dll" -o -name "*.json" | head -50
 
       - name: Publish to Dynamis
         uses: PunishXIV/dynamis-action@manifestparsing
         with:
           plugin_id: "91"
           internal_name: "wahventory"
-          path: ${{ steps.find_zip.outputs.zip_path }}
+          path: "wahventory/bin/Release/wahventory/latest.zip"
           type: "testing"
         env:
           PUBLISHER_KEY: ${{ secrets.PUBLISHER_KEY }}

@@ -60,22 +60,14 @@ public class ItemSearchService
             
             var item = gameItem.Value;
             var categoryName = "Unknown";
-            
-            try
+            var categorySheet = _dataManager.GetExcelSheet<ItemUICategory>();
+            if (categorySheet != null && item.ItemUICategory.RowId > 0)
             {
-                var categorySheet = _dataManager.GetExcelSheet<ItemUICategory>();
-                if (categorySheet != null && item.ItemUICategory.RowId > 0)
+                var category = categorySheet.GetRowOrDefault(item.ItemUICategory.RowId);
+                if (category != null && category.Value.RowId != 0)
                 {
-                    var category = categorySheet.GetRowOrDefault(item.ItemUICategory.RowId);
-                    if (category != null && category.Value.RowId != 0)
-                    {
-                        categoryName = category.Value.Name.ExtractText();
-                    }
+                    categoryName = category.Value.Name.ExtractText();
                 }
-            }
-            catch
-            {
-                // Use default "Unknown"
             }
             
             return (

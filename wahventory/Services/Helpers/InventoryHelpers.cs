@@ -21,11 +21,12 @@ public unsafe class InventoryHelpers
         33648, // Menphina's earrings
         41081, // Azeyma's earrings
         
-        21197, // UCOB token
-        23175, // UWU token
-        28633, // TEA token
-        36810, // DSR token
-        38951, // TOP token
+        21197, // UCOB token (The Unending Coil of Bahamut)
+        23175, // UWU token (The Weapon's Refrain)
+        28633, // TEA token (The Epic of Alexander)
+        36810, // DSR token (Dragonsong's Reprise)
+        38951, // TOP token (The Omega Protocol)
+        44743, // FRU token (Futures Rewritten)
         
         10155, // Ceruleum Tank
         10373, // Magitek Repair Materials
@@ -161,7 +162,13 @@ public unsafe class InventoryHelpers
                 categoryName = category.Name.ExtractText();
             }
         }
-        
+
+        var classJobCategoryName = string.Empty;
+        if (item.ClassJobCategory.RowId > 0)
+        {
+            classJobCategoryName = item.ClassJobCategory.Value.Name.ExtractText();
+        }
+
         return new InventoryItemInfo
         {
             ItemId = slot->ItemId,
@@ -174,7 +181,6 @@ public unsafe class InventoryHelpers
             CanBeDiscarded = !item.IsIndisposable,
             CanBeTraded = !item.IsUntradable,
             IsCollectable = item.IsCollectable,
-            SpiritBond = 0, // Spiritbond not available in current struct
             Durability = slot->Condition,
             MaxDurability = 30000, // Standard max durability
             CategoryName = categoryName,
@@ -185,7 +191,8 @@ public unsafe class InventoryHelpers
             IsUnique = item.IsUnique,
             IsUntradable = item.IsUntradable,
             IsIndisposable = item.IsIndisposable,
-            EquipSlotCategory = item.EquipSlotCategory.RowId
+            EquipSlotCategory = item.EquipSlotCategory.RowId,
+            ClassJobCategoryName = classJobCategoryName
         };
     }
     
@@ -270,13 +277,7 @@ public unsafe class InventoryHelpers
             if (assessment.FlagColor < SafetyFlagColor.Info)
                 assessment.FlagColor = SafetyFlagColor.Info;
         }
-        if (item.SpiritBond >= settings.SafetyFilters.MinSpiritbondToFilter)
-        {
-            assessment.SafetyFlags.Add($"Spiritbond {item.SpiritBond}%");
-            if (assessment.FlagColor < SafetyFlagColor.Info)
-                assessment.FlagColor = SafetyFlagColor.Info;
-        }
-        
+
         return assessment;
     }
     
@@ -291,6 +292,49 @@ public unsafe class InventoryHelpers
         return true;
     }
     
+    public InventoryItemInfo? FindItemInInventory(uint itemId, InventoryType preferredContainer)
+    {
+        var inventoryManager = InventoryManager.Instance();
+        if (inventoryManager == null)
+            return null;
+
+        // First try the preferred container
+        var container = inventoryManager->GetInventoryContainer(preferredContainer);
+        if (container != null)
+        {
+            for (var i = 0; i < container->Size; i++)
+            {
+                var slot = container->GetInventorySlot(i);
+                if (slot != null && slot->ItemId == itemId)
+                {
+                    return CreateItemInfo(slot, preferredContainer, (short)i);
+                }
+            }
+        }
+
+        // If not found, search all main inventories
+        foreach (var inventoryType in MainInventories)
+        {
+            if (inventoryType == preferredContainer)
+                continue;
+
+            container = inventoryManager->GetInventoryContainer(inventoryType);
+            if (container == null)
+                continue;
+
+            for (var i = 0; i < container->Size; i++)
+            {
+                var slot = container->GetInventorySlot(i);
+                if (slot != null && slot->ItemId == itemId)
+                {
+                    return CreateItemInfo(slot, inventoryType, (short)i);
+                }
+            }
+        }
+
+        return null;
+    }
+
     public void DiscardItem(InventoryItemInfo item)
     {
         var inventoryManager = InventoryManager.Instance();
@@ -298,13 +342,13 @@ public unsafe class InventoryHelpers
         {
             throw new InvalidOperationException("InventoryManager is null");
         }
-        
+
         var container = inventoryManager->GetInventoryContainer(item.Container);
         if (container == null)
         {
             throw new InvalidOperationException($"Container {item.Container} not found");
         }
-        
+
         var slot = container->GetInventorySlot(item.Slot);
         if (slot == null || slot->ItemId != item.ItemId)
         {
@@ -315,7 +359,7 @@ public unsafe class InventoryHelpers
         {
             throw new InvalidOperationException("AgentInventoryContext is null");
         }
-        
+
         agentInventoryContext->DiscardItem(slot, item.Container, item.Slot, 0);
     }
 }

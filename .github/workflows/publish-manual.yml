@@ -2,6 +2,27 @@ name: Publish to Dynamis (Manual Test)
 
 on:
   workflow_dispatch:
+    inputs:
+      version_number:
+        description: 'Version number (e.g. 4.1.0.2)'
+        required: true
+        default: '4.1.0.2'
+      release_type:
+        description: 'Release type'
+        required: true
+        default: 'testing'
+        type: choice
+        options:
+          - testing
+          - latest
+      dalamud_version:
+        description: 'Dalamud API level'
+        required: true
+        default: '14'
+      changelog:
+        description: 'Changelog'
+        required: false
+        default: 'Testing manual input mode'
 
 permissions:
   actions: write
@@ -44,9 +65,9 @@ jobs:
           plugin_id: "91"
           internal_name: "wahventory"
           path: "wahventory/bin/Release/wahventory.zip"
-          type: "testing"
-          version_number: "4.1.0.2"
-          dalamud_version: "14"
-          changelog: "Testing manual input mode"
+          type: ${{ inputs.release_type }}
+          version_number: ${{ inputs.version_number }}
+          dalamud_version: ${{ inputs.dalamud_version }}
+          changelog: ${{ inputs.changelog }}
         env:
           PUBLISHER_KEY: ${{ secrets.PUBLISHER_KEY }}

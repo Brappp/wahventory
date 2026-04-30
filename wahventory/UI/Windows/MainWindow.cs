@@ -38,6 +38,6 @@ public class MainWindow : Window
 
     public override void Draw()
     {
-        InventoryModule.Draw(SearchModule);
+        InventoryModule.Draw();
     }
 }

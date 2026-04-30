@@ -90,7 +90,7 @@ public partial class InventoryManagementModule : IDisposable
     {
         try
         {
-            var currentWorld = Plugin.ClientState.LocalPlayer?.CurrentWorld.Value.Name.ToString();
+            var currentWorld = Plugin.PlayerState.IsLoaded ? Plugin.PlayerState.CurrentWorld.Value.Name.ToString() : null;
             if (!string.IsNullOrEmpty(currentWorld))
             {
                 _selectedWorld = currentWorld;
@@ -112,9 +112,10 @@ public partial class InventoryManagementModule : IDisposable
         {
             try
             {
-                var currentWorld = Plugin.ClientState.LocalPlayer?.CurrentWorld.Value;
+                var hasPlayer = Plugin.PlayerState.IsLoaded;
+                var currentWorld = hasPlayer ? (Lumina.Excel.Sheets.World?)Plugin.PlayerState.CurrentWorld.Value : null;
                 var worldName = currentWorld?.Name.ExtractText() ?? "Aether";
-                
+
                 if (currentWorld != null)
                 {
                     try
@@ -185,7 +186,7 @@ public partial class InventoryManagementModule : IDisposable
         // Update price service world if changed
         try
         {
-            var currentWorld = Plugin.ClientState.LocalPlayer?.CurrentWorld.Value.Name.ToString();
+            var currentWorld = Plugin.PlayerState.IsLoaded ? Plugin.PlayerState.CurrentWorld.Value.Name.ToString() : null;
             if (!string.IsNullOrEmpty(currentWorld) && currentWorld != _selectedWorld)
             {
                 _selectedWorld = currentWorld;

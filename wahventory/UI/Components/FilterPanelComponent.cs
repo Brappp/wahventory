@@ -147,7 +147,7 @@ public class FilterPanelComponent
             ImGui.Indent();
             ImGui.SetNextItemWidth(100);
             var minSpiritbond = filters.MinSpiritbondToFilter;
-            if (ImGui.SliderFloat("Min Spiritbond %", ref minSpiritbond, 0f, 100f))
+            if (ImGui.SliderInt("Min Spiritbond %", ref minSpiritbond, 0, 100))
             {
                 filters.MinSpiritbondToFilter = minSpiritbond;
                 changed = true;

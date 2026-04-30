@@ -249,7 +249,7 @@ public class DiscardService : IDisposable
                     var textNode = addon->UldManager.NodeList[15]->GetAsAtkTextNode();
                     if (textNode != null)
                     {
-                        var text = Dalamud.Memory.MemoryHelper.ReadSeString(&textNode->NodeText).TextValue;
+                        var text = textNode->NodeText.ToString();
                         _log.Information($"YesNo dialog text: {text}");
                         
                         if (text.Contains("Discard", StringComparison.OrdinalIgnoreCase) || 

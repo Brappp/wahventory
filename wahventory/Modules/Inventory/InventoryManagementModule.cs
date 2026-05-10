@@ -30,15 +30,10 @@ public class InventoryManagementModule : IDisposable
 
     // State
     private bool _initialized = false;
-    internal readonly object _stateLock = new object();
+    internal readonly InventoryState _state = new();
 
     public HashSet<uint> BlacklistedItems { get; private set; }
     public HashSet<uint> AutoDiscardItems { get; private set; }
-
-    internal List<CategoryGroup> _categories = new();
-    internal List<InventoryItemInfo> _allItems = new();
-    internal List<InventoryItemInfo> _originalItems = new();
-    internal readonly HashSet<uint> _selectedItems = new();
 
     internal string _searchFilter = string.Empty;
     internal bool _showArmory = false;
@@ -201,17 +196,12 @@ public class InventoryManagementModule : IDisposable
         }
         
         // Auto-refresh prices
-        if (_windowIsOpen && Settings.AutoRefreshPrices && !DiscardService.IsDiscarding && 
+        if (_windowIsOpen && Settings.AutoRefreshPrices && !DiscardService.IsDiscarding &&
             DateTime.Now - _lastRefresh > _refreshInterval)
         {
             _lastRefresh = DateTime.Now;
-            
-            List<InventoryItemInfo> visibleItems;
-            lock (_stateLock)
-            {
-                visibleItems = GetVisibleItems();
-            }
-            
+
+            var visibleItems = GetVisibleItems();
             var itemsNeedingPrice = _priceService.GetItemsNeedingPriceFetch(visibleItems, 2);
             foreach (var item in itemsNeedingPrice)
             {
@@ -219,18 +209,14 @@ public class InventoryManagementModule : IDisposable
                 {
                     if (task.IsCompletedSuccessfully && task.Result.HasValue)
                     {
-                        lock (_stateLock)
-                        {
-                            item.MarketPrice = task.Result.Value;
-                            item.MarketPriceFetchTime = DateTime.Now;
-                        }
+                        _state.SetItemPrice(item, task.Result.Value, DateTime.Now);
                     }
                 });
             }
         }
-        
+
         _windowIsOpen = false;
-        
+
         // Save config if categories changed
         if (_expandedCategoriesChanged && DateTime.Now - _lastConfigSave > _configSaveInterval)
         {
@@ -238,11 +224,11 @@ public class InventoryManagementModule : IDisposable
             _expandedCategoriesChanged = false;
             _lastConfigSave = DateTime.Now;
         }
-        
+
         // Update passive discard
         _passiveDiscardService.Update(
             AutoDiscardItems,
-            _originalItems,
+            _state.SnapshotOriginalItems(),
             BlacklistedItems,
             ExecuteAutoDiscard);
     }
@@ -260,63 +246,35 @@ public class InventoryManagementModule : IDisposable
     internal void RefreshInventory()
     {
         var newItems = _inventoryHelpers.GetAllItems(_showArmory, false);
-        
-        lock (_stateLock)
-        {
-            _originalItems = newItems;
-            
-            // Apply safety assessment
-            foreach (var item in _originalItems)
+
+        _state.ApplyRefreshAndRecategorize(
+            newItems,
+            initEachItem: item =>
             {
                 item.SafetyAssessment = InventoryHelpers.AssessItemSafety(item, Settings, BlacklistedItems);
-                
-                // Update price from cache
                 _priceService.UpdateItemPrice(item);
-                
-                // Update selection state
-                item.IsSelected = _selectedItems.Contains(item.ItemId);
-            }
-            
-            UpdateCategories();
-        }
+            },
+            applyFilters: items => _filterService.ApplyFilters(items, Settings.SafetyFilters, BlacklistedItems, _searchFilter),
+            categorize: items => _filterService.GroupIntoCategories(items));
     }
-    
+
     internal void UpdateCategories()
     {
-        List<InventoryItemInfo> itemsCopy;
-        lock (_stateLock)
-        {
-            itemsCopy = new List<InventoryItemInfo>(_originalItems);
-        }
-        
-        var filteredItems = _filterService.ApplyFilters(
-            itemsCopy,
-            Settings.SafetyFilters,
-            BlacklistedItems,
-            _searchFilter);
-        
-        lock (_stateLock)
-        {
-            _allItems = filteredItems.ToList();
-            _categories = _filterService.GroupIntoCategories(_allItems);
-        }
+        _state.Recategorize(
+            applyFilters: items => _filterService.ApplyFilters(items, Settings.SafetyFilters, BlacklistedItems, _searchFilter),
+            categorize: items => _filterService.GroupIntoCategories(items));
     }
-    
+
     private List<InventoryItemInfo> GetVisibleItems()
     {
-        return _filterService.ApplyFilters(
-            _originalItems,
-            Settings.SafetyFilters,
-            BlacklistedItems,
-            _searchFilter).ToList();
+        return _state.ApplyFiltersToOriginal(
+            items => _filterService.ApplyFilters(items, Settings.SafetyFilters, BlacklistedItems, _searchFilter));
     }
-    
+
     internal List<InventoryItemInfo> GetProtectedItems()
     {
-        return _filterService.GetProtectedItems(
-            _originalItems,
-            Settings.SafetyFilters,
-            BlacklistedItems);
+        return _state.GetProtectedItems(
+            items => _filterService.GetProtectedItems(items, Settings.SafetyFilters, BlacklistedItems));
     }
     
     public void SaveBlacklist()
@@ -336,74 +294,29 @@ public class InventoryManagementModule : IDisposable
             _services.ChatGui.PrintError("No items configured for auto-discard. Add items in the Auto Discard tab.");
             return;
         }
-        
-        List<InventoryItemInfo> itemsToDiscard;
-        lock (_stateLock)
-        {
-            itemsToDiscard = _allItems
-                .Where(item => AutoDiscardItems.Contains(item.ItemId) && 
-                              item.CanBeDiscarded &&
-                              !BlacklistedItems.Contains(item.ItemId))
-                .ToList();
-        }
-        
+
+        var itemsToDiscard = _state.SnapshotAutoDiscardCandidates(AutoDiscardItems, BlacklistedItems);
+
         if (!itemsToDiscard.Any())
         {
             _services.ChatGui.PrintError("No auto-discard items found in inventory.");
             return;
         }
-        
-        List<uint> selectedItemIds;
-        lock (_stateLock)
-        {
-            selectedItemIds = itemsToDiscard.Select(i => i.ItemId).Distinct().ToList();
-        }
-        
-        DiscardService.PrepareDiscard(selectedItemIds, _originalItems, BlacklistedItems);
+
+        var selectedItemIds = itemsToDiscard.Select(i => i.ItemId).Distinct().ToList();
+        DiscardService.PrepareDiscard(selectedItemIds, _state.SnapshotOriginalItems(), BlacklistedItems);
     }
-    
+
     internal void AddSelectedToBlacklist()
     {
-        lock (_stateLock)
-        {
-            foreach (var itemId in _selectedItems)
-            {
-                if (!BlacklistedItems.Contains(itemId))
-                {
-                    BlacklistedItems.Add(itemId);
-                }
-            }
-
-            _selectedItems.Clear();
-            foreach (var item in _allItems)
-            {
-                item.IsSelected = false;
-            }
-        }
-
+        _state.TransferSelectionTo(BlacklistedItems);
         SaveBlacklist();
         RefreshInventory();
     }
 
     internal void AddSelectedToAutoDiscard()
     {
-        lock (_stateLock)
-        {
-            foreach (var itemId in _selectedItems)
-            {
-                if (!AutoDiscardItems.Contains(itemId))
-                {
-                    AutoDiscardItems.Add(itemId);
-                }
-            }
-
-            _selectedItems.Clear();
-            foreach (var item in _allItems)
-            {
-                item.IsSelected = false;
-            }
-        }
-
+        _state.TransferSelectionTo(AutoDiscardItems);
         SaveAutoDiscard();
         RefreshInventory();
     }

@@ -80,17 +80,8 @@ internal sealed class InventoryUIRenderer
         {
             if (tabBar)
             {
-                List<InventoryItemInfo> filteredItems;
-                lock (_module._stateLock)
-                {
-                    filteredItems = _module.GetProtectedItems();
-                }
-
-                int availableCount;
-                lock (_module._stateLock)
-                {
-                    availableCount = _module._categories.Sum(c => c.Items.Count);
-                }
+                var filteredItems = _module.GetProtectedItems();
+                var availableCount = _module._state.CategoryItemTotal;
 
                 string availableTabText = $"Available Items ({availableCount})###AvailableTab";
                 using (var tabItem = ImRaii.TabItem(availableTabText))
@@ -236,15 +227,7 @@ internal sealed class InventoryUIRenderer
                                 _module._selectedWorld = world;
                                 _module._priceService.UpdateWorld(_module._selectedWorld);
                                 _module._priceService.ClearCache();
-
-                                lock (_module._stateLock)
-                                {
-                                    foreach (var item in _module._allItems)
-                                    {
-                                        item.MarketPrice = null;
-                                        item.MarketPriceFetchTime = null;
-                                    }
-                                }
+                                _module._state.ClearAllPrices();
                             }
                         }
                     }
@@ -252,11 +235,7 @@ internal sealed class InventoryUIRenderer
             }
 
             var windowWidth = ImGui.GetWindowContentRegionMax().X;
-            long totalValue;
-            lock (_module._stateLock)
-            {
-                totalValue = _module._categories.Sum(c => c.TotalValue ?? 0);
-            }
+            var totalValue = _module._state.TotalCategoryValue;
 
             var totalText = $"Total: {totalValue:N0} gil";
             var totalTextWidth = ImGui.CalcTextSize(totalText).X;
@@ -280,11 +259,7 @@ internal sealed class InventoryUIRenderer
 
     private void DrawAvailableItemsTab()
     {
-        List<CategoryGroup> categoriesCopy;
-        lock (_module._stateLock)
-        {
-            categoriesCopy = new List<CategoryGroup>(_module._categories);
-        }
+        var categoriesCopy = _module._state.SnapshotCategories();
 
         if (!string.IsNullOrWhiteSpace(_module._searchFilter))
         {
@@ -348,40 +323,19 @@ internal sealed class InventoryUIRenderer
             ShowMarketPrices = settings.ShowMarketPrices,
             ShowTotalValue = settings.ShowMarketPrices,
             SearchFilter = _module._searchFilter,
-            IsItemSelected = (item) =>
-            {
-                lock (_module._stateLock)
-                {
-                    return _module._selectedItems.Contains(item.ItemId);
-                }
-            },
+            IsItemSelected = (item) => _module._state.IsSelected(item.ItemId),
             IsItemBlacklisted = (item) => _module.BlacklistedItems.Contains(item.ItemId),
             OnItemSelectionChanged = (item, selected) =>
             {
-                lock (_module._stateLock)
-                {
-                    if (selected)
-                    {
-                        _module._selectedItems.Add(item.ItemId);
-                        item.IsSelected = true;
-                    }
-                    else
-                    {
-                        _module._selectedItems.Remove(item.ItemId);
-                        item.IsSelected = false;
-                    }
-                }
+                if (selected) _module._state.Select(item);
+                else _module._state.Deselect(item);
             },
             IsFetchingPrice = (itemId) => _module._priceService.IsFetchingPrice(itemId),
             OnPriceFetchRequested = (item) => _ = _module._priceService.FetchPrice(item).ContinueWith(task =>
             {
                 if (task.IsCompletedSuccessfully && task.Result.HasValue)
                 {
-                    lock (_module._stateLock)
-                    {
-                        item.MarketPrice = task.Result.Value;
-                        item.MarketPriceFetchTime = DateTime.Now;
-                    }
+                    _module._state.SetItemPrice(item, task.Result.Value, DateTime.Now);
                 }
             })
         };
@@ -391,41 +345,15 @@ internal sealed class InventoryUIRenderer
 
     private void DrawCategoryControls(CategoryGroup category)
     {
-        int selectedInCategory;
-        bool allSelectableSelected;
-        lock (_module._stateLock)
-        {
-            selectedInCategory = category.Items.Count(i => _module._selectedItems.Contains(i.ItemId));
-            var selectableItems = category.Items.Where(i => !_module.BlacklistedItems.Contains(i.ItemId)).ToList();
-            allSelectableSelected = selectableItems.Count > 0 && selectableItems.All(i => _module._selectedItems.Contains(i.ItemId));
-        }
-
+        var allSelectableSelected = _module._state.AreAllSelectableSelected(category, _module.BlacklistedItems);
         var buttonText = allSelectableSelected ? "Deselect All" : "Select All";
 
         if (ImGui.SmallButton(buttonText))
         {
-            lock (_module._stateLock)
-            {
-                if (allSelectableSelected)
-                {
-                    foreach (var item in category.Items)
-                    {
-                        _module._selectedItems.Remove(item.ItemId);
-                        item.IsSelected = false;
-                    }
-                }
-                else
-                {
-                    foreach (var item in category.Items)
-                    {
-                        if (_module.BlacklistedItems.Contains(item.ItemId))
-                            continue;
-
-                        _module._selectedItems.Add(item.ItemId);
-                        item.IsSelected = true;
-                    }
-                }
-            }
+            if (allSelectableSelected)
+                _module._state.DeselectAllInCategory(category);
+            else
+                _module._state.SelectAllSelectableInCategory(category, _module.BlacklistedItems);
         }
     }
 
@@ -465,40 +393,19 @@ internal sealed class InventoryUIRenderer
             ShowMarketPrices = settings.ShowMarketPrices,
             Scrollable = true,
             SearchFilter = _module._searchFilter,
-            IsItemSelected = (item) =>
-            {
-                lock (_module._stateLock)
-                {
-                    return _module._selectedItems.Contains(item.ItemId);
-                }
-            },
+            IsItemSelected = (item) => _module._state.IsSelected(item.ItemId),
             IsItemBlacklisted = (item) => _module.BlacklistedItems.Contains(item.ItemId),
             OnItemSelectionChanged = (item, selected) =>
             {
-                lock (_module._stateLock)
-                {
-                    if (selected)
-                    {
-                        _module._selectedItems.Add(item.ItemId);
-                        item.IsSelected = true;
-                    }
-                    else
-                    {
-                        _module._selectedItems.Remove(item.ItemId);
-                        item.IsSelected = false;
-                    }
-                }
+                if (selected) _module._state.Select(item);
+                else _module._state.Deselect(item);
             },
             IsFetchingPrice = (itemId) => _module._priceService.IsFetchingPrice(itemId),
             OnPriceFetchRequested = (item) => _ = _module._priceService.FetchPrice(item).ContinueWith(task =>
             {
                 if (task.IsCompletedSuccessfully && task.Result.HasValue)
                 {
-                    lock (_module._stateLock)
-                    {
-                        item.MarketPrice = task.Result.Value;
-                        item.MarketPriceFetchTime = DateTime.Now;
-                    }
+                    _module._state.SetItemPrice(item, task.Result.Value, DateTime.Now);
                 }
             })
         };
@@ -638,17 +545,13 @@ internal sealed class InventoryUIRenderer
             var filteredIds = new List<uint>();
             foreach (var itemId in _module.BlacklistedItems)
             {
-                string itemName = null;
-                lock (_module._stateLock)
-                {
-                    var itemInfo = _module._allItems.FirstOrDefault(i => i.ItemId == itemId);
-                    itemName = itemInfo?.Name;
-                }
+                var itemInfo = _module._state.FindAllItem(itemId);
+                string itemName = itemInfo?.Name;
 
                 if (string.IsNullOrEmpty(itemName))
                 {
-                    var itemInfo = _module._searchService.GetItemInfo(itemId);
-                    itemName = itemInfo?.Name ?? $"Unknown Item ({itemId})";
+                    var info = _module._searchService.GetItemInfo(itemId);
+                    itemName = info?.Name ?? $"Unknown Item ({itemId})";
                 }
 
                 if (itemName.Contains(_module._searchFilter, StringComparison.OrdinalIgnoreCase) ||
@@ -667,11 +570,7 @@ internal sealed class InventoryUIRenderer
     {
         var items = itemIds.Select(itemId =>
         {
-            InventoryItemInfo? itemInfo = null;
-            lock (_module._stateLock)
-            {
-                itemInfo = _module._allItems.FirstOrDefault(i => i.ItemId == itemId);
-            }
+            var itemInfo = _module._state.FindAllItem(itemId);
 
             if (itemInfo == null)
             {
@@ -784,17 +683,13 @@ internal sealed class InventoryUIRenderer
             var filteredIds = new List<uint>();
             foreach (var itemId in _module.AutoDiscardItems)
             {
-                string itemName = null;
-                lock (_module._stateLock)
-                {
-                    var itemInfo = _module._allItems.FirstOrDefault(i => i.ItemId == itemId);
-                    itemName = itemInfo?.Name;
-                }
+                var itemInfo = _module._state.FindAllItem(itemId);
+                string itemName = itemInfo?.Name;
 
                 if (string.IsNullOrEmpty(itemName))
                 {
-                    var itemInfo = _module._searchService.GetItemInfo(itemId);
-                    itemName = itemInfo?.Name ?? $"Unknown Item ({itemId})";
+                    var info = _module._searchService.GetItemInfo(itemId);
+                    itemName = info?.Name ?? $"Unknown Item ({itemId})";
                 }
 
                 if (itemName.Contains(_module._searchFilter, StringComparison.OrdinalIgnoreCase) ||
@@ -813,11 +708,7 @@ internal sealed class InventoryUIRenderer
     {
         var items = itemIds.Select(itemId =>
         {
-            InventoryItemInfo? itemInfo = null;
-            lock (_module._stateLock)
-            {
-                itemInfo = _module._allItems.FirstOrDefault(i => i.ItemId == itemId);
-            }
+            var itemInfo = _module._state.FindAllItem(itemId);
 
             if (itemInfo == null)
             {
@@ -852,13 +743,10 @@ internal sealed class InventoryUIRenderer
             },
             DrawItemTags = (item) =>
             {
-                lock (_module._stateLock)
+                if (_module._state.ContainsAllItem(item.ItemId))
                 {
-                    if (_module._allItems.Any(i => i.ItemId == item.ItemId))
-                    {
-                        ImGui.SameLine();
-                        ImGui.TextColored(ColorWarning, "[In Inventory]");
-                    }
+                    ImGui.SameLine();
+                    ImGui.TextColored(ColorWarning, "[In Inventory]");
                 }
             }
         };
@@ -908,7 +796,7 @@ internal sealed class InventoryUIRenderer
             ImGui.Text("Status:");
             ImGui.SameLine();
 
-            var status = _module._passiveDiscardService.GetStatus(_module.AutoDiscardItems, _module._originalItems, _module.BlacklistedItems);
+            var status = _module._passiveDiscardService.GetStatus(_module.AutoDiscardItems, _module._state.SnapshotOriginalItems(), _module.BlacklistedItems);
             DrawPassiveDiscardStatus(status);
         }
     }
@@ -948,11 +836,7 @@ internal sealed class InventoryUIRenderer
 
         using (var child = ImRaii.Child("ActionBar", new Vector2(0, 42), true, ImGuiWindowFlags.NoScrollbar))
         {
-            int selectedCount;
-            lock (_module._stateLock)
-            {
-                selectedCount = _module._selectedItems.Count;
-            }
+            var selectedCount = _module._state.SelectedCount;
 
             var clearButtonText = "Clear All";
             var discardButtonText = $"Discard ({selectedCount})";
@@ -969,14 +853,7 @@ internal sealed class InventoryUIRenderer
 
             if (ImGui.Button(clearButtonText, new Vector2(clearButtonWidth, 0)))
             {
-                lock (_module._stateLock)
-                {
-                    _module._selectedItems.Clear();
-                    foreach (var item in _module._allItems)
-                    {
-                        item.IsSelected = false;
-                    }
-                }
+                _module._state.ClearSelectionAndReset();
             }
 
             ImGui.SameLine();
@@ -988,12 +865,8 @@ internal sealed class InventoryUIRenderer
                 {
                     if (ImGui.Button(discardButtonText, new Vector2(discardButtonWidth, 0)))
                     {
-                        List<uint> selectedItemIds;
-                        lock (_module._stateLock)
-                        {
-                            selectedItemIds = _module._selectedItems.ToList();
-                        }
-                        _module.DiscardService.PrepareDiscard(selectedItemIds, _module._originalItems, _module.BlacklistedItems);
+                        var selectedItemIds = _module._state.SnapshotSelectedIds();
+                        _module.DiscardService.PrepareDiscard(selectedItemIds, _module._state.SnapshotOriginalItems(), _module.BlacklistedItems);
                     }
                 }
                 else

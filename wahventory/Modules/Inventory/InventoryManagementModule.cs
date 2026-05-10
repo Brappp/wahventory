@@ -1,10 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Numerics;
-using Dalamud.Interface;
-using Dalamud.Interface.Utility.Raii;
-using Dalamud.Bindings.ImGui;
 using wahventory.Core;
 using wahventory.Models;
 using wahventory.Services;
@@ -12,50 +8,53 @@ using wahventory.Services.Helpers;
 
 namespace wahventory.Modules.Inventory;
 
-public partial class InventoryManagementModule : IDisposable
+public class InventoryManagementModule : IDisposable
 {
-    private readonly Plugin _plugin;
+    internal readonly Plugin _plugin;
     private readonly IGameServices _services;
     private readonly InventoryHelpers _inventoryHelpers;
-    private readonly IconCache _iconCache;
-    
+    internal readonly IconCache _iconCache;
+
     // Services
     private readonly ItemFilterService _filterService;
-    private readonly ItemSearchService _searchService;
-    private readonly PriceService _priceService;
+    internal readonly ItemSearchService _searchService;
+    internal readonly PriceService _priceService;
     public readonly DiscardService DiscardService;
-    private readonly PassiveDiscardService _passiveDiscardService;
-    
+    internal readonly PassiveDiscardService _passiveDiscardService;
+
     // Expose filter service for UI
     internal ItemFilterService FilterService => _filterService;
-    
+
+    // UI
+    private readonly InventoryUIRenderer _ui;
+
     // State
     private bool _initialized = false;
-    private readonly object _stateLock = new object();
-    
+    internal readonly object _stateLock = new object();
+
     public HashSet<uint> BlacklistedItems { get; private set; }
     public HashSet<uint> AutoDiscardItems { get; private set; }
-    
-    private List<CategoryGroup> _categories = new();
-    private List<InventoryItemInfo> _allItems = new();
-    private List<InventoryItemInfo> _originalItems = new();
-    private readonly HashSet<uint> _selectedItems = new();
-    
-    private string _searchFilter = string.Empty;
-    private bool _showArmory = false;
-    private string _selectedWorld = "";
-    private List<string> _availableWorlds = new();
-    
+
+    internal List<CategoryGroup> _categories = new();
+    internal List<InventoryItemInfo> _allItems = new();
+    internal List<InventoryItemInfo> _originalItems = new();
+    internal readonly HashSet<uint> _selectedItems = new();
+
+    internal string _searchFilter = string.Empty;
+    internal bool _showArmory = false;
+    internal string _selectedWorld = "";
+    internal List<string> _availableWorlds = new();
+
     private DateTime _lastRefresh = DateTime.MinValue;
     private readonly TimeSpan _refreshInterval = TimeSpan.FromSeconds(1);
-    private bool _expandedCategoriesChanged = false;
+    internal bool _expandedCategoriesChanged = false;
     private DateTime _lastConfigSave = DateTime.MinValue;
     private readonly TimeSpan _configSaveInterval = TimeSpan.FromSeconds(2);
     private bool _windowIsOpen = false;
-    
-    private InventorySettings Settings => _plugin.Configuration.InventorySettings;
-    private Dictionary<uint, bool> ExpandedCategories => Settings.ExpandedCategories;
-    
+
+    internal InventorySettings Settings => _plugin.Configuration.InventorySettings;
+    internal Dictionary<uint, bool> ExpandedCategories => Settings.ExpandedCategories;
+
     public InventoryManagementModule(Plugin plugin, IGameServices services)
     {
         _plugin = plugin;
@@ -78,14 +77,15 @@ public partial class InventoryManagementModule : IDisposable
             _services.GameGui,
             _services.Log,
             Settings);
-        
+
         BlacklistedItems = _plugin.ConfigManager.LoadBlacklist();
         AutoDiscardItems = _plugin.ConfigManager.LoadAutoDiscard();
         _selectedWorld = "Excalibur";
-        
+
         PopulateAvailableWorlds();
         InitializeWorld();
-        InitializeUIComponents();
+
+        _ui = new InventoryUIRenderer(this);
     }
     
     private void InitializeWorld()
@@ -254,94 +254,10 @@ public partial class InventoryManagementModule : IDisposable
         {
             Initialize();
         }
-        DrawMainContent();
+        _ui.Draw();
     }
-    
-    private void DrawMainContent()
-    {
-        DrawTopControls();
-        DrawFiltersAndSettings();
-        
-        ImGui.Separator();
-        var windowHeight = ImGui.GetWindowHeight();
-        var currentY = ImGui.GetCursorPosY();
-        var bottomBarHeight = 42f;
-        var separatorHeight = ImGui.GetStyle().ItemSpacing.Y * 2 + 2;
-        var tabBarHeight = ImGui.GetFrameHeight();
-        var contentHeight = windowHeight - currentY - bottomBarHeight - separatorHeight - tabBarHeight - 10f;
-        contentHeight = Math.Max(100f, contentHeight);
-        
-        using (var tabBar = ImRaii.TabBar("InventoryTabs"))
-        {
-            if (tabBar)
-            {
-                List<InventoryItemInfo> filteredItems;
-                lock (_stateLock)
-                {
-                    filteredItems = GetProtectedItems();
-                }
-                
-                int availableCount;
-                lock (_stateLock)
-                {
-                    availableCount = _categories.Sum(c => c.Items.Count);
-                }
-                
-                string availableTabText = $"Available Items ({availableCount})###AvailableTab";
-                using (var tabItem = ImRaii.TabItem(availableTabText))
-                {
-                    if (tabItem)
-                    {
-                        using (var child = ImRaii.Child("AvailableContent", new Vector2(0, contentHeight), false))
-                        {
-                            DrawAvailableItemsTab();
-                        }
-                    }
-                }
-                
-                string protectedTabText = $"Protected Items ({filteredItems.Count})###ProtectedTab";
-                using (var tabItem = ImRaii.TabItem(protectedTabText))
-                {
-                    if (tabItem)
-                    {
-                        using (var child = ImRaii.Child("ProtectedContent", new Vector2(0, contentHeight), false))
-                        {
-                            DrawProtectedItemsTab(filteredItems);
-                        }
-                    }
-                }
-                
-                string blacklistTabText = "Blacklist Management###BlacklistTab";
-                using (var tabItem = ImRaii.TabItem(blacklistTabText))
-                {
-                    if (tabItem)
-                    {
-                        using (var child = ImRaii.Child("BlacklistContent", new Vector2(0, contentHeight), false))
-                        {
-                            DrawBlacklistTab();
-                        }
-                    }
-                }
-                
-                string autoDiscardTabText = "Auto Discard###AutoDiscardTab";
-                using (var tabItem = ImRaii.TabItem(autoDiscardTabText))
-                {
-                    if (tabItem)
-                    {
-                        using (var child = ImRaii.Child("AutoDiscardContent", new Vector2(0, contentHeight), false))
-                        {
-                            DrawAutoDiscardTab();
-                        }
-                    }
-                }
-            }
-        }
-        
-        ImGui.Separator();
-        DrawBottomActionBar();
-    }
-    
-    private void RefreshInventory()
+
+    internal void RefreshInventory()
     {
         var newItems = _inventoryHelpers.GetAllItems(_showArmory, false);
         
@@ -365,7 +281,7 @@ public partial class InventoryManagementModule : IDisposable
         }
     }
     
-    private void UpdateCategories()
+    internal void UpdateCategories()
     {
         List<InventoryItemInfo> itemsCopy;
         lock (_stateLock)
@@ -395,7 +311,7 @@ public partial class InventoryManagementModule : IDisposable
             _searchFilter).ToList();
     }
     
-    private List<InventoryItemInfo> GetProtectedItems()
+    internal List<InventoryItemInfo> GetProtectedItems()
     {
         return _filterService.GetProtectedItems(
             _originalItems,
@@ -446,13 +362,59 @@ public partial class InventoryManagementModule : IDisposable
         DiscardService.PrepareDiscard(selectedItemIds, _originalItems, BlacklistedItems);
     }
     
+    internal void AddSelectedToBlacklist()
+    {
+        lock (_stateLock)
+        {
+            foreach (var itemId in _selectedItems)
+            {
+                if (!BlacklistedItems.Contains(itemId))
+                {
+                    BlacklistedItems.Add(itemId);
+                }
+            }
+
+            _selectedItems.Clear();
+            foreach (var item in _allItems)
+            {
+                item.IsSelected = false;
+            }
+        }
+
+        SaveBlacklist();
+        RefreshInventory();
+    }
+
+    internal void AddSelectedToAutoDiscard()
+    {
+        lock (_stateLock)
+        {
+            foreach (var itemId in _selectedItems)
+            {
+                if (!AutoDiscardItems.Contains(itemId))
+                {
+                    AutoDiscardItems.Add(itemId);
+                }
+            }
+
+            _selectedItems.Clear();
+            foreach (var item in _allItems)
+            {
+                item.IsSelected = false;
+            }
+        }
+
+        SaveAutoDiscard();
+        RefreshInventory();
+    }
+
     public void Dispose()
     {
         if (_expandedCategoriesChanged)
         {
             _plugin.ConfigManager.SaveConfiguration();
         }
-        
+
         _priceService?.Dispose();
         DiscardService?.Dispose();
         _iconCache?.Dispose();

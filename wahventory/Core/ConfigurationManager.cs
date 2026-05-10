@@ -14,24 +14,24 @@ public class ConfigurationManager
     private readonly string _configDirectory;
     private Configuration _configuration = null!;
     private readonly IPluginLog _log;
-    
+
     private const string CONFIG_FILE = "config.json";
     private const string BLACKLIST_FILE = "blacklist.json";
     private const string AUTODISCARD_FILE = "autodiscard.json";
-    
+
     public Configuration Configuration => _configuration;
-    
-    public ConfigurationManager(IDalamudPluginInterface pluginInterface)
+
+    public ConfigurationManager(IGameServices services)
     {
-        _pluginInterface = pluginInterface;
+        _pluginInterface = services.PluginInterface;
+        _log = services.Log;
         _configDirectory = Path.Combine(_pluginInterface.ConfigDirectory.FullName, "wahventory");
-        _log = Plugin.Log;
-        
+
         if (!Directory.Exists(_configDirectory))
         {
             Directory.CreateDirectory(_configDirectory);
         }
-        
+
         LoadConfiguration();
     }
     

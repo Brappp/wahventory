@@ -15,6 +15,7 @@ namespace wahventory.Modules.Inventory;
 public partial class InventoryManagementModule : IDisposable
 {
     private readonly Plugin _plugin;
+    private readonly IGameServices _services;
     private readonly InventoryHelpers _inventoryHelpers;
     private readonly IconCache _iconCache;
     
@@ -55,26 +56,27 @@ public partial class InventoryManagementModule : IDisposable
     private InventorySettings Settings => _plugin.Configuration.InventorySettings;
     private Dictionary<uint, bool> ExpandedCategories => Settings.ExpandedCategories;
     
-    public InventoryManagementModule(Plugin plugin)
+    public InventoryManagementModule(Plugin plugin, IGameServices services)
     {
         _plugin = plugin;
-        _inventoryHelpers = new InventoryHelpers(Plugin.DataManager, Plugin.Log);
-        _iconCache = new IconCache(Plugin.TextureProvider);
-        
+        _services = services;
+        _inventoryHelpers = new InventoryHelpers(_services.DataManager, _services.Log);
+        _iconCache = new IconCache(_services.TextureProvider);
+
         // Initialize services
         _filterService = new ItemFilterService();
-        _searchService = new ItemSearchService(Plugin.DataManager, Plugin.Log);
-        _priceService = new PriceService(Plugin.Log, Settings, "Excalibur");
+        _searchService = new ItemSearchService(_services.DataManager, _services.Log);
+        _priceService = new PriceService(_services.Log, Settings, "Excalibur");
         DiscardService = new DiscardService(
             _inventoryHelpers,
-            Plugin.Log,
-            Plugin.ChatGui,
-            Plugin.GameGui);
+            _services.Log,
+            _services.ChatGui,
+            _services.GameGui);
         _passiveDiscardService = new PassiveDiscardService(
-            Plugin.ClientState,
-            Plugin.Condition,
-            Plugin.GameGui,
-            Plugin.Log,
+            _services.ClientState,
+            _services.Condition,
+            _services.GameGui,
+            _services.Log,
             Settings);
         
         BlacklistedItems = _plugin.ConfigManager.LoadBlacklist();
@@ -90,7 +92,7 @@ public partial class InventoryManagementModule : IDisposable
     {
         try
         {
-            var currentWorld = Plugin.PlayerState.IsLoaded ? Plugin.PlayerState.CurrentWorld.Value.Name.ToString() : null;
+            var currentWorld = _services.PlayerState.IsLoaded ? _services.PlayerState.CurrentWorld.Value.Name.ToString() : null;
             if (!string.IsNullOrEmpty(currentWorld))
             {
                 _selectedWorld = currentWorld;
@@ -107,13 +109,13 @@ public partial class InventoryManagementModule : IDisposable
     {
         _availableWorlds.Clear();
         
-        var worldSheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.World>();
+        var worldSheet = _services.DataManager.GetExcelSheet<Lumina.Excel.Sheets.World>();
         if (worldSheet != null)
         {
             try
             {
-                var hasPlayer = Plugin.PlayerState.IsLoaded;
-                var currentWorld = hasPlayer ? (Lumina.Excel.Sheets.World?)Plugin.PlayerState.CurrentWorld.Value : null;
+                var hasPlayer = _services.PlayerState.IsLoaded;
+                var currentWorld = hasPlayer ? (Lumina.Excel.Sheets.World?)_services.PlayerState.CurrentWorld.Value : null;
                 var worldName = currentWorld?.Name.ExtractText() ?? "Aether";
 
                 if (currentWorld != null)
@@ -158,7 +160,7 @@ public partial class InventoryManagementModule : IDisposable
             }
             catch (Exception ex)
             {
-                Plugin.Log.Warning($"Failed to get datacenter worlds: {ex.Message}");
+                _services.Log.Warning($"Failed to get datacenter worlds: {ex.Message}");
                 _availableWorlds = new List<string> { "Aether" };
             }
         }
@@ -186,7 +188,7 @@ public partial class InventoryManagementModule : IDisposable
         // Update price service world if changed
         try
         {
-            var currentWorld = Plugin.PlayerState.IsLoaded ? Plugin.PlayerState.CurrentWorld.Value.Name.ToString() : null;
+            var currentWorld = _services.PlayerState.IsLoaded ? _services.PlayerState.CurrentWorld.Value.Name.ToString() : null;
             if (!string.IsNullOrEmpty(currentWorld) && currentWorld != _selectedWorld)
             {
                 _selectedWorld = currentWorld;
@@ -415,7 +417,7 @@ public partial class InventoryManagementModule : IDisposable
     {
         if (AutoDiscardItems.Count == 0)
         {
-            Plugin.ChatGui.PrintError("No items configured for auto-discard. Add items in the Auto Discard tab.");
+            _services.ChatGui.PrintError("No items configured for auto-discard. Add items in the Auto Discard tab.");
             return;
         }
         
@@ -431,7 +433,7 @@ public partial class InventoryManagementModule : IDisposable
         
         if (!itemsToDiscard.Any())
         {
-            Plugin.ChatGui.PrintError("No auto-discard items found in inventory.");
+            _services.ChatGui.PrintError("No auto-discard items found in inventory.");
             return;
         }
         

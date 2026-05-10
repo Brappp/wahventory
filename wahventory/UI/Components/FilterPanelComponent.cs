@@ -9,10 +9,6 @@ namespace wahventory.UI.Components;
 
 public class FilterPanelComponent
 {
-    private static readonly Vector4 ColorInfo = new(0.7f, 0.7f, 0.7f, 1f);
-    private static readonly Vector4 ColorWarning = new(0.9f, 0.5f, 0.1f, 1f);
-    private static readonly Vector4 ColorBlue = new(0.3f, 0.7f, 1.0f, 1f);
-    
     public event Action? OnFiltersChanged;
     
     public void Draw(InventorySettings settings, bool compact = false)
@@ -36,14 +32,14 @@ public class FilterPanelComponent
         {
             using (var font = ImRaii.PushFont(UiBuilder.IconFont))
             {
-                ImGui.TextColored(ColorBlue, FontAwesomeIcon.Shield.ToIconString());
+                ImGui.TextColored(Theme.ColorBlue, FontAwesomeIcon.Shield.ToIconString());
             }
             ImGui.SameLine();
             ImGui.Text("Safety Filters");
             ImGui.SameLine();
             
             var activeCount = CountActiveFilters(settings.SafetyFilters);
-            ImGui.TextColored(ColorInfo, $"({activeCount}/9 active)");
+            ImGui.TextColored(Theme.ColorInfo, $"({activeCount}/9 active)");
             
             ImGui.Spacing();
             
@@ -290,14 +286,14 @@ public class FilterPanelComponent
         ImGui.AlignTextToFramePadding();
         ImGui.Text("High Level Gear (");
         ImGui.SameLine(0, 0);
-        ImGui.TextColored(ColorWarning, "i");
+        ImGui.TextColored(Theme.ColorWarning, "i");
         ImGui.SameLine(0, 2);
         
         using (var styles = ImRaii.PushStyle(ImGuiStyleVar.FramePadding, new Vector2(4, 2))
                                   .Push(ImGuiStyleVar.FrameBorderSize, 0))
         using (var colors = ImRaii.PushColor(ImGuiCol.FrameBg, new Vector4(0.2f, 0.2f, 0.2f, 0.5f))
                                   .Push(ImGuiCol.FrameBgHovered, new Vector4(0.3f, 0.3f, 0.3f, 0.6f))
-                                  .Push(ImGuiCol.Text, ColorWarning))
+                                  .Push(ImGuiCol.Text, Theme.ColorWarning))
         {
             ImGui.SetNextItemWidth(40);
             int maxLevel = (int)filters.MaxGearItemLevel;
@@ -309,7 +305,7 @@ public class FilterPanelComponent
         }
         
         ImGui.SameLine(0, 2);
-        ImGui.TextColored(ColorWarning, "+");
+        ImGui.TextColored(Theme.ColorWarning, "+");
         ImGui.SameLine(0, 0);
         ImGui.Text(")");
         ImGui.SameLine();

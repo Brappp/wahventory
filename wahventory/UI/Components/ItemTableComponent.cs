@@ -14,15 +14,7 @@ namespace wahventory.UI.Components;
 public class ItemTableComponent
 {
     private readonly IconCache _iconCache;
-    
-    // Color constants
-    private static readonly Vector4 ColorHQItem = new(0.6f, 0.8f, 1f, 1f);
-    private static readonly Vector4 ColorError = new(0.8f, 0.2f, 0.2f, 1f);
-    private static readonly Vector4 ColorNotTradeable = new(0.5f, 0.5f, 0.5f, 1f);
-    private static readonly Vector4 ColorSubdued = new(0.6f, 0.6f, 0.6f, 1f);
-    private static readonly Vector4 ColorPrice = new(1f, 0.8f, 0.2f, 1f);
-    private static readonly Vector4 ColorWarning = new(0.9f, 0.5f, 0.1f, 1f);
-    
+
     public ItemTableComponent(IconCache iconCache)
     {
         _iconCache = iconCache;
@@ -145,7 +137,7 @@ public class ItemTableComponent
         
         // ID column
         ImGui.TableNextColumn();
-        ImGui.TextColored(ColorSubdued, item.ItemId.ToString());
+        ImGui.TextColored(Theme.ColorSubdued, item.ItemId.ToString());
         
         // Item column
         ImGui.TableNextColumn();
@@ -165,7 +157,7 @@ public class ItemTableComponent
             }
             else
             {
-                ImGui.TextColored(ColorSubdued, "-");
+                ImGui.TextColored(Theme.ColorSubdued, "-");
             }
         }
         
@@ -180,7 +172,7 @@ public class ItemTableComponent
         if (config.ShowCategory)
         {
             ImGui.TableNextColumn();
-            ImGui.TextColored(ColorSubdued, item.CategoryName);
+            ImGui.TextColored(Theme.ColorSubdued, item.CategoryName);
         }
         
         // Market Price columns
@@ -204,7 +196,7 @@ public class ItemTableComponent
         else if (config.ShowReason && config.GetFilterReason != null)
         {
             ImGui.TableNextColumn();
-            ImGui.TextColored(ColorWarning, config.GetFilterReason(item));
+            ImGui.TextColored(Theme.ColorWarning, config.GetFilterReason(item));
         }
         else if (config.ShowActions && config.OnRemoveItem != null)
         {
@@ -279,7 +271,7 @@ public class ItemTableComponent
                     ImGui.SameLine(0, 0);
                 }
                 
-                ImGui.TextColored(ColorWarning, item.Name.Substring(matchIndex, config.SearchFilter.Length));
+                ImGui.TextColored(Theme.ColorWarning, item.Name.Substring(matchIndex, config.SearchFilter.Length));
                 ImGui.SameLine(0, 0);
                 
                 if (matchIndex + config.SearchFilter.Length < item.Name.Length)
@@ -301,19 +293,19 @@ public class ItemTableComponent
         if (item.IsHQ)
         {
             ImGui.SameLine();
-            ImGui.TextColored(ColorHQItem, "[HQ]");
+            ImGui.TextColored(Theme.ColorHQItem, "[HQ]");
         }
         
         if (config.IsItemBlacklisted != null && config.IsItemBlacklisted(item))
         {
             ImGui.SameLine();
-            ImGui.TextColored(ColorError, "[Blacklisted]");
+            ImGui.TextColored(Theme.ColorError, "[Blacklisted]");
         }
         
         if (!item.CanBeTraded)
         {
             ImGui.SameLine();
-            ImGui.TextColored(ColorNotTradeable, "[Not Tradeable]");
+            ImGui.TextColored(Theme.ColorNotTradeable, "[Not Tradeable]");
         }
         
         if (config.DrawItemTags != null)
@@ -326,22 +318,22 @@ public class ItemTableComponent
     {
         if (!item.CanBeTraded)
         {
-            ImGui.TextColored(ColorSubdued, "Untradable");
+            ImGui.TextColored(Theme.ColorSubdued, "Untradable");
         }
         else if (item.MarketPrice.HasValue)
         {
             if (item.MarketPrice.Value > 0)
             {
-                ImGui.TextColored(ColorPrice, $"{item.MarketPrice.Value:N0}g");
+                ImGui.TextColored(Theme.ColorPrice, $"{item.MarketPrice.Value:N0}g");
             }
             else
             {
-                ImGui.TextColored(ColorSubdued, "No data");
+                ImGui.TextColored(Theme.ColorSubdued, "No data");
             }
         }
         else
         {
-            ImGui.TextColored(ColorSubdued, "Loading...");
+            ImGui.TextColored(Theme.ColorSubdued, "Loading...");
             if (config.OnPriceFetchRequested != null && 
                 (config.IsFetchingPrice == null || !config.IsFetchingPrice(item.ItemId)))
             {
@@ -356,7 +348,7 @@ public class ItemTableComponent
         {
             if (item.MarketPrice.Value == -1)
             {
-                ImGui.TextColored(ColorNotTradeable, "N/A");
+                ImGui.TextColored(Theme.ColorNotTradeable, "N/A");
             }
             else
             {
@@ -366,7 +358,7 @@ public class ItemTableComponent
         }
         else
         {
-            ImGui.TextColored(ColorNotTradeable, "---");
+            ImGui.TextColored(Theme.ColorNotTradeable, "---");
         }
     }
     
@@ -375,15 +367,15 @@ public class ItemTableComponent
         if (config.ShowMarketPrices && item.MarketPrice.HasValue && item.CanBeTraded && 
             (config.IsItemBlacklisted == null || !config.IsItemBlacklisted(item)))
         {
-            ImGui.TextColored(ColorPrice, $"{item.MarketPrice.Value:N0}");
+            ImGui.TextColored(Theme.ColorPrice, $"{item.MarketPrice.Value:N0}");
         }
         else if (!item.CanBeDiscarded)
         {
-            ImGui.TextColored(ColorError, "Not Discardable");
+            ImGui.TextColored(Theme.ColorError, "Not Discardable");
         }
         else if (item.IsCollectable)
         {
-            ImGui.TextColored(ColorWarning, "Collectable");
+            ImGui.TextColored(Theme.ColorWarning, "Collectable");
         }
         else if (item.SpiritBond >= 100)
         {

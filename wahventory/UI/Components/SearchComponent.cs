@@ -22,8 +22,6 @@ public class SearchComponent
     private DateTime _lastSearchTime = DateTime.MinValue;
     private readonly TimeSpan _searchDelay = TimeSpan.FromMilliseconds(300);
     
-    private static readonly Vector4 ColorSubdued = new(0.6f, 0.6f, 0.6f, 1f);
-    
     public event Action<uint>? OnItemSelected;
     
     public SearchComponent(ItemSearchService searchService, IconCache iconCache)
@@ -131,7 +129,7 @@ public class SearchComponent
                 var isExisting = existingItems != null && existingItems.Contains(id);
                 if (isExisting)
                 {
-                    using (var color = ImRaii.PushColor(ImGuiCol.Text, ColorSubdued))
+                    using (var color = ImRaii.PushColor(ImGuiCol.Text, Theme.ColorSubdued))
                     {
                         ImGui.Text($"{name} (ID: {id}) [Already Added]");
                     }

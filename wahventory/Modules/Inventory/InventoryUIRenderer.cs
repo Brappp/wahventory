@@ -8,6 +8,7 @@ using Dalamud.Bindings.ImGui;
 using wahventory.Models;
 using wahventory.Services;
 using wahventory.Services.Helpers;
+using wahventory.UI;
 using wahventory.UI.Components;
 
 namespace wahventory.Modules.Inventory;
@@ -24,13 +25,6 @@ internal sealed class InventoryUIRenderer
     private readonly ItemTableComponent _itemTable;
     private readonly SearchComponent _blacklistSearch;
     private readonly SearchComponent _autoDiscardSearch;
-
-    private static readonly Vector4 ColorPrice = new(1f, 0.8f, 0.2f, 1f);
-    private static readonly Vector4 ColorWarning = new(0.9f, 0.5f, 0.1f, 1f);
-    private static readonly Vector4 ColorInfo = new(0.7f, 0.7f, 0.7f, 1f);
-    private static readonly Vector4 ColorSubdued = new(0.6f, 0.6f, 0.6f, 1f);
-    private static readonly Vector4 ColorError = new(0.8f, 0.2f, 0.2f, 1f);
-    private static readonly Vector4 ColorSuccess = new(0.2f, 0.8f, 0.2f, 1f);
 
     public InventoryUIRenderer(
         InventoryManagementModule module,
@@ -258,10 +252,10 @@ internal sealed class InventoryUIRenderer
 
             using (var font = ImRaii.PushFont(UiBuilder.IconFont))
             {
-                ImGui.TextColored(ColorWarning, FontAwesomeIcon.Coins.ToIconString());
+                ImGui.TextColored(Theme.ColorWarning, FontAwesomeIcon.Coins.ToIconString());
             }
             ImGui.SameLine(0, 4);
-            ImGui.TextColored(ColorPrice, $"{totalValue:N0} gil");
+            ImGui.TextColored(Theme.ColorPrice, $"{totalValue:N0} gil");
         }
 
         ImGui.Spacing();
@@ -296,12 +290,12 @@ internal sealed class InventoryUIRenderer
             using (var node = ImRaii.TreeNode($"{category.Name}###{category.CategoryId}_node", nodeFlags))
             {
                 ImGui.SameLine();
-                ImGui.TextColored(ColorInfo, $"({category.Items.Count} items, {category.TotalQuantity} total)");
+                ImGui.TextColored(Theme.ColorInfo, $"({category.Items.Count} items, {category.TotalQuantity} total)");
 
                 if (settings.ShowMarketPrices && category.TotalValue.HasValue)
                 {
                     ImGui.SameLine();
-                    ImGui.TextColored(ColorPrice, $"{category.TotalValue.Value:N0} gil");
+                    ImGui.TextColored(Theme.ColorPrice, $"{category.TotalValue.Value:N0} gil");
                 }
 
                 var selectAllWidth = 90f;
@@ -376,7 +370,7 @@ internal sealed class InventoryUIRenderer
     {
         ImGui.Text("Search Results for: ");
         ImGui.SameLine();
-        ImGui.TextColored(ColorInfo, $"\"{_module._searchFilter}\"");
+        ImGui.TextColored(Theme.ColorInfo, $"\"{_module._searchFilter}\"");
         ImGui.Separator();
         ImGui.Spacing();
 
@@ -388,7 +382,7 @@ internal sealed class InventoryUIRenderer
 
         if (!allMatchingItems.Any())
         {
-            ImGui.TextColored(ColorSubdued, "No items found in available inventory.");
+            ImGui.TextColored(Theme.ColorSubdued, "No items found in available inventory.");
             ImGui.Spacing();
             ImGui.Text("Items might be:");
             ImGui.BulletText("Protected by active filters (check Protected Items tab)");
@@ -512,8 +506,8 @@ internal sealed class InventoryUIRenderer
 
         if (!_module.BlacklistedItems.Any())
         {
-            ImGui.TextColored(ColorSubdued, "No custom blacklisted items.");
-            ImGui.TextColored(ColorInfo, "Add items using the controls above or select items in the Available Items tab and click 'Add to Blacklist'.");
+            ImGui.TextColored(Theme.ColorSubdued, "No custom blacklisted items.");
+            ImGui.TextColored(Theme.ColorInfo, "Add items using the controls above or select items in the Available Items tab and click 'Add to Blacklist'.");
             return;
         }
 
@@ -650,8 +644,8 @@ internal sealed class InventoryUIRenderer
 
         if (!_module.AutoDiscardItems.Any())
         {
-            ImGui.TextColored(ColorSubdued, "No auto-discard items configured.");
-            ImGui.TextColored(ColorInfo, "Add items using the controls above or select items in the Available Items tab and click 'Add to Auto-Discard'.");
+            ImGui.TextColored(Theme.ColorSubdued, "No auto-discard items configured.");
+            ImGui.TextColored(Theme.ColorInfo, "Add items using the controls above or select items in the Available Items tab and click 'Add to Auto-Discard'.");
             return;
         }
 
@@ -761,7 +755,7 @@ internal sealed class InventoryUIRenderer
                 if (_module._state.ContainsAllItem(item.ItemId))
                 {
                     ImGui.SameLine();
-                    ImGui.TextColored(ColorWarning, "[In Inventory]");
+                    ImGui.TextColored(Theme.ColorWarning, "[In Inventory]");
                 }
             }
         };
@@ -821,25 +815,25 @@ internal sealed class InventoryUIRenderer
         switch (status.State)
         {
             case PassiveDiscardState.Disabled:
-                ImGui.TextColored(ColorSubdued, "Disabled");
+                ImGui.TextColored(Theme.ColorSubdued, "Disabled");
                 break;
             case PassiveDiscardState.NoItems:
-                ImGui.TextColored(ColorSubdued, "No items to discard");
+                ImGui.TextColored(Theme.ColorSubdued, "No items to discard");
                 break;
             case PassiveDiscardState.PlayerBusy:
-                ImGui.TextColored(ColorWarning, "Player Busy");
+                ImGui.TextColored(Theme.ColorWarning, "Player Busy");
                 break;
             case PassiveDiscardState.NotInAllowedZone:
-                ImGui.TextColored(ColorWarning, "Not in Allowed Zone");
+                ImGui.TextColored(Theme.ColorWarning, "Not in Allowed Zone");
                 break;
             case PassiveDiscardState.WaitingForIdle:
-                ImGui.TextColored(ColorInfo, $"Waiting for idle ({status.IdleSeconds}/{status.RequiredIdleSeconds}s)");
+                ImGui.TextColored(Theme.ColorInfo, $"Waiting for idle ({status.IdleSeconds}/{status.RequiredIdleSeconds}s)");
                 break;
             case PassiveDiscardState.Cooldown:
-                ImGui.TextColored(ColorSubdued, $"Cooldown ({status.CooldownSecondsRemaining}s remaining)");
+                ImGui.TextColored(Theme.ColorSubdued, $"Cooldown ({status.CooldownSecondsRemaining}s remaining)");
                 break;
             case PassiveDiscardState.Ready:
-                ImGui.TextColored(ColorSuccess, "Ready to execute auto-discard");
+                ImGui.TextColored(Theme.ColorSuccess, "Ready to execute auto-discard");
                 break;
         }
     }

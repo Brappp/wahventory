@@ -16,15 +16,7 @@ public class DiscardConfirmationWindow : Window, IDisposable
 {
     private readonly DiscardService _discardService;
     private readonly IconCache _iconCache;
-    
-    private static readonly Vector4 ColorError = new(0.8f, 0.2f, 0.2f, 1f);
-    private static readonly Vector4 ColorWarning = new(0.9f, 0.5f, 0.1f, 1f);
-    private static readonly Vector4 ColorInfo = new(0.7f, 0.7f, 0.7f, 1f);
-    private static readonly Vector4 ColorPrice = new(1f, 0.8f, 0.2f, 1f);
-    private static readonly Vector4 ColorSubdued = new(0.6f, 0.6f, 0.6f, 1f);
-    private static readonly Vector4 ColorSuccess = new(0.2f, 0.8f, 0.2f, 1f);
-    private static readonly Vector4 ColorHQItem = new(0.6f, 0.8f, 1f, 1f);
-    
+
     public DiscardConfirmationWindow(
         DiscardService discardService,
         IconCache iconCache)
@@ -71,7 +63,7 @@ public class DiscardConfirmationWindow : Window, IDisposable
                 ImGui.SetCursorPosY(ImGui.GetCursorPosY() + 5);
                 using (var font = ImRaii.PushFont(UiBuilder.IconFont))
                 {
-                    ImGui.TextColored(ColorError, FontAwesomeIcon.ExclamationTriangle.ToIconString());
+                    ImGui.TextColored(Theme.ColorError, FontAwesomeIcon.ExclamationTriangle.ToIconString());
                 }
                 ImGui.SameLine();
                 ImGui.Text("WARNING: This will permanently delete the following items!");
@@ -110,7 +102,7 @@ public class DiscardConfirmationWindow : Window, IDisposable
             {
                 using (var child = ImRaii.Child("ErrorSection", new Vector2(0, 30), true, ImGuiWindowFlags.NoScrollbar))
                 {
-                    ImGui.TextColored(ColorError, _discardService.DiscardError);
+                    ImGui.TextColored(Theme.ColorError, _discardService.DiscardError);
                 }
             }
         }
@@ -120,7 +112,7 @@ public class DiscardConfirmationWindow : Window, IDisposable
         {
             ImGui.Spacing();
             var progress = (float)_discardService.DiscardProgress / _discardService.TotalItems;
-            using (var color = ImRaii.PushColor(ImGuiCol.PlotHistogram, ColorSuccess))
+            using (var color = ImRaii.PushColor(ImGuiCol.PlotHistogram, Theme.ColorSuccess))
             {
                 ImGui.ProgressBar(progress, new Vector2(-1, 25), 
                     $"Discarding... {_discardService.DiscardProgress}/{_discardService.TotalItems}");
@@ -145,37 +137,37 @@ public class DiscardConfirmationWindow : Window, IDisposable
         
         using (var font = ImRaii.PushFont(UiBuilder.IconFont))
         {
-            ImGui.TextColored(ColorInfo, FontAwesomeIcon.List.ToIconString());
+            ImGui.TextColored(Theme.ColorInfo, FontAwesomeIcon.List.ToIconString());
         }
         ImGui.SameLine();
         ImGui.Text("Total Items:");
-        ImGui.TextColored(ColorWarning, $"{totalItems} unique items");
+        ImGui.TextColored(Theme.ColorWarning, $"{totalItems} unique items");
         
         ImGui.NextColumn();
         
         using (var font = ImRaii.PushFont(UiBuilder.IconFont))
         {
-            ImGui.TextColored(ColorInfo, FontAwesomeIcon.LayerGroup.ToIconString());
+            ImGui.TextColored(Theme.ColorInfo, FontAwesomeIcon.LayerGroup.ToIconString());
         }
         ImGui.SameLine();
         ImGui.Text("Total Quantity:");
-        ImGui.TextColored(ColorWarning, $"{totalQuantity} items");
+        ImGui.TextColored(Theme.ColorWarning, $"{totalQuantity} items");
         
         ImGui.NextColumn();
         
         using (var font = ImRaii.PushFont(UiBuilder.IconFont))
         {
-            ImGui.TextColored(ColorPrice, FontAwesomeIcon.Coins.ToIconString());
+            ImGui.TextColored(Theme.ColorPrice, FontAwesomeIcon.Coins.ToIconString());
         }
         ImGui.SameLine();
         ImGui.Text("Market Value:");
         if (totalValue > 0)
         {
-            ImGui.TextColored(ColorPrice, totalValueFormatted);
+            ImGui.TextColored(Theme.ColorPrice, totalValueFormatted);
         }
         else
         {
-            ImGui.TextColored(ColorSubdued, totalValueFormatted);
+            ImGui.TextColored(Theme.ColorSubdued, totalValueFormatted);
         }
         
         ImGui.Columns(1);
@@ -220,7 +212,7 @@ public class DiscardConfirmationWindow : Window, IDisposable
                     if (item.IsHQ)
                     {
                         ImGui.SameLine();
-                        ImGui.TextColored(ColorHQItem, "[HQ]");
+                        ImGui.TextColored(Theme.ColorHQItem, "[HQ]");
                     }
                     
                     ImGui.TableNextColumn();
@@ -232,11 +224,11 @@ public class DiscardConfirmationWindow : Window, IDisposable
                     ImGui.TableNextColumn();
                     if (item.MarketPrice.HasValue && item.MarketPrice.Value > 0)
                     {
-                        ImGui.TextColored(ColorPrice, $"{item.MarketPrice.Value * item.Quantity:N0} gil");
+                        ImGui.TextColored(Theme.ColorPrice, $"{item.MarketPrice.Value * item.Quantity:N0} gil");
                     }
                     else
                     {
-                        ImGui.TextColored(ColorSubdued, "N/A");
+                        ImGui.TextColored(Theme.ColorSubdued, "N/A");
                     }
                 }
             }

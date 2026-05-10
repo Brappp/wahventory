@@ -10,20 +10,17 @@ namespace wahventory.Modules.Inventory;
 
 public class InventoryManagementModule : IDisposable
 {
-    internal readonly Plugin _plugin;
+    private readonly Plugin _plugin;
     private readonly IGameServices _services;
     private readonly InventoryHelpers _inventoryHelpers;
-    internal readonly IconCache _iconCache;
+    private readonly IconCache _iconCache;
 
     // Services
     private readonly ItemFilterService _filterService;
-    internal readonly ItemSearchService _searchService;
-    internal readonly PriceService _priceService;
+    private readonly ItemSearchService _searchService;
+    private readonly PriceService _priceService;
     public readonly DiscardService DiscardService;
-    internal readonly PassiveDiscardService _passiveDiscardService;
-
-    // Expose filter service for UI
-    internal ItemFilterService FilterService => _filterService;
+    private readonly PassiveDiscardService _passiveDiscardService;
 
     // UI
     private readonly InventoryUIRenderer _ui;
@@ -42,7 +39,7 @@ public class InventoryManagementModule : IDisposable
 
     private DateTime _lastRefresh = DateTime.MinValue;
     private readonly TimeSpan _refreshInterval = TimeSpan.FromSeconds(1);
-    internal bool _expandedCategoriesChanged = false;
+    private bool _expandedCategoriesChanged = false;
     private DateTime _lastConfigSave = DateTime.MinValue;
     private readonly TimeSpan _configSaveInterval = TimeSpan.FromSeconds(2);
     private bool _windowIsOpen = false;
@@ -80,8 +77,11 @@ public class InventoryManagementModule : IDisposable
         PopulateAvailableWorlds();
         InitializeWorld();
 
-        _ui = new InventoryUIRenderer(this);
+        _ui = new InventoryUIRenderer(this, _filterService, _searchService, _priceService, _passiveDiscardService, _iconCache);
     }
+
+    internal void SaveConfig() => _plugin.ConfigManager.SaveConfiguration();
+    internal void MarkExpansionChanged() => _expandedCategoriesChanged = true;
     
     private void InitializeWorld()
     {

@@ -7,6 +7,7 @@ using Dalamud.Interface.Utility.Raii;
 using Dalamud.Bindings.ImGui;
 using wahventory.Models;
 using wahventory.Services;
+using wahventory.Services.Helpers;
 using wahventory.UI.Components;
 
 namespace wahventory.Modules.Inventory;
@@ -14,6 +15,10 @@ namespace wahventory.Modules.Inventory;
 internal sealed class InventoryUIRenderer
 {
     private readonly InventoryManagementModule _module;
+    private readonly ItemFilterService _filterService;
+    private readonly ItemSearchService _searchService;
+    private readonly PriceService _priceService;
+    private readonly PassiveDiscardService _passiveDiscardService;
 
     private readonly FilterPanelComponent _filterPanel;
     private readonly ItemTableComponent _itemTable;
@@ -27,19 +32,29 @@ internal sealed class InventoryUIRenderer
     private static readonly Vector4 ColorError = new(0.8f, 0.2f, 0.2f, 1f);
     private static readonly Vector4 ColorSuccess = new(0.2f, 0.8f, 0.2f, 1f);
 
-    public InventoryUIRenderer(InventoryManagementModule module)
+    public InventoryUIRenderer(
+        InventoryManagementModule module,
+        ItemFilterService filterService,
+        ItemSearchService searchService,
+        PriceService priceService,
+        PassiveDiscardService passiveDiscardService,
+        IconCache iconCache)
     {
         _module = module;
+        _filterService = filterService;
+        _searchService = searchService;
+        _priceService = priceService;
+        _passiveDiscardService = passiveDiscardService;
 
         _filterPanel = new FilterPanelComponent();
         _filterPanel.OnFiltersChanged += () =>
         {
-            _module._plugin.ConfigManager.SaveConfiguration();
+            _module.SaveConfig();
             _module.UpdateCategories();
         };
 
-        _itemTable = new ItemTableComponent(_module._iconCache);
-        _blacklistSearch = new SearchComponent(_module._searchService, _module._iconCache);
+        _itemTable = new ItemTableComponent(iconCache);
+        _blacklistSearch = new SearchComponent(_searchService, iconCache);
         _blacklistSearch.OnItemSelected += (itemId) =>
         {
             if (!_module.BlacklistedItems.Contains(itemId))
@@ -50,7 +65,7 @@ internal sealed class InventoryUIRenderer
             }
         };
 
-        _autoDiscardSearch = new SearchComponent(_module._searchService, _module._iconCache);
+        _autoDiscardSearch = new SearchComponent(_searchService, iconCache);
         _autoDiscardSearch.OnItemSelected += (itemId) =>
         {
             if (!_module.AutoDiscardItems.Contains(itemId))
@@ -206,7 +221,7 @@ internal sealed class InventoryUIRenderer
             if (ImGui.Checkbox("Show Prices", ref showPrices))
             {
                 settings.ShowMarketPrices = showPrices;
-                _module._plugin.ConfigManager.SaveConfiguration();
+                _module.SaveConfig();
             }
 
             if (settings.ShowMarketPrices)
@@ -225,8 +240,8 @@ internal sealed class InventoryUIRenderer
                             if (ImGui.Selectable(world, isSelected))
                             {
                                 _module._selectedWorld = world;
-                                _module._priceService.UpdateWorld(_module._selectedWorld);
-                                _module._priceService.ClearCache();
+                                _priceService.UpdateWorld(_module._selectedWorld);
+                                _priceService.ClearCache();
                                 _module._state.ClearAllPrices();
                             }
                         }
@@ -297,13 +312,13 @@ internal sealed class InventoryUIRenderer
                 if (node)
                 {
                     expanded[category.CategoryId] = true;
-                    _module._expandedCategoriesChanged = true;
+                    _module.MarkExpansionChanged();
                     DrawCategoryItems(category);
                 }
                 else
                 {
                     expanded[category.CategoryId] = false;
-                    _module._expandedCategoriesChanged = true;
+                    _module.MarkExpansionChanged();
                 }
 
                 ImGui.Spacing();
@@ -330,8 +345,8 @@ internal sealed class InventoryUIRenderer
                 if (selected) _module._state.Select(item);
                 else _module._state.Deselect(item);
             },
-            IsFetchingPrice = (itemId) => _module._priceService.IsFetchingPrice(itemId),
-            OnPriceFetchRequested = (item) => _ = _module._priceService.FetchPrice(item).ContinueWith(task =>
+            IsFetchingPrice = (itemId) => _priceService.IsFetchingPrice(itemId),
+            OnPriceFetchRequested = (item) => _ = _priceService.FetchPrice(item).ContinueWith(task =>
             {
                 if (task.IsCompletedSuccessfully && task.Result.HasValue)
                 {
@@ -400,8 +415,8 @@ internal sealed class InventoryUIRenderer
                 if (selected) _module._state.Select(item);
                 else _module._state.Deselect(item);
             },
-            IsFetchingPrice = (itemId) => _module._priceService.IsFetchingPrice(itemId),
-            OnPriceFetchRequested = (item) => _ = _module._priceService.FetchPrice(item).ContinueWith(task =>
+            IsFetchingPrice = (itemId) => _priceService.IsFetchingPrice(itemId),
+            OnPriceFetchRequested = (item) => _ = _priceService.FetchPrice(item).ContinueWith(task =>
             {
                 if (task.IsCompletedSuccessfully && task.Result.HasValue)
                 {
@@ -454,7 +469,7 @@ internal sealed class InventoryUIRenderer
                     if (node)
                     {
                         expanded[category.CategoryId] = true;
-                        _module._expandedCategoriesChanged = true;
+                        _module.MarkExpansionChanged();
 
                         var config = new ItemTableConfig
                         {
@@ -464,7 +479,7 @@ internal sealed class InventoryUIRenderer
                             ShowMarketPrices = settings.ShowMarketPrices,
                             ShowTotalValue = settings.ShowMarketPrices,
                             ShowReason = true,
-                            GetFilterReason = (item) => _module.FilterService.GetFilterReason(item, settings.SafetyFilters)
+                            GetFilterReason = (item) => _filterService.GetFilterReason(item, settings.SafetyFilters)
                         };
 
                         _itemTable.DrawTable(category.Items, config);
@@ -472,7 +487,7 @@ internal sealed class InventoryUIRenderer
                     else
                     {
                         expanded[category.CategoryId] = false;
-                        _module._expandedCategoriesChanged = true;
+                        _module.MarkExpansionChanged();
                     }
                 }
             }
@@ -550,7 +565,7 @@ internal sealed class InventoryUIRenderer
 
                 if (string.IsNullOrEmpty(itemName))
                 {
-                    var info = _module._searchService.GetItemInfo(itemId);
+                    var info = _searchService.GetItemInfo(itemId);
                     itemName = info?.Name ?? $"Unknown Item ({itemId})";
                 }
 
@@ -574,7 +589,7 @@ internal sealed class InventoryUIRenderer
 
             if (itemInfo == null)
             {
-                var info = _module._searchService.GetItemInfo(itemId);
+                var info = _searchService.GetItemInfo(itemId);
                 if (info.HasValue)
                 {
                     itemInfo = new InventoryItemInfo
@@ -688,7 +703,7 @@ internal sealed class InventoryUIRenderer
 
                 if (string.IsNullOrEmpty(itemName))
                 {
-                    var info = _module._searchService.GetItemInfo(itemId);
+                    var info = _searchService.GetItemInfo(itemId);
                     itemName = info?.Name ?? $"Unknown Item ({itemId})";
                 }
 
@@ -712,7 +727,7 @@ internal sealed class InventoryUIRenderer
 
             if (itemInfo == null)
             {
-                var info = _module._searchService.GetItemInfo(itemId);
+                var info = _searchService.GetItemInfo(itemId);
                 if (info.HasValue)
                 {
                     itemInfo = new InventoryItemInfo
@@ -771,7 +786,7 @@ internal sealed class InventoryUIRenderer
         if (ImGui.Checkbox("Enable Passive Discard", ref enabled))
         {
             settings.PassiveDiscard.Enabled = enabled;
-            _module._plugin.ConfigManager.SaveConfiguration();
+            _module.SaveConfig();
         }
 
         using (var disabled = ImRaii.Disabled(!settings.PassiveDiscard.Enabled))
@@ -784,7 +799,7 @@ internal sealed class InventoryUIRenderer
             if (ImGui.InputInt("##IdleTime", ref idleTime, 5, 10))
             {
                 settings.PassiveDiscard.IdleTimeSeconds = Math.Max(10, Math.Min(300, idleTime));
-                _module._plugin.ConfigManager.SaveConfiguration();
+                _module.SaveConfig();
             }
             ImGui.SameLine();
             ImGui.Text("seconds");
@@ -796,7 +811,7 @@ internal sealed class InventoryUIRenderer
             ImGui.Text("Status:");
             ImGui.SameLine();
 
-            var status = _module._passiveDiscardService.GetStatus(_module.AutoDiscardItems, _module._state.SnapshotOriginalItems(), _module.BlacklistedItems);
+            var status = _passiveDiscardService.GetStatus(_module.AutoDiscardItems, _module._state.SnapshotOriginalItems(), _module.BlacklistedItems);
             DrawPassiveDiscardStatus(status);
         }
     }

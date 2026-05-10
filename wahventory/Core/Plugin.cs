@@ -110,15 +110,8 @@ public sealed class Plugin : IDalamudPlugin
         ECommonsMain.Dispose();
     }
     
-    private bool _moduleInitialized = false;
-    
     private void OnFrameworkUpdate(IFramework framework)
     {
-        if (!_moduleInitialized)
-        {
-            InventoryModule.Initialize();
-            _moduleInitialized = true;
-        }
         InventoryModule.Update();
         SearchModule.Update();
     }

@@ -20,14 +20,19 @@ public class DiscardConfirmationWindow : Window, IDisposable
     public DiscardConfirmationWindow(
         DiscardService discardService,
         IconCache iconCache)
-        : base("Confirm Discard##DiscardConfirmation", ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoCollapse)
+        : base("Confirm discard##DiscardConfirmation", ImGuiWindowFlags.NoCollapse)
     {
-        Size = new Vector2(700, 500);
+        Size = new Vector2(560, 420);
         SizeCondition = ImGuiCond.FirstUseEver;
-        
+        SizeConstraints = new WindowSizeConstraints
+        {
+            MinimumSize = new Vector2(440, 280),
+            MaximumSize = new Vector2(1200, 900),
+        };
+
         _discardService = discardService;
         _iconCache = iconCache;
-        
+
         _discardService.OnDiscardStarted += Show;
         _discardService.OnDiscardCompleted += Hide;
         _discardService.OnDiscardCancelled += Hide;
@@ -50,162 +55,107 @@ public class DiscardConfirmationWindow : Window, IDisposable
             Hide();
             return;
         }
-        
-        using var styles = ImRaii.PushStyle(ImGuiStyleVar.WindowPadding, new Vector2(10, 10))
-                                 .Push(ImGuiStyleVar.FramePadding, new Vector2(6, 5))
-                                 .Push(ImGuiStyleVar.ItemSpacing, new Vector2(8, 6));
-        
-        // Warning header
-        using (var color = ImRaii.PushColor(ImGuiCol.ChildBg, new Vector4(0.541f, 0.227f, 0.227f, 0.3f)))
-        {
-            using (var child = ImRaii.Child("WarningHeader", new Vector2(0, 36), true, ImGuiWindowFlags.NoScrollbar))
-            {
-                ImGui.SetCursorPosY(ImGui.GetCursorPosY() + 5);
-                using (var font = ImRaii.PushFont(UiBuilder.IconFont))
-                {
-                    ImGui.TextColored(Theme.ColorError, FontAwesomeIcon.ExclamationTriangle.ToIconString());
-                }
-                ImGui.SameLine();
-                ImGui.Text("WARNING: This will permanently delete the following items!");
-            }
-        }
-        
+
+        using var styles = ImRaii.PushStyle(ImGuiStyleVar.ItemSpacing, new Vector2(8, 6));
+
+        DrawHeader();
+
         ImGui.Spacing();
-        
-        // Summary section
-        using (var color = ImRaii.PushColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f)))
+
+        // Items table — fills the space between the header/summary and the buttons.
+        var reservedBottom = 64f; // buttons + spacing
+        if (_discardService.DiscardProgress > 0) reservedBottom += 28; // progress bar
+        if (!string.IsNullOrEmpty(_discardService.DiscardError)) reservedBottom += 28;
+        var tableHeight = ImGui.GetContentRegionAvail().Y - reservedBottom;
+        if (tableHeight < 100) tableHeight = 100;
+
+        using (var color = ImRaii.PushColor(ImGuiCol.ChildBg, new Vector4(0.12f, 0.12f, 0.12f, 1f)))
         {
-            using (var child = ImRaii.Child("SummarySection", new Vector2(0, 80), true))
-            {
-                DrawSummary();
-            }
-        }
-        
-        ImGui.Spacing();
-        
-        // Items table
-        ImGui.Text("Items to discard:");
-            var tableHeight = (Size?.Y ?? 500) - 280;
-        using (var color = ImRaii.PushColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f)))
-        {
-            using (var child = ImRaii.Child("ItemTable", new Vector2(0, tableHeight), true))
+            using (ImRaii.Child("ItemTable", new Vector2(0, tableHeight), true))
             {
                 DrawItemsTable();
             }
         }
-        
-        // Error message
+
+        // Error
         if (!string.IsNullOrEmpty(_discardService.DiscardError))
         {
-            ImGui.Spacing();
-            using (var color = ImRaii.PushColor(ImGuiCol.ChildBg, new Vector4(0.541f, 0.227f, 0.227f, 0.3f)))
-            {
-                using (var child = ImRaii.Child("ErrorSection", new Vector2(0, 30), true, ImGuiWindowFlags.NoScrollbar))
-                {
-                    ImGui.TextColored(Theme.ColorError, _discardService.DiscardError);
-                }
-            }
+            ImGui.TextColored(Theme.ColorError, _discardService.DiscardError);
         }
-        
-        // Progress bar
+
+        // Progress
         if (_discardService.DiscardProgress > 0)
         {
-            ImGui.Spacing();
             var progress = (float)_discardService.DiscardProgress / _discardService.TotalItems;
             using (var color = ImRaii.PushColor(ImGuiCol.PlotHistogram, Theme.ColorSuccess))
             {
-                ImGui.ProgressBar(progress, new Vector2(-1, 25), 
-                    $"Discarding... {_discardService.DiscardProgress}/{_discardService.TotalItems}");
+                ImGui.ProgressBar(progress, new Vector2(-1, 20),
+                    $"Discarding {_discardService.DiscardProgress} / {_discardService.TotalItems}");
             }
         }
-        
+
         ImGui.Spacing();
-        
-        // Buttons
         DrawButtons();
     }
-    
-    private void DrawSummary()
+
+    private void DrawHeader()
     {
         var items = _discardService.ItemsToDiscard;
         var totalItems = items.Count;
         var totalQuantity = items.Sum(i => i.Quantity);
         var totalValue = items.Where(i => i.MarketPrice.HasValue).Sum(i => i.MarketPrice!.Value * i.Quantity);
-        var totalValueFormatted = totalValue > 0 ? $"{totalValue:N0} gil" : "Unknown";
-        
-        ImGui.Columns(3, "SummaryColumns", false);
-        
-        using (var font = ImRaii.PushFont(UiBuilder.IconFont))
+
+        using (ImRaii.PushFont(UiBuilder.IconFont))
         {
-            ImGui.TextColored(Theme.ColorInfo, FontAwesomeIcon.List.ToIconString());
+            ImGui.TextColored(Theme.ColorWarning, FontAwesomeIcon.TrashAlt.ToIconString());
         }
         ImGui.SameLine();
-        ImGui.Text("Total Items:");
-        ImGui.TextColored(Theme.ColorWarning, $"{totalItems} unique items");
-        
-        ImGui.NextColumn();
-        
-        using (var font = ImRaii.PushFont(UiBuilder.IconFont))
-        {
-            ImGui.TextColored(Theme.ColorInfo, FontAwesomeIcon.LayerGroup.ToIconString());
-        }
+        ImGui.AlignTextToFramePadding();
+        ImGui.Text($"Discard {totalQuantity:N0} item{(totalQuantity == 1 ? "" : "s")}");
         ImGui.SameLine();
-        ImGui.Text("Total Quantity:");
-        ImGui.TextColored(Theme.ColorWarning, $"{totalQuantity} items");
-        
-        ImGui.NextColumn();
-        
-        using (var font = ImRaii.PushFont(UiBuilder.IconFont))
-        {
-            ImGui.TextColored(Theme.ColorPrice, FontAwesomeIcon.Coins.ToIconString());
-        }
-        ImGui.SameLine();
-        ImGui.Text("Market Value:");
+        ImGui.TextColored(Theme.ColorSubdued, $"· {totalItems} unique");
         if (totalValue > 0)
         {
-            ImGui.TextColored(Theme.ColorPrice, totalValueFormatted);
+            ImGui.SameLine();
+            ImGui.TextColored(Theme.ColorSubdued, "·");
+            ImGui.SameLine();
+            ImGui.TextColored(Theme.ColorPrice, $"{totalValue:N0} gil");
         }
-        else
+
+        using (ImRaii.PushColor(ImGuiCol.Text, Theme.ColorSubdued))
         {
-            ImGui.TextColored(Theme.ColorSubdued, totalValueFormatted);
+            ImGui.TextWrapped("This cannot be undone.");
         }
-        
-        ImGui.Columns(1);
     }
     
     private void DrawItemsTable()
     {
-        using var style = ImRaii.PushStyle(ImGuiStyleVar.CellPadding, new Vector2(4, 4));
-        
-        using (var table = ImRaii.Table("DiscardTable", 5, 
-            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY | 
-            ImGuiTableFlags.Resizable))
+        using var style = ImRaii.PushStyle(ImGuiStyleVar.CellPadding, new Vector2(6, 3));
+
+        using (var table = ImRaii.Table("DiscardTable", 4,
+            ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY | ImGuiTableFlags.SizingStretchProp))
         {
             if (table)
             {
-                ImGui.TableSetupColumn("ID", ImGuiTableColumnFlags.WidthFixed, 60);
                 ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch);
-                ImGui.TableSetupColumn("Quantity", ImGuiTableColumnFlags.WidthFixed, 80);
-                ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, 120);
+                ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed, 60);
+                ImGui.TableSetupColumn("Location", ImGuiTableColumnFlags.WidthFixed, 130);
                 ImGui.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthFixed, 100);
                 ImGui.TableSetupScrollFreeze(0, 1);
                 ImGui.TableHeadersRow();
-                
+
                 foreach (var item in _discardService.ItemsToDiscard)
                 {
                     ImGui.TableNextRow();
-                    
-                    ImGui.TableNextColumn();
-                    ImGui.Text(item.ItemId.ToString());
-                    
+
                     ImGui.TableNextColumn();
                     if (item.IconId > 0)
                     {
                         var icon = _iconCache.GetIcon(item.IconId);
                         if (icon != null)
                         {
-                            ImGui.Image(icon.Handle, new Vector2(20, 20));
-                            ImGui.SameLine();
+                            ImGui.Image(icon.Handle, new Vector2(18, 18));
+                            ImGui.SameLine(0, 6);
                         }
                     }
                     ImGui.Text(item.Name);
@@ -214,21 +164,21 @@ public class DiscardConfirmationWindow : Window, IDisposable
                         ImGui.SameLine();
                         ImGui.TextColored(Theme.ColorHQItem, "[HQ]");
                     }
-                    
+
                     ImGui.TableNextColumn();
-                    ImGui.Text(item.Quantity.ToString());
-                    
+                    ImGui.Text(item.Quantity.ToString("N0"));
+
                     ImGui.TableNextColumn();
-                    ImGui.Text(GetLocationName(item.Container));
-                    
+                    ImGui.TextColored(Theme.ColorSubdued, GetLocationName(item.Container));
+
                     ImGui.TableNextColumn();
                     if (item.MarketPrice.HasValue && item.MarketPrice.Value > 0)
                     {
-                        ImGui.TextColored(Theme.ColorPrice, $"{item.MarketPrice.Value * item.Quantity:N0} gil");
+                        ImGui.TextColored(Theme.ColorPrice, $"{item.MarketPrice.Value * item.Quantity:N0}");
                     }
                     else
                     {
-                        ImGui.TextColored(Theme.ColorSubdued, "N/A");
+                        ImGui.TextColored(Theme.ColorSubdued, "—");
                     }
                 }
             }
@@ -237,48 +187,54 @@ public class DiscardConfirmationWindow : Window, IDisposable
     
     private void DrawButtons()
     {
-        var buttonWidth = 120f;
-        var buttonHeight = 30f;
+        var buttonHeight = 28f;
+        var primaryWidth = 140f;
+        var cancelWidth = 100f;
         var spacing = ImGui.GetStyle().ItemSpacing.X;
-        var totalWidth = buttonWidth * 2 + spacing;
-        var availableWidth = ImGui.GetContentRegionAvail().X;
-        var centerPos = (availableWidth - totalWidth) * 0.5f;
-        
-        if (centerPos > 0)
-            ImGui.SetCursorPosX(ImGui.GetCursorPosX() + centerPos);
-        
+
+        var rowWidth = primaryWidth + cancelWidth + spacing;
+        var avail = ImGui.GetContentRegionAvail().X;
+        // Right-align the button pair
+        ImGui.SetCursorPosX(ImGui.GetCursorPosX() + Math.Max(0, avail - rowWidth));
+
         if (_discardService.DiscardProgress == 0)
         {
-            using (var color = ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.541f, 0.227f, 0.227f, 1f))
-                                     .Push(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.327f, 0.327f, 1f)))
+            // Cancel first (ghost), then primary danger button on the right
+            using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(0, 0, 0, 0))
+                                  .Push(ImGuiCol.ButtonHovered, new Vector4(0.3f, 0.3f, 0.3f, 0.5f))
+                                  .Push(ImGuiCol.Text, Theme.ColorSubdued))
             {
-                if (ImGui.Button("Start Discarding", new Vector2(buttonWidth, buttonHeight)))
+                if (ImGui.Button("Cancel", new Vector2(cancelWidth, buttonHeight)))
+                {
+                    _discardService.CancelDiscard();
+                    Hide();
+                }
+            }
+
+            ImGui.SameLine();
+
+            using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.541f, 0.227f, 0.227f, 1f))
+                                  .Push(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.327f, 0.327f, 1f)))
+            {
+                if (ImGui.Button("Discard items", new Vector2(primaryWidth, buttonHeight)))
                 {
                     _discardService.StartDiscarding();
                 }
             }
-            
-            ImGui.SameLine();
-            
-            if (ImGui.Button("Cancel", new Vector2(buttonWidth, buttonHeight)))
-            {
-                _discardService.CancelDiscard();
-                Hide();
-            }
         }
         else
         {
-            using (var disabled = ImRaii.Disabled())
+            using (ImRaii.Disabled())
             {
-                ImGui.Button("Discarding...", new Vector2(buttonWidth, buttonHeight));
+                ImGui.Button("Discarding…", new Vector2(cancelWidth, buttonHeight));
             }
-            
+
             ImGui.SameLine();
-            
-            using (var color = ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.541f, 0.541f, 0.227f, 1f))
-                                     .Push(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.641f, 0.327f, 1f)))
+
+            using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.541f, 0.227f, 0.227f, 1f))
+                                  .Push(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.327f, 0.327f, 1f)))
             {
-                if (ImGui.Button("Cancel", new Vector2(buttonWidth, buttonHeight)))
+                if (ImGui.Button("Stop", new Vector2(primaryWidth, buttonHeight)))
                 {
                     _discardService.CancelDiscard();
                     Hide();

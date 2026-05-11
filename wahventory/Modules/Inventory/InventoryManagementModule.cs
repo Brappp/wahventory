@@ -310,7 +310,8 @@ public class InventoryManagementModule : IDisposable
         }
 
         var selectedItemIds = itemsToDiscard.Select(i => i.ItemId).Distinct().ToList();
-        DiscardService.PrepareDiscard(selectedItemIds, _state.SnapshotOriginalItems(), BlacklistedItems);
+        // Auto-discard list items are pre-approved by being on the list — skip the confirmation step.
+        DiscardService.PrepareDiscard(selectedItemIds, _state.SnapshotOriginalItems(), BlacklistedItems, autoStart: true);
     }
 
     internal void AddSelectedToBlacklist()

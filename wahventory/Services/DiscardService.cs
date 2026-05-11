@@ -54,23 +54,24 @@ public class DiscardService : IDisposable
     public void PrepareDiscard(
         IEnumerable<uint> selectedItemIds,
         IEnumerable<InventoryItemInfo> allItems,
-        HashSet<uint> blacklistedItems)
+        HashSet<uint> blacklistedItems,
+        bool autoStart = false)
     {
         var actualItemsToDiscard = new List<InventoryItemInfo>();
-        
+
         foreach (var selectedItemId in selectedItemIds)
         {
-            var actualItems = allItems.Where(i => 
-                i.ItemId == selectedItemId && 
+            var actualItems = allItems.Where(i =>
+                i.ItemId == selectedItemId &&
                 InventoryHelpers.IsSafeToDiscard(i, blacklistedItems)).ToList();
-            
+
             _log.Information($"Found {actualItems.Count} instances of item {selectedItemId} to discard");
             actualItemsToDiscard.AddRange(actualItems);
         }
-        
+
         _itemsToDiscard = actualItemsToDiscard;
         _log.Information($"Items to discard after filtering: {_itemsToDiscard.Count}");
-        
+
         if (_itemsToDiscard.Count > 0)
         {
             _isDiscarding = true;
@@ -78,6 +79,10 @@ public class DiscardService : IDisposable
             _discardError = null;
             _log.Information("Discard preparation successful");
             OnDiscardStarted?.Invoke();
+            if (autoStart)
+            {
+                StartDiscarding();
+            }
         }
         else
         {

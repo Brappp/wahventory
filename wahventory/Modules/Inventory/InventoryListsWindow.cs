@@ -250,6 +250,18 @@ internal class InventoryListsWindow : Window, IDisposable
         var ids = list.ToArray();
         uint? toRemove = null;
 
+        using var style = ImRaii.PushStyle(ImGuiStyleVar.CellPadding, new Vector2(6, 3));
+        using var table = ImRaii.Table(
+            isAutoDiscard ? "AutoDiscardItemsTable" : "BlacklistItemsTable",
+            3,
+            ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp);
+
+        if (!table) return;
+
+        ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch);
+        ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.WidthFixed, ImGui.CalcTextSize("9999").X + 8);
+        ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 24);
+
         foreach (var id in ids)
         {
             using var pushId = ImRaii.PushId($"item_{id}");
@@ -283,48 +295,43 @@ internal class InventoryListsWindow : Window, IDisposable
                 }
             }
 
+            ImGui.TableNextRow();
+
+            // Item column: icon + name + optional [in inventory] tag
+            ImGui.TableNextColumn();
             if (iconId > 0)
             {
                 var icon = _iconCache.GetIcon(iconId);
                 if (icon != null)
                 {
                     ImGui.Image(icon.Handle, new Vector2(18, 18));
-                    ImGui.SameLine();
+                    ImGui.SameLine(0, 6);
                 }
                 else
                 {
                     ImGui.Dummy(new Vector2(18, 18));
-                    ImGui.SameLine();
+                    ImGui.SameLine(0, 6);
                 }
             }
             else
             {
                 ImGui.Dummy(new Vector2(18, 18));
-                ImGui.SameLine();
+                ImGui.SameLine(0, 6);
             }
 
-            var nameColor = (isAutoDiscard && inInventory) ? Theme.ColorWarning : Theme.ColorInfo;
-            using (ImRaii.PushColor(ImGuiCol.Text, nameColor))
-            {
-                ImGui.Text(name);
-            }
+            ImGui.Text(name);
             if (isAutoDiscard && inInventory)
             {
                 ImGui.SameLine();
-                using (ImRaii.PushColor(ImGuiCol.Text, Theme.ColorWarning))
-                {
-                    ImGui.Text("[in inventory]");
-                }
+                ImGui.TextColored(Theme.ColorWarning, "[in inventory]");
             }
 
-            // Right-align ilvl and × button
-            var rowEndX = ImGui.GetContentRegionMax().X;
-            ImGui.SameLine(rowEndX - 64);
-            using (ImRaii.PushColor(ImGuiCol.Text, Theme.ColorSubdued))
-            {
-                ImGui.Text(ilvlText);
-            }
-            ImGui.SameLine(rowEndX - 24);
+            // iLvl column
+            ImGui.TableNextColumn();
+            ImGui.TextColored(Theme.ColorSubdued, ilvlText);
+
+            // Remove column
+            ImGui.TableNextColumn();
             using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(0, 0, 0, 0))
                                   .Push(ImGuiCol.ButtonHovered, new Vector4(0.45f, 0.20f, 0.20f, 0.6f))
                                   .Push(ImGuiCol.Text, Theme.ColorSubdued))

@@ -24,11 +24,11 @@ public class ItemTableComponent
         IEnumerable<InventoryItemInfo> items,
         ItemTableConfig config)
     {
-        using var style = ImRaii.PushStyle(ImGuiStyleVar.CellPadding, new Vector2(4, 2))
+        using var style = ImRaii.PushStyle(ImGuiStyleVar.CellPadding, new Vector2(6, 3))
                                 .Push(ImGuiStyleVar.ItemSpacing, new Vector2(4, 2));
-        
-        var columnCount = config.ShowMarketPrices ? 8 : 7;
-        var flags = ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable;
+
+        var columnCount = config.ShowMarketPrices ? 7 : 6;
+        var flags = ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp;
         if (config.Scrollable)
             flags |= ImGuiTableFlags.ScrollY;
         
@@ -50,18 +50,16 @@ public class ItemTableComponent
     private void SetupColumns(ItemTableConfig config)
     {
         float checkboxWidth = 22;
-        float idWidth = ImGui.CalcTextSize("99999").X + 8;
         float qtyWidth = ImGui.CalcTextSize("999").X + 8;
         float ilvlWidth = ImGui.CalcTextSize("999").X + 8;
         float locationWidth = ImGui.CalcTextSize("P.Saddlebag 9").X + 8;
         float categoryWidth = ImGui.CalcTextSize("Seasonal Miscellany").X + 8;
-        
+
         if (config.ShowCheckbox)
         {
             ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, checkboxWidth);
         }
-        
-        ImGui.TableSetupColumn("ID", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHide, idWidth);
+
         ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch | ImGuiTableColumnFlags.NoHide);
         ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHide, qtyWidth);
         
@@ -134,12 +132,8 @@ public class ItemTableComponent
             ImGui.TableNextColumn();
             DrawCheckbox(item, config);
         }
-        
-        // ID column
-        ImGui.TableNextColumn();
-        ImGui.TextColored(Theme.ColorSubdued, item.ItemId.ToString());
-        
-        // Item column
+
+        // Item column (icon + name + tags)
         ImGui.TableNextColumn();
         DrawItemName(item, config);
         

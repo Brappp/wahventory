@@ -209,6 +209,23 @@ internal sealed class InventoryState
         }
     }
 
+    /// <summary>Sums MarketPrice × Quantity over every item in _allItems whose ItemId is currently selected.</summary>
+    public long SumValueForSelected()
+    {
+        lock (_lock)
+        {
+            long total = 0;
+            foreach (var item in _allItems)
+            {
+                if (!_selectedItems.Contains(item.ItemId)) continue;
+                if (!item.MarketPrice.HasValue) continue;
+                if (item.MarketPrice.Value <= 0) continue;
+                total += item.MarketPrice.Value * item.Quantity;
+            }
+            return total;
+        }
+    }
+
     public List<InventoryItemInfo> SnapshotAutoDiscardCandidates(HashSet<uint> autoDiscardIds, HashSet<uint> blacklist)
     {
         lock (_lock)

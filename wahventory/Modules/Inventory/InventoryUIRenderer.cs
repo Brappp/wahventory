@@ -303,15 +303,7 @@ internal sealed class InventoryUIRenderer
             ImGui.TextColored(new Vector4(0.3f, 0.3f, 0.3f, 1f), "|");
             ImGui.SameLine();
 
-            // Total value of selected items (computed from snapshot, fine since UI single-threaded)
-            long selectedValue = 0;
-            var selectedIds = _module._state.SnapshotSelectedIds();
-            var allItems = _module._state.SnapshotAutoDiscardCandidates(new HashSet<uint>(selectedIds), new HashSet<uint>());
-            foreach (var item in allItems)
-            {
-                if (item.MarketPrice.HasValue && item.MarketPrice.Value > 0)
-                    selectedValue += item.MarketPrice.Value * item.Quantity;
-            }
+            var selectedValue = _module._state.SumValueForSelected();
             ImGui.TextColored(Theme.ColorPrice, $"{selectedValue:N0} gil");
 
             // Right-aligned action buttons

@@ -24,7 +24,7 @@ public class FilterPanelComponent
             ImGui.Text("FILTERS");
         }
         ImGui.SameLine();
-        ImGui.TextColored(Theme.ColorSubdued, $"{active} / 7 active");
+        ImGui.TextColored(Theme.ColorSubdued, $"{active} / 6 active");
         ImGui.Separator();
         ImGui.Spacing();
 
@@ -32,7 +32,6 @@ public class FilterPanelComponent
 
         changed |= SidebarCheckbox("In Gearset",          () => filters.FilterGearsetItems,     v => filters.FilterGearsetItems = v,     "Equipment in any saved gearset",        counts?.InGearset);
         changed |= SidebarCheckbox("Indisposable",        () => filters.FilterIndisposableItems, v => filters.FilterIndisposableItems = v, "Items the game won't let you discard", counts?.Indisposable);
-        changed |= SidebarCheckbox("Ultimate / Special",  () => filters.FilterUltimateTokens,   v => filters.FilterUltimateTokens = v,   "Raid tokens, retired tomestones",       counts?.UltimateSpecial);
         changed |= SidebarCheckbox("HQ Items",             () => filters.FilterHQItems,           v => filters.FilterHQItems = v,           "High-Quality flagged items",   counts?.HQ);
         changed |= SidebarCheckbox("Collectables",         () => filters.FilterCollectables,      v => filters.FilterCollectables = v,      "Collectability turn-in items", counts?.Collectables);
         changed |= SidebarCheckbox("Unique & Untradeable", () => filters.FilterUniqueUntradeable, v => filters.FilterUniqueUntradeable = v, "Cannot be reacquired or sold", counts?.UniqueUntradeable);
@@ -64,7 +63,6 @@ public class FilterPanelComponent
     private static int CountActiveFilters(SafetyFilters filters)
     {
         var count = 0;
-        if (filters.FilterUltimateTokens) count++;
         if (filters.FilterGearsetItems) count++;
         if (filters.FilterIndisposableItems) count++;
         if (filters.FilterHighLevelGear) count++;

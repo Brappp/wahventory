@@ -84,6 +84,7 @@ public sealed class Plugin : IDalamudPlugin
         WindowSystem.AddWindow(DiscardConfirmationWindow);
         WindowSystem.AddWindow(InventoryModule.ListsWindow);
         WindowSystem.AddWindow(InventoryModule.SettingsWindow);
+        WindowSystem.AddWindow(InventoryModule.FilteredItemsWindow);
 
         Services.CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {

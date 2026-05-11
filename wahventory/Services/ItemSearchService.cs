@@ -46,6 +46,26 @@ public class ItemSearchService
         }
     }
     
+    public List<uint> GetItemIdsByCategory(HashSet<uint> categoryIds)
+    {
+        try
+        {
+            var itemSheet = _dataManager.GetExcelSheet<Item>();
+            if (itemSheet == null)
+                return new List<uint>();
+
+            return itemSheet
+                .Where(i => i.RowId > 0 && categoryIds.Contains(i.ItemUICategory.RowId))
+                .Select(i => i.RowId)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _log.Error(ex, "Failed to enumerate items by category");
+            return new List<uint>();
+        }
+    }
+
     public (string Name, ushort IconId, string CategoryName, int ItemLevel)? GetItemInfo(uint itemId)
     {
         try

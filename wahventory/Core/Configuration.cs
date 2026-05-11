@@ -36,7 +36,6 @@ public class InventorySettings
 [Serializable]
 public class SafetyFilters
 {
-    public bool FilterUltimateTokens { get; set; } = true;
     public bool FilterGearsetItems { get; set; } = true;
     public bool FilterIndisposableItems { get; set; } = true;
     public bool FilterHighLevelGear { get; set; } = true;

@@ -73,10 +73,18 @@ public class PassiveDiscardService
     {
         if (!_settings.PassiveDiscard.Enabled)
             return;
-        
+
         if (!HasItemsToDiscard(allItems, autoDiscardItems, blacklistedItems))
             return;
-        
+
+        // Zone gate before busy gate: busy detection pokes game UI/inventory, wasted
+        // outside safe zones. Force-mark busy so re-entry resets the idle timer.
+        if (!IsInAllowedZone())
+        {
+            _wasPlayerBusy = true;
+            return;
+        }
+
         var isBusy = IsPlayerBusy();
         if (isBusy && !_wasPlayerBusy)
         {
@@ -87,24 +95,21 @@ public class PassiveDiscardService
             _wasPlayerBusy = false;
             _idleStartTime = DateTime.Now;
         }
-        
+
         if (isBusy)
             return;
-        
+
         var idleDuration = DateTime.Now - _idleStartTime;
         if (idleDuration.TotalSeconds < _settings.PassiveDiscard.IdleTimeSeconds)
             return;
-        
-        if (!IsInAllowedZone())
-            return;
-        
+
         if (_lastAutoDiscardTime != DateTime.MinValue)
         {
             var timeSinceLastDiscard = DateTime.Now - _lastAutoDiscardTime;
             if (timeSinceLastDiscard < _passiveDiscardCooldown)
                 return;
         }
-        
+
         _log.Information("[Passive Discard] Idle time reached, executing auto-discard");
         executeAutoDiscard();
         _lastAutoDiscardTime = DateTime.Now;
@@ -229,12 +234,12 @@ public class PassiveDiscardService
         
         if (!HasItemsToDiscard(allItems, autoDiscardItems, blacklistedItems))
             return new PassiveDiscardStatus { State = PassiveDiscardState.NoItems };
-        
-        if (IsPlayerBusy())
-            return new PassiveDiscardStatus { State = PassiveDiscardState.PlayerBusy };
-        
+
         if (!IsInAllowedZone())
             return new PassiveDiscardStatus { State = PassiveDiscardState.NotInAllowedZone };
+
+        if (IsPlayerBusy())
+            return new PassiveDiscardStatus { State = PassiveDiscardState.PlayerBusy };
         
         var idleDuration = DateTime.Now - _idleStartTime;
         if (idleDuration.TotalSeconds < _settings.PassiveDiscard.IdleTimeSeconds)

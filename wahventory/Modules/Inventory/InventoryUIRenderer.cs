@@ -22,6 +22,7 @@ internal sealed class InventoryUIRenderer
     private readonly PassiveDiscardService _passiveDiscardService;
     private readonly InventoryListsWindow _listsWindow;
     private readonly InventorySettingsWindow _settingsWindow;
+    private readonly InventoryFilteredItemsWindow _filteredItemsWindow;
 
     private readonly FilterPanelComponent _filterPanel;
     private readonly ItemTableComponent _itemTable;
@@ -34,7 +35,8 @@ internal sealed class InventoryUIRenderer
         PassiveDiscardService passiveDiscardService,
         IconCache iconCache,
         InventoryListsWindow listsWindow,
-        InventorySettingsWindow settingsWindow)
+        InventorySettingsWindow settingsWindow,
+        InventoryFilteredItemsWindow filteredItemsWindow)
     {
         _module = module;
         _filterService = filterService;
@@ -42,6 +44,7 @@ internal sealed class InventoryUIRenderer
         _passiveDiscardService = passiveDiscardService;
         _listsWindow = listsWindow;
         _settingsWindow = settingsWindow;
+        _filteredItemsWindow = filteredItemsWindow;
 
         _filterPanel = new FilterPanelComponent();
         _filterPanel.OnFiltersChanged += () =>
@@ -162,6 +165,17 @@ internal sealed class InventoryUIRenderer
 
             using (ImRaii.PushFont(UiBuilder.IconFont))
             {
+                if (ImGui.Button($"{FontAwesomeIcon.EyeSlash.ToIconString()}##Protected", new Vector2(30, 0)))
+                {
+                    _filteredItemsWindow.Toggle();
+                }
+            }
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Show items hidden by your safety filters");
+
+            ImGui.SameLine();
+
+            using (ImRaii.PushFont(UiBuilder.IconFont))
+            {
                 if (ImGui.Button($"{FontAwesomeIcon.Cog.ToIconString()}##Settings", new Vector2(30, 0)))
                 {
                     _settingsWindow.Toggle();
@@ -220,7 +234,15 @@ internal sealed class InventoryUIRenderer
         var halfW = (ImGui.GetContentRegionAvail().X - 6) / 2;
         if (ImGui.Button("Reset", new Vector2(halfW, 0)))
         {
-            settings.SafetyFilters = new SafetyFilters();
+            settings.SafetyFilters = new SafetyFilters
+            {
+                FilterGearsetItems = true,
+                FilterIndisposableItems = true,
+                FilterHQItems = true,
+                FilterCollectables = true,
+                FilterUniqueUntradeable = true,
+                FilterHighLevelGear = false,
+            };
             changed = true;
             _module.UpdateCategories();
         }
@@ -230,7 +252,6 @@ internal sealed class InventoryUIRenderer
             var f = settings.SafetyFilters;
             f.FilterGearsetItems = true;
             f.FilterIndisposableItems = true;
-            f.FilterUltimateTokens = true;
             f.FilterHQItems = true;
             f.FilterCollectables = true;
             f.FilterUniqueUntradeable = true;

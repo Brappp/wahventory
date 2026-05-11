@@ -26,6 +26,7 @@ public class InventoryManagementModule : IDisposable
     private readonly InventoryUIRenderer _ui;
     internal InventoryListsWindow ListsWindow { get; }
     internal InventorySettingsWindow SettingsWindow { get; }
+    internal InventoryFilteredItemsWindow FilteredItemsWindow { get; }
 
     // State
     private bool _initialized = false;
@@ -82,8 +83,9 @@ public class InventoryManagementModule : IDisposable
 
         ListsWindow = new InventoryListsWindow(this, _state, _searchService, _iconCache);
         SettingsWindow = new InventorySettingsWindow(this, _passiveDiscardService, _state);
+        FilteredItemsWindow = new InventoryFilteredItemsWindow(this, _state, _searchService, _iconCache);
 
-        _ui = new InventoryUIRenderer(this, _filterService, _searchService, _priceService, _passiveDiscardService, _iconCache, ListsWindow, SettingsWindow);
+        _ui = new InventoryUIRenderer(this, _filterService, _searchService, _priceService, _passiveDiscardService, _iconCache, ListsWindow, SettingsWindow, FilteredItemsWindow);
     }
 
     internal void SaveConfig() => _plugin.ConfigManager.SaveConfiguration();
@@ -343,6 +345,7 @@ public class InventoryManagementModule : IDisposable
 
         ListsWindow?.Dispose();
         SettingsWindow?.Dispose();
+        FilteredItemsWindow?.Dispose();
         _priceService?.Dispose();
         DiscardService?.Dispose();
         _iconCache?.Dispose();

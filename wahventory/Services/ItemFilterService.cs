@@ -9,7 +9,6 @@ namespace wahventory.Services;
 
 public class FilterHiddenCounts
 {
-    public int UltimateSpecial;
     public int InGearset;
     public int Indisposable;
     public int HQ;
@@ -34,13 +33,10 @@ public class ItemFilterService
             filtered = filtered.Where(i => i.Name.Contains(searchFilter, StringComparison.OrdinalIgnoreCase));
         }
         
-        // Currency items, crystals, and shards are always hidden — they can't
-        // be discarded anyway, and surfacing them is just noise.
+        // Always hidden — losing these is catastrophic, no user toggle.
         filtered = filtered.Where(i => !ItemSafetyData.CurrencyRange.Contains(i.ItemId));
         filtered = filtered.Where(i => !ItemSafetyData.CrystalAndShardCategoryIds.Contains(i.ItemUICategory));
-
-        if (filters.FilterUltimateTokens)
-            filtered = filtered.Where(i => !ItemSafetyData.HardcodedBlacklist.Contains(i.ItemId));
+        filtered = filtered.Where(i => !ItemSafetyData.HardcodedBlacklist.Contains(i.ItemId));
 
         if (filters.FilterGearsetItems)
             filtered = filtered.Where(i => !InventoryHelpers.IsInGearset(i.ItemId));
@@ -74,7 +70,7 @@ public class ItemFilterService
         if (ItemSafetyData.CrystalAndShardCategoryIds.Contains(item.ItemUICategory))
             return true;
 
-        if (filters.FilterUltimateTokens && ItemSafetyData.HardcodedBlacklist.Contains(item.ItemId))
+        if (ItemSafetyData.HardcodedBlacklist.Contains(item.ItemId))
             return true;
 
         if (filters.FilterGearsetItems && InventoryHelpers.IsInGearset(item.ItemId))
@@ -127,7 +123,6 @@ public class ItemFilterService
         var counts = new FilterHiddenCounts();
         foreach (var item in items)
         {
-            if (ItemSafetyData.HardcodedBlacklist.Contains(item.ItemId)) counts.UltimateSpecial++;
             if (InventoryHelpers.IsInGearset(item.ItemId)) counts.InGearset++;
             if (item.IsIndisposable) counts.Indisposable++;
             if (item.IsHQ) counts.HQ++;

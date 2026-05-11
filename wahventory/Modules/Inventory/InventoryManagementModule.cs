@@ -24,6 +24,8 @@ public class InventoryManagementModule : IDisposable
 
     // UI
     private readonly InventoryUIRenderer _ui;
+    internal InventoryListsWindow ListsWindow { get; }
+    internal InventorySettingsWindow SettingsWindow { get; }
 
     // State
     private bool _initialized = false;
@@ -77,7 +79,10 @@ public class InventoryManagementModule : IDisposable
         PopulateAvailableWorlds();
         InitializeWorld();
 
-        _ui = new InventoryUIRenderer(this, _filterService, _searchService, _priceService, _passiveDiscardService, _iconCache);
+        ListsWindow = new InventoryListsWindow(this, _state, _searchService, _iconCache);
+        SettingsWindow = new InventorySettingsWindow(this, _passiveDiscardService, _state);
+
+        _ui = new InventoryUIRenderer(this, _filterService, _searchService, _priceService, _passiveDiscardService, _iconCache, ListsWindow, SettingsWindow);
     }
 
     internal void SaveConfig() => _plugin.ConfigManager.SaveConfiguration();
@@ -328,6 +333,8 @@ public class InventoryManagementModule : IDisposable
             _plugin.ConfigManager.SaveConfiguration();
         }
 
+        ListsWindow?.Dispose();
+        SettingsWindow?.Dispose();
         _priceService?.Dispose();
         DiscardService?.Dispose();
         _iconCache?.Dispose();

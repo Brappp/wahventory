@@ -14,7 +14,7 @@ public class MainWindow : Window
     private SearchModule SearchModule;
 
     public MainWindow(Plugin plugin, InventoryManagementModule inventoryModule, SearchModule searchModule)
-        : base("wahventory - Inventory Manager", ImGuiWindowFlags.None)
+        : base("wahventory - Inventory Manager", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
     {
         SizeConstraints = new WindowSizeConstraints
         {

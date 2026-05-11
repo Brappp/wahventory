@@ -5,6 +5,7 @@ using System.Numerics;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Bindings.ImGui;
+using wahventory.Core;
 using wahventory.Models;
 using wahventory.Services;
 using wahventory.Services.Helpers;
@@ -17,14 +18,13 @@ internal sealed class InventoryUIRenderer
 {
     private readonly InventoryManagementModule _module;
     private readonly ItemFilterService _filterService;
-    private readonly ItemSearchService _searchService;
     private readonly PriceService _priceService;
     private readonly PassiveDiscardService _passiveDiscardService;
+    private readonly InventoryListsWindow _listsWindow;
+    private readonly InventorySettingsWindow _settingsWindow;
 
     private readonly FilterPanelComponent _filterPanel;
     private readonly ItemTableComponent _itemTable;
-    private readonly SearchComponent _blacklistSearch;
-    private readonly SearchComponent _autoDiscardSearch;
 
     public InventoryUIRenderer(
         InventoryManagementModule module,
@@ -32,13 +32,16 @@ internal sealed class InventoryUIRenderer
         ItemSearchService searchService,
         PriceService priceService,
         PassiveDiscardService passiveDiscardService,
-        IconCache iconCache)
+        IconCache iconCache,
+        InventoryListsWindow listsWindow,
+        InventorySettingsWindow settingsWindow)
     {
         _module = module;
         _filterService = filterService;
-        _searchService = searchService;
         _priceService = priceService;
         _passiveDiscardService = passiveDiscardService;
+        _listsWindow = listsWindow;
+        _settingsWindow = settingsWindow;
 
         _filterPanel = new FilterPanelComponent();
         _filterPanel.OnFiltersChanged += () =>
@@ -48,182 +51,93 @@ internal sealed class InventoryUIRenderer
         };
 
         _itemTable = new ItemTableComponent(iconCache);
-        _blacklistSearch = new SearchComponent(_searchService, iconCache);
-        _blacklistSearch.OnItemSelected += (itemId) =>
-        {
-            if (!_module.BlacklistedItems.Contains(itemId))
-            {
-                _module.BlacklistedItems.Add(itemId);
-                _module.SaveBlacklist();
-                _module.RefreshInventory();
-            }
-        };
-
-        _autoDiscardSearch = new SearchComponent(_searchService, iconCache);
-        _autoDiscardSearch.OnItemSelected += (itemId) =>
-        {
-            if (!_module.AutoDiscardItems.Contains(itemId))
-            {
-                _module.AutoDiscardItems.Add(itemId);
-                _module.SaveAutoDiscard();
-                _module.RefreshInventory();
-            }
-        };
     }
 
     public void Draw()
     {
-        DrawTopControls();
-        DrawFiltersAndSettings();
+        // Top: toolbar
+        DrawToolbar();
 
-        ImGui.Separator();
-        var windowHeight = ImGui.GetWindowHeight();
-        var currentY = ImGui.GetCursorPosY();
-        var bottomBarHeight = 42f;
-        var separatorHeight = ImGui.GetStyle().ItemSpacing.Y * 2 + 2;
-        var tabBarHeight = ImGui.GetFrameHeight();
-        var contentHeight = windowHeight - currentY - bottomBarHeight - separatorHeight - tabBarHeight - 10f;
-        contentHeight = Math.Max(100f, contentHeight);
+        // Reserve space for the status bar at the bottom. Account for
+        // ImGui's ItemSpacing.Y between the body and the status bar so the
+        // parent window never has to scroll.
+        var spacing = ImGui.GetStyle().ItemSpacing.Y;
+        var statusBarHeight = 22f + spacing;
+        var bodyHeight = ImGui.GetContentRegionAvail().Y - statusBarHeight;
+        if (bodyHeight < 100) bodyHeight = 100;
 
-        using (var tabBar = ImRaii.TabBar("InventoryTabs"))
+        // Body: sidebar + main pane
+        using (ImRaii.Child("Body", new Vector2(0, bodyHeight), false))
         {
-            if (tabBar)
+            using (ImRaii.Child("Sidebar", new Vector2(210, 0), true))
             {
-                var filteredItems = _module.GetProtectedItems();
-                var availableCount = _module._state.CategoryItemTotal;
-
-                string availableTabText = $"Available Items ({availableCount})###AvailableTab";
-                using (var tabItem = ImRaii.TabItem(availableTabText))
-                {
-                    if (tabItem)
-                    {
-                        using (var child = ImRaii.Child("AvailableContent", new Vector2(0, contentHeight), false))
-                        {
-                            DrawAvailableItemsTab();
-                        }
-                    }
-                }
-
-                string protectedTabText = $"Protected Items ({filteredItems.Count})###ProtectedTab";
-                using (var tabItem = ImRaii.TabItem(protectedTabText))
-                {
-                    if (tabItem)
-                    {
-                        using (var child = ImRaii.Child("ProtectedContent", new Vector2(0, contentHeight), false))
-                        {
-                            DrawProtectedItemsTab(filteredItems);
-                        }
-                    }
-                }
-
-                string blacklistTabText = "Blacklist Management###BlacklistTab";
-                using (var tabItem = ImRaii.TabItem(blacklistTabText))
-                {
-                    if (tabItem)
-                    {
-                        using (var child = ImRaii.Child("BlacklistContent", new Vector2(0, contentHeight), false))
-                        {
-                            DrawBlacklistTab();
-                        }
-                    }
-                }
-
-                string autoDiscardTabText = "Auto Discard###AutoDiscardTab";
-                using (var tabItem = ImRaii.TabItem(autoDiscardTabText))
-                {
-                    if (tabItem)
-                    {
-                        using (var child = ImRaii.Child("AutoDiscardContent", new Vector2(0, contentHeight), false))
-                        {
-                            DrawAutoDiscardTab();
-                        }
-                    }
-                }
+                DrawSidebar();
+            }
+            ImGui.SameLine();
+            using (ImRaii.Child("MainPane", new Vector2(0, 0), false))
+            {
+                DrawMainPane();
             }
         }
 
-        ImGui.Separator();
-        DrawBottomActionBar();
+        // Bottom: status bar
+        DrawStatusBar();
     }
 
-    private void DrawTopControls()
-    {
-        using var style = ImRaii.PushStyle(ImGuiStyleVar.FramePadding, new Vector2(6, 5))
-                                .Push(ImGuiStyleVar.ItemSpacing, new Vector2(8, 4));
-        using var color = ImRaii.PushColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f));
+    // ─────────────────────────────────────────────────────────────
+    // Toolbar
+    // ─────────────────────────────────────────────────────────────
 
-        using (var child = ImRaii.Child("TopBar", new Vector2(0, 40), true, ImGuiWindowFlags.NoScrollbar))
+    private void DrawToolbar()
+    {
+        using var color = ImRaii.PushColor(ImGuiCol.ChildBg, new Vector4(0.145f, 0.145f, 0.145f, 1f));
+        using var style = ImRaii.PushStyle(ImGuiStyleVar.ItemSpacing, new Vector2(8, 4));
+
+        using (ImRaii.Child("Toolbar", new Vector2(0, 38), true, ImGuiWindowFlags.NoScrollbar))
         {
             ImGui.SetCursorPosY(ImGui.GetCursorPosY() + 2);
 
-            using (var font = ImRaii.PushFont(UiBuilder.IconFont))
+            // Search
+            using (ImRaii.PushFont(UiBuilder.IconFont))
             {
                 ImGui.Text(FontAwesomeIcon.Search.ToIconString());
             }
-
             ImGui.SameLine();
-            ImGui.SetNextItemWidth(180f);
-            if (ImGui.InputTextWithHint("##Search", "Search items...", ref _module._searchFilter, 100))
+            ImGui.SetNextItemWidth(200);
+            if (ImGui.InputTextWithHint("##Search", "Search items…", ref _module._searchFilter, 100))
             {
                 _module.UpdateCategories();
             }
-
             if (!string.IsNullOrWhiteSpace(_module._searchFilter))
             {
                 ImGui.SameLine();
-                using (var colors = ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.3f, 0.3f, 0.3f, 0.3f))
-                                          .Push(ImGuiCol.ButtonHovered, new Vector4(0.4f, 0.4f, 0.4f, 0.5f)))
+                if (ImGui.SmallButton("×##ClearSearch"))
                 {
-                    if (ImGui.SmallButton("×"))
-                    {
-                        _module._searchFilter = string.Empty;
-                        _module.UpdateCategories();
-                    }
-                }
-                if (ImGui.IsItemHovered())
-                {
-                    ImGui.SetTooltip("Clear search");
+                    _module._searchFilter = string.Empty;
+                    _module.UpdateCategories();
                 }
             }
 
             ImGui.SameLine();
-            using (var font = ImRaii.PushFont(UiBuilder.IconFont))
+            using (ImRaii.PushFont(UiBuilder.IconFont))
             {
-                if (ImGui.Button(FontAwesomeIcon.Sync.ToIconString() + "##Refresh", new Vector2(28, 0)))
+                if (ImGui.Button($"{FontAwesomeIcon.Sync.ToIconString()}##Refresh", new Vector2(30, 0)))
                 {
                     _module.RefreshInventory();
                 }
             }
-            ImGui.SameLine();
-            ImGui.Text("Refresh");
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Refresh inventory");
 
             ImGui.SameLine();
             ImGui.TextColored(new Vector4(0.3f, 0.3f, 0.3f, 1f), "|");
-
             ImGui.SameLine();
-            if (ImGui.Checkbox("Armory", ref _module._showArmory))
-            {
-                _module.RefreshInventory();
-            }
 
-            ImGui.SameLine();
-            ImGui.TextColored(new Vector4(0.3f, 0.3f, 0.3f, 1f), "|");
-
-            ImGui.SameLine();
-            var settings = _module.Settings;
-            var showPrices = settings.ShowMarketPrices;
-            if (ImGui.Checkbox("Show Prices", ref showPrices))
+            // World combo (only when prices on)
+            if (_module.Settings.ShowMarketPrices)
             {
-                settings.ShowMarketPrices = showPrices;
-                _module.SaveConfig();
-            }
-
-            if (settings.ShowMarketPrices)
-            {
+                ImGui.TextColored(Theme.ColorSubdued, "World:");
                 ImGui.SameLine();
-                ImGui.Text("World:");
-                ImGui.SameLine();
-                ImGui.SetNextItemWidth(100);
+                ImGui.SetNextItemWidth(110);
                 using (var combo = ImRaii.Combo("##World", _module._selectedWorld))
                 {
                     if (combo)
@@ -241,32 +155,198 @@ internal sealed class InventoryUIRenderer
                         }
                     }
                 }
+                ImGui.SameLine();
+                ImGui.TextColored(new Vector4(0.3f, 0.3f, 0.3f, 1f), "|");
+                ImGui.SameLine();
             }
 
-            var windowWidth = ImGui.GetWindowContentRegionMax().X;
+            // Lists button
+            using (ImRaii.PushFont(UiBuilder.IconFont))
+            {
+                if (ImGui.Button($"{FontAwesomeIcon.ClipboardList.ToIconString()}##Lists", new Vector2(30, 0)))
+                {
+                    _listsWindow.Toggle();
+                }
+            }
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Manage blacklist and auto-discard list");
+
+            ImGui.SameLine();
+
+            // Settings button
+            using (ImRaii.PushFont(UiBuilder.IconFont))
+            {
+                if (ImGui.Button($"{FontAwesomeIcon.Cog.ToIconString()}##Settings", new Vector2(30, 0)))
+                {
+                    _settingsWindow.Toggle();
+                }
+            }
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Settings (passive discard, prices)");
+
+            // Total gil — right-aligned
             var totalValue = _module._state.TotalCategoryValue;
-
-            var totalText = $"Total: {totalValue:N0} gil";
-            var totalTextWidth = ImGui.CalcTextSize(totalText).X;
-            ImGui.SameLine(windowWidth - totalTextWidth);
-
-            using (var font = ImRaii.PushFont(UiBuilder.IconFont))
+            var totalText = $"{totalValue:N0} gil";
+            var textWidth = ImGui.CalcTextSize(totalText).X;
+            var iconWidth = 22f;
+            ImGui.SameLine(ImGui.GetWindowContentRegionMax().X - textWidth - iconWidth - 6);
+            using (ImRaii.PushFont(UiBuilder.IconFont))
             {
                 ImGui.TextColored(Theme.ColorWarning, FontAwesomeIcon.Coins.ToIconString());
             }
             ImGui.SameLine(0, 4);
-            ImGui.TextColored(Theme.ColorPrice, $"{totalValue:N0} gil");
+            ImGui.TextColored(Theme.ColorPrice, totalText);
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Sidebar
+    // ─────────────────────────────────────────────────────────────
+
+    private void DrawSidebar()
+    {
+        var settings = _module.Settings;
+        bool changed = false;
+
+        using (ImRaii.PushColor(ImGuiCol.Text, Theme.ColorBlue))
+        {
+            ImGui.Text("DISPLAY");
+        }
+        ImGui.Separator();
+        ImGui.Spacing();
+
+        if (ImGui.Checkbox("Include armory", ref _module._showArmory))
+        {
+            _module.RefreshInventory();
+        }
+        var showPrices = settings.ShowMarketPrices;
+        if (ImGui.Checkbox("Show market prices", ref showPrices))
+        {
+            settings.ShowMarketPrices = showPrices;
+            changed = true;
         }
 
         ImGui.Spacing();
+        ImGui.Spacing();
+
+        // Filters — handled by FilterPanelComponent.DrawSidebar
+        _filterPanel.DrawSidebar(settings);
+
+        // Footer: Reset / All on
+        var bottomY = ImGui.GetWindowHeight() - 32;
+        if (ImGui.GetCursorPosY() < bottomY) ImGui.SetCursorPosY(bottomY);
+        ImGui.Separator();
+        var halfW = (ImGui.GetContentRegionAvail().X - 6) / 2;
+        if (ImGui.Button("Reset", new Vector2(halfW, 0)))
+        {
+            settings.SafetyFilters = new SafetyFilters();
+            changed = true;
+            _module.UpdateCategories();
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("All on", new Vector2(halfW, 0)))
+        {
+            var f = settings.SafetyFilters;
+            f.FilterCurrencyItems = true;
+            f.FilterCrystalsAndShards = true;
+            f.FilterGearsetItems = true;
+            f.FilterIndisposableItems = true;
+            f.FilterUltimateTokens = true;
+            f.FilterHQItems = true;
+            f.FilterCollectables = true;
+            f.FilterUniqueUntradeable = true;
+            f.FilterHighLevelGear = true;
+            f.FilterSpiritbondedItems = true;
+            changed = true;
+            _module.UpdateCategories();
+        }
+
+        if (changed)
+        {
+            _module.SaveConfig();
+        }
     }
 
-    private void DrawFiltersAndSettings()
+    // ─────────────────────────────────────────────────────────────
+    // Main pane
+    // ─────────────────────────────────────────────────────────────
+
+    private void DrawMainPane()
     {
-        _filterPanel.Draw(_module.Settings);
+        // Selection bar — only when items are selected
+        if (_module._state.SelectedCount > 0)
+        {
+            DrawSelectionBar();
+        }
+
+        // Scrollable categories
+        using (ImRaii.Child("Categories", new Vector2(0, 0), false))
+        {
+            DrawCategoriesAndItems();
+        }
     }
 
-    private void DrawAvailableItemsTab()
+    private void DrawSelectionBar()
+    {
+        using var color = ImRaii.PushColor(ImGuiCol.ChildBg, new Vector4(0.165f, 0.165f, 0.165f, 1f));
+
+        using (ImRaii.Child("SelectionBar", new Vector2(0, 36), true, ImGuiWindowFlags.NoScrollbar))
+        {
+            var count = _module._state.SelectedCount;
+            using (ImRaii.PushColor(ImGuiCol.Text, Theme.ColorBlue))
+            {
+                ImGui.AlignTextToFramePadding();
+                ImGui.Text($"{count} selected");
+            }
+            ImGui.SameLine();
+            ImGui.TextColored(new Vector4(0.3f, 0.3f, 0.3f, 1f), "|");
+            ImGui.SameLine();
+
+            // Total value of selected items (computed from snapshot, fine since UI single-threaded)
+            long selectedValue = 0;
+            var selectedIds = _module._state.SnapshotSelectedIds();
+            var allItems = _module._state.SnapshotAutoDiscardCandidates(new HashSet<uint>(selectedIds), new HashSet<uint>());
+            foreach (var item in allItems)
+            {
+                if (item.MarketPrice.HasValue && item.MarketPrice.Value > 0)
+                    selectedValue += item.MarketPrice.Value * item.Quantity;
+            }
+            ImGui.TextColored(Theme.ColorPrice, $"{selectedValue:N0} gil");
+
+            // Right-aligned action buttons
+            var totalBtnWidth = 70 + 80 + 100 + 90 + 24;
+            ImGui.SameLine(ImGui.GetWindowContentRegionMax().X - totalBtnWidth);
+
+            using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(0, 0, 0, 0))
+                                  .Push(ImGuiCol.ButtonHovered, new Vector4(0.3f, 0.3f, 0.3f, 0.4f))
+                                  .Push(ImGuiCol.Text, Theme.ColorSubdued))
+            {
+                if (ImGui.Button("Clear", new Vector2(60, 0))) _module._state.ClearSelectionAndReset();
+            }
+            ImGui.SameLine();
+            using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.227f, 0.227f, 0.541f, 1f))
+                                  .Push(ImGuiCol.ButtonHovered, new Vector4(0.327f, 0.327f, 0.641f, 1f)))
+            {
+                if (ImGui.Button("Blacklist", new Vector2(78, 0))) _module.AddSelectedToBlacklist();
+            }
+            ImGui.SameLine();
+            using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.541f, 0.341f, 0.127f, 1f))
+                                  .Push(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.441f, 0.227f, 1f)))
+            {
+                if (ImGui.Button("Auto-discard", new Vector2(96, 0))) _module.AddSelectedToAutoDiscard();
+            }
+            ImGui.SameLine();
+            using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.541f, 0.227f, 0.227f, 1f))
+                                  .Push(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.327f, 0.327f, 1f)))
+            {
+                if (ImGui.Button("Discard", new Vector2(80, 0)))
+                {
+                    var ids = _module._state.SnapshotSelectedIds();
+                    _module.DiscardService.PrepareDiscard(ids, _module._state.SnapshotOriginalItems(), _module.BlacklistedItems);
+                }
+            }
+        }
+    }
+
+    private void DrawCategoriesAndItems()
     {
         var categoriesCopy = _module._state.SnapshotCategories();
 
@@ -368,10 +448,9 @@ internal sealed class InventoryUIRenderer
 
     private void DrawSearchResultsView(List<CategoryGroup> categories)
     {
-        ImGui.Text("Search Results for: ");
+        ImGui.Text("Search results for:");
         ImGui.SameLine();
         ImGui.TextColored(Theme.ColorInfo, $"\"{_module._searchFilter}\"");
-        ImGui.Separator();
         ImGui.Spacing();
 
         var allMatchingItems = new List<InventoryItemInfo>();
@@ -382,12 +461,9 @@ internal sealed class InventoryUIRenderer
 
         if (!allMatchingItems.Any())
         {
-            ImGui.TextColored(Theme.ColorSubdued, "No items found in available inventory.");
+            ImGui.TextColored(Theme.ColorSubdued, "No items found in your inventory.");
             ImGui.Spacing();
-            ImGui.Text("Items might be:");
-            ImGui.BulletText("Protected by active filters (check Protected Items tab)");
-            ImGui.BulletText("In your blacklist (check Blacklist Management tab)");
-            ImGui.BulletText("Not matching your search term");
+            ImGui.TextColored(Theme.ColorSubdued, "Items might be hidden by filters in the sidebar, or in your blacklist (open Lists with the toolbar 📋).");
             return;
         }
 
@@ -422,545 +498,46 @@ internal sealed class InventoryUIRenderer
         _itemTable.DrawTable(allMatchingItems, config);
     }
 
-    private void DrawProtectedItemsTab(List<InventoryItemInfo> protectedItems)
+    // ─────────────────────────────────────────────────────────────
+    // Status bar
+    // ─────────────────────────────────────────────────────────────
+
+    private void DrawStatusBar()
     {
-        ImGui.Text("Items Protected by Active Filters:");
-        ImGui.Spacing();
-
-        if (!protectedItems.Any())
+        using var color = ImRaii.PushColor(ImGuiCol.ChildBg, new Vector4(0.1f, 0.1f, 0.1f, 1f));
+        using (ImRaii.Child("StatusBar", new Vector2(0, 22), false, ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse))
         {
-            ImGui.TextColored(new Vector4(0.6f, 0.8f, 0.6f, 1), "No items are currently being filtered out.");
-            ImGui.Text("All items in your inventory are available for selection.");
-            return;
-        }
+            ImGui.SetCursorPosY(ImGui.GetCursorPosY() + 1);
 
-        var filteredCategories = protectedItems
-            .GroupBy(i => new { i.ItemUICategory, i.CategoryName })
-            .Select(categoryGroup => new
+            var status = _passiveDiscardService.GetStatus(
+                _module.AutoDiscardItems,
+                _module._state.SnapshotOriginalItems(),
+                _module.BlacklistedItems);
+
+            (Vector4 dotColor, string label) statusInfo = status.State switch
             {
-                CategoryId = categoryGroup.Key.ItemUICategory,
-                CategoryName = categoryGroup.Key.CategoryName,
-                Items = categoryGroup.ToList()
-            })
-            .OrderBy(c => c.CategoryName)
-            .ToList();
+                PassiveDiscardState.Disabled         => (Theme.ColorSubdued, "Passive auto-discard off"),
+                PassiveDiscardState.NoItems          => (Theme.ColorSubdued, "Passive armed · no items pending"),
+                PassiveDiscardState.PlayerBusy       => (Theme.ColorWarning, "Passive armed · player busy"),
+                PassiveDiscardState.NotInAllowedZone => (Theme.ColorWarning, "Passive armed · not in safe zone"),
+                PassiveDiscardState.WaitingForIdle   => (Theme.ColorInfo,    $"Passive armed · idle {status.IdleSeconds}/{status.RequiredIdleSeconds}s"),
+                PassiveDiscardState.Cooldown         => (Theme.ColorSubdued, $"Passive cooldown · {status.CooldownSecondsRemaining}s"),
+                PassiveDiscardState.Ready            => (Theme.ColorSuccess, "Passive ready to fire"),
+                _                                    => (Theme.ColorSubdued, "—"),
+            };
 
-        var settings = _module.Settings;
-        var expanded = _module.ExpandedCategories;
-        foreach (var category in filteredCategories)
-        {
-            var isExpanded = expanded.GetValueOrDefault(category.CategoryId, true);
-            using var id = ImRaii.PushId($"FilteredCategory_{category.CategoryId}");
-
-            var categoryHeaderText = $"{category.CategoryName} ({category.Items.Count} protected)";
-            var nodeFlags = ImGuiTreeNodeFlags.AllowItemOverlap | ImGuiTreeNodeFlags.SpanAvailWidth;
-            if (isExpanded) nodeFlags |= ImGuiTreeNodeFlags.DefaultOpen;
-
-            using (var color = ImRaii.PushColor(ImGuiCol.Text, new Vector4(0.8f, 0.6f, 0.6f, 1)))
-            {
-                using (var node = ImRaii.TreeNode($"{categoryHeaderText}###{category.CategoryId}_filtered_node", nodeFlags))
-                {
-                    if (node)
-                    {
-                        expanded[category.CategoryId] = true;
-                        _module.MarkExpansionChanged();
-
-                        var config = new ItemTableConfig
-                        {
-                            TableId = $"ProtectedTable_{category.CategoryId}",
-                            ShowItemLevel = true,
-                            ShowLocation = true,
-                            ShowMarketPrices = settings.ShowMarketPrices,
-                            ShowTotalValue = settings.ShowMarketPrices,
-                            ShowReason = true,
-                            GetFilterReason = (item) => _filterService.GetFilterReason(item, settings.SafetyFilters)
-                        };
-
-                        _itemTable.DrawTable(category.Items, config);
-                    }
-                    else
-                    {
-                        expanded[category.CategoryId] = false;
-                        _module.MarkExpansionChanged();
-                    }
-                }
-            }
-
-            ImGui.Spacing();
-        }
-    }
-
-    private void DrawBlacklistTab()
-    {
-        ImGui.TextWrapped("Manage your custom blacklist. Items added here will never be selected for discard.");
-        ImGui.TextWrapped("This is in addition to the built-in safety lists shown in the Protected Items tab.");
-        ImGui.Spacing();
-
-        _blacklistSearch.Draw("Add New Item to Blacklist", _module.BlacklistedItems);
-
-        ImGui.Separator();
-        ImGui.Spacing();
-
-        ImGui.Text($"Your Custom Blacklist ({_module.BlacklistedItems.Count} items)");
-        ImGui.Spacing();
-
-        if (!_module.BlacklistedItems.Any())
-        {
-            ImGui.TextColored(Theme.ColorSubdued, "No custom blacklisted items.");
-            ImGui.TextColored(Theme.ColorInfo, "Add items using the controls above or select items in the Available Items tab and click 'Add to Blacklist'.");
-            return;
-        }
-
-        var itemsToShow = GetBlacklistItemsToShow();
-        DrawBlacklistTable(itemsToShow);
-
-        ImGui.Spacing();
-        if (ImGui.Button("Clear All Blacklisted Items"))
-        {
-            ImGui.OpenPopup("ClearBlacklistConfirm");
-        }
-
-        using (var popup = ImRaii.PopupModal("ClearBlacklistConfirm"))
-        {
-            if (popup)
-            {
-                ImGui.Text("Are you sure you want to clear all custom blacklisted items?");
-                ImGui.Text($"This will remove {_module.BlacklistedItems.Count} items from your blacklist.");
-                ImGui.Spacing();
-
-                if (ImGui.Button("Yes, Clear All", new Vector2(120, 0)))
-                {
-                    _module.BlacklistedItems.Clear();
-                    _module.SaveBlacklist();
-                    _module.RefreshInventory();
-                    ImGui.CloseCurrentPopup();
-                }
-
-                ImGui.SameLine();
-                if (ImGui.Button("Cancel", new Vector2(120, 0)))
-                {
-                    ImGui.CloseCurrentPopup();
-                }
-            }
-        }
-    }
-
-    private IEnumerable<uint> GetBlacklistItemsToShow()
-    {
-        var itemsToShow = _module.BlacklistedItems.AsEnumerable();
-
-        if (!string.IsNullOrWhiteSpace(_module._searchFilter))
-        {
-            var filteredIds = new List<uint>();
-            foreach (var itemId in _module.BlacklistedItems)
-            {
-                var itemInfo = _module._state.FindAllItem(itemId);
-                string itemName = itemInfo?.Name;
-
-                if (string.IsNullOrEmpty(itemName))
-                {
-                    var info = _searchService.GetItemInfo(itemId);
-                    itemName = info?.Name ?? $"Unknown Item ({itemId})";
-                }
-
-                if (itemName.Contains(_module._searchFilter, StringComparison.OrdinalIgnoreCase) ||
-                    itemId.ToString().Contains(_module._searchFilter))
-                {
-                    filteredIds.Add(itemId);
-                }
-            }
-            itemsToShow = filteredIds;
-        }
-
-        return itemsToShow;
-    }
-
-    private void DrawBlacklistTable(IEnumerable<uint> itemIds)
-    {
-        var items = itemIds.Select(itemId =>
-        {
-            var itemInfo = _module._state.FindAllItem(itemId);
-
-            if (itemInfo == null)
-            {
-                var info = _searchService.GetItemInfo(itemId);
-                if (info.HasValue)
-                {
-                    itemInfo = new InventoryItemInfo
-                    {
-                        ItemId = itemId,
-                        Name = info.Value.Name,
-                        IconId = info.Value.IconId,
-                        CategoryName = info.Value.CategoryName,
-                        ItemLevel = (uint)info.Value.ItemLevel
-                    };
-                }
-            }
-
-            return itemInfo;
-        }).Where(i => i != null).Cast<InventoryItemInfo>().ToList();
-
-        var config = new ItemTableConfig
-        {
-            TableId = "BlacklistTable",
-            ShowItemLevel = true,
-            ShowCategory = true,
-            ShowActions = true,
-            OnRemoveItem = (item) =>
-            {
-                _module.BlacklistedItems.Remove(item.ItemId);
-                _module.SaveBlacklist();
-                _module.RefreshInventory();
-            }
-        };
-
-        _itemTable.DrawTable(items, config);
-    }
-
-    private void DrawAutoDiscardTab()
-    {
-        var passiveDiscardOpen = ImGui.CollapsingHeader("Passive Discard Settings", ImGuiTreeNodeFlags.DefaultOpen);
-        if (passiveDiscardOpen)
-        {
-            ImGui.Indent();
-            DrawPassiveDiscardSettings();
-            ImGui.Unindent();
-            ImGui.Spacing();
-        }
-
-        ImGui.Separator();
-        ImGui.Spacing();
-        ImGui.TextWrapped("Manage your auto-discard list. Items added here will be automatically discarded when using the /wahventory auto command.");
-        ImGui.TextWrapped("WARNING: This is a powerful feature. Only add items you are absolutely certain you want to discard automatically!");
-        ImGui.Spacing();
-
-        _autoDiscardSearch.Draw("Add New Item to Auto-Discard", _module.AutoDiscardItems);
-
-        ImGui.Separator();
-        ImGui.Spacing();
-
-        ImGui.Text($"Your Auto-Discard List ({_module.AutoDiscardItems.Count} items)");
-        ImGui.Spacing();
-
-        if (!_module.AutoDiscardItems.Any())
-        {
-            ImGui.TextColored(Theme.ColorSubdued, "No auto-discard items configured.");
-            ImGui.TextColored(Theme.ColorInfo, "Add items using the controls above or select items in the Available Items tab and click 'Add to Auto-Discard'.");
-            return;
-        }
-
-        var itemsToShow = GetAutoDiscardItemsToShow();
-        DrawAutoDiscardTable(itemsToShow);
-
-        ImGui.Spacing();
-        if (ImGui.Button("Clear All Auto-Discard Items"))
-        {
-            ImGui.OpenPopup("ClearAutoDiscardConfirm");
-        }
-
-        using (var popup = ImRaii.PopupModal("ClearAutoDiscardConfirm"))
-        {
-            if (popup)
-            {
-                ImGui.Text("Are you sure you want to clear all auto-discard items?");
-                ImGui.Text($"This will remove {_module.AutoDiscardItems.Count} items from your auto-discard list.");
-                ImGui.Spacing();
-
-                if (ImGui.Button("Yes, Clear All", new Vector2(120, 0)))
-                {
-                    _module.AutoDiscardItems.Clear();
-                    _module.SaveAutoDiscard();
-                    _module.RefreshInventory();
-                    ImGui.CloseCurrentPopup();
-                }
-
-                ImGui.SameLine();
-                if (ImGui.Button("Cancel", new Vector2(120, 0)))
-                {
-                    ImGui.CloseCurrentPopup();
-                }
-            }
-        }
-    }
-
-    private IEnumerable<uint> GetAutoDiscardItemsToShow()
-    {
-        var itemsToShow = _module.AutoDiscardItems.AsEnumerable();
-
-        if (!string.IsNullOrWhiteSpace(_module._searchFilter))
-        {
-            var filteredIds = new List<uint>();
-            foreach (var itemId in _module.AutoDiscardItems)
-            {
-                var itemInfo = _module._state.FindAllItem(itemId);
-                string itemName = itemInfo?.Name;
-
-                if (string.IsNullOrEmpty(itemName))
-                {
-                    var info = _searchService.GetItemInfo(itemId);
-                    itemName = info?.Name ?? $"Unknown Item ({itemId})";
-                }
-
-                if (itemName.Contains(_module._searchFilter, StringComparison.OrdinalIgnoreCase) ||
-                    itemId.ToString().Contains(_module._searchFilter))
-                {
-                    filteredIds.Add(itemId);
-                }
-            }
-            itemsToShow = filteredIds;
-        }
-
-        return itemsToShow;
-    }
-
-    private void DrawAutoDiscardTable(IEnumerable<uint> itemIds)
-    {
-        var items = itemIds.Select(itemId =>
-        {
-            var itemInfo = _module._state.FindAllItem(itemId);
-
-            if (itemInfo == null)
-            {
-                var info = _searchService.GetItemInfo(itemId);
-                if (info.HasValue)
-                {
-                    itemInfo = new InventoryItemInfo
-                    {
-                        ItemId = itemId,
-                        Name = info.Value.Name,
-                        IconId = info.Value.IconId,
-                        CategoryName = info.Value.CategoryName,
-                        ItemLevel = (uint)info.Value.ItemLevel
-                    };
-                }
-            }
-
-            return itemInfo;
-        }).Where(i => i != null).Cast<InventoryItemInfo>().ToList();
-
-        var config = new ItemTableConfig
-        {
-            TableId = "AutoDiscardTable",
-            ShowItemLevel = true,
-            ShowCategory = true,
-            ShowActions = true,
-            OnRemoveItem = (item) =>
-            {
-                _module.AutoDiscardItems.Remove(item.ItemId);
-                _module.SaveAutoDiscard();
-                _module.RefreshInventory();
-            },
-            DrawItemTags = (item) =>
-            {
-                if (_module._state.ContainsAllItem(item.ItemId))
-                {
-                    ImGui.SameLine();
-                    ImGui.TextColored(Theme.ColorWarning, "[In Inventory]");
-                }
-            }
-        };
-
-        _itemTable.DrawTable(items, config);
-    }
-
-    private void DrawPassiveDiscardSettings()
-    {
-        using (var font = ImRaii.PushFont(UiBuilder.IconFont))
-        {
-            ImGui.Text(FontAwesomeIcon.Robot.ToIconString());
-        }
-        ImGui.SameLine();
-        ImGui.Text("Passive Discard Settings");
-
-        ImGui.TextWrapped("Passive discard will automatically discard items from your auto-discard list when you are idle.");
-        ImGui.Spacing();
-
-        var settings = _module.Settings;
-        var enabled = settings.PassiveDiscard.Enabled;
-        if (ImGui.Checkbox("Enable Passive Discard", ref enabled))
-        {
-            settings.PassiveDiscard.Enabled = enabled;
-            _module.SaveConfig();
-        }
-
-        using (var disabled = ImRaii.Disabled(!settings.PassiveDiscard.Enabled))
-        {
-            ImGui.Spacing();
-            ImGui.Text("Idle Time Required:");
+            ImGui.TextColored(statusInfo.dotColor, "●");
             ImGui.SameLine();
-            ImGui.SetNextItemWidth(100);
-            var idleTime = settings.PassiveDiscard.IdleTimeSeconds;
-            if (ImGui.InputInt("##IdleTime", ref idleTime, 5, 10))
+            using (ImRaii.PushColor(ImGuiCol.Text, Theme.ColorSubdued))
             {
-                settings.PassiveDiscard.IdleTimeSeconds = Math.Max(10, Math.Min(300, idleTime));
-                _module.SaveConfig();
-            }
-            ImGui.SameLine();
-            ImGui.Text("seconds");
-
-            ImGui.Spacing();
-            ImGui.Text("Zone Restrictions:");
-            ImGui.TextWrapped("Passive discard only works in safe zones: Cities, Housing Areas, Inn Rooms, Barracks, Gold Saucer, and other non-combat areas.");
-            ImGui.Spacing();
-            ImGui.Text("Status:");
-            ImGui.SameLine();
-
-            var status = _passiveDiscardService.GetStatus(_module.AutoDiscardItems, _module._state.SnapshotOriginalItems(), _module.BlacklistedItems);
-            DrawPassiveDiscardStatus(status);
-        }
-    }
-
-    private void DrawPassiveDiscardStatus(PassiveDiscardStatus status)
-    {
-        switch (status.State)
-        {
-            case PassiveDiscardState.Disabled:
-                ImGui.TextColored(Theme.ColorSubdued, "Disabled");
-                break;
-            case PassiveDiscardState.NoItems:
-                ImGui.TextColored(Theme.ColorSubdued, "No items to discard");
-                break;
-            case PassiveDiscardState.PlayerBusy:
-                ImGui.TextColored(Theme.ColorWarning, "Player Busy");
-                break;
-            case PassiveDiscardState.NotInAllowedZone:
-                ImGui.TextColored(Theme.ColorWarning, "Not in Allowed Zone");
-                break;
-            case PassiveDiscardState.WaitingForIdle:
-                ImGui.TextColored(Theme.ColorInfo, $"Waiting for idle ({status.IdleSeconds}/{status.RequiredIdleSeconds}s)");
-                break;
-            case PassiveDiscardState.Cooldown:
-                ImGui.TextColored(Theme.ColorSubdued, $"Cooldown ({status.CooldownSecondsRemaining}s remaining)");
-                break;
-            case PassiveDiscardState.Ready:
-                ImGui.TextColored(Theme.ColorSuccess, "Ready to execute auto-discard");
-                break;
-        }
-    }
-
-    private void DrawBottomActionBar()
-    {
-        using var style = ImRaii.PushStyle(ImGuiStyleVar.FramePadding, new Vector2(8, 6));
-        using var color = ImRaii.PushColor(ImGuiCol.ChildBg, new Vector4(0.165f, 0.165f, 0.165f, 1f));
-
-        using (var child = ImRaii.Child("ActionBar", new Vector2(0, 42), true, ImGuiWindowFlags.NoScrollbar))
-        {
-            var selectedCount = _module._state.SelectedCount;
-
-            var clearButtonText = "Clear All";
-            var discardButtonText = $"Discard ({selectedCount})";
-            var blacklistButtonText = $"Add to Blacklist ({selectedCount})";
-            var autoDiscardButtonText = $"Add to Auto-Discard ({selectedCount})";
-            var executeAutoDiscardText = "Execute Auto Discard";
-
-            var buttonPadding = 20f;
-            var clearButtonWidth = Math.Max(80f, ImGui.CalcTextSize(clearButtonText).X + buttonPadding);
-            var discardButtonWidth = Math.Max(80f, ImGui.CalcTextSize(discardButtonText).X + buttonPadding);
-            var blacklistButtonWidth = Math.Max(120f, ImGui.CalcTextSize(blacklistButtonText).X + buttonPadding);
-            var autoDiscardButtonWidth = Math.Max(140f, ImGui.CalcTextSize(autoDiscardButtonText).X + buttonPadding);
-            var executeAutoDiscardWidth = Math.Max(140f, ImGui.CalcTextSize(executeAutoDiscardText).X + buttonPadding);
-
-            if (ImGui.Button(clearButtonText, new Vector2(clearButtonWidth, 0)))
-            {
-                _module._state.ClearSelectionAndReset();
+                ImGui.Text(statusInfo.label);
             }
 
-            ImGui.SameLine();
-
-            using (var btnColors = ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.541f, 0.227f, 0.227f, 1f))
-                                         .Push(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.327f, 0.327f, 1f)))
-            {
-                if (selectedCount > 0)
-                {
-                    if (ImGui.Button(discardButtonText, new Vector2(discardButtonWidth, 0)))
-                    {
-                        var selectedItemIds = _module._state.SnapshotSelectedIds();
-                        _module.DiscardService.PrepareDiscard(selectedItemIds, _module._state.SnapshotOriginalItems(), _module.BlacklistedItems);
-                    }
-                }
-                else
-                {
-                    using (var disabled = ImRaii.Disabled())
-                    {
-                        ImGui.Button(discardButtonText, new Vector2(discardButtonWidth, 0));
-                    }
-                }
-            }
-
-            ImGui.SameLine();
-
-            using (var btnColors = ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.227f, 0.227f, 0.541f, 1f))
-                                         .Push(ImGuiCol.ButtonHovered, new Vector4(0.327f, 0.327f, 0.641f, 1f)))
-            {
-                if (selectedCount > 0)
-                {
-                    if (ImGui.Button(blacklistButtonText, new Vector2(blacklistButtonWidth, 0)))
-                    {
-                        _module.AddSelectedToBlacklist();
-                    }
-                }
-                else
-                {
-                    using (var disabled = ImRaii.Disabled())
-                    {
-                        ImGui.Button(blacklistButtonText, new Vector2(blacklistButtonWidth, 0));
-                    }
-                }
-            }
-
-            ImGui.SameLine();
-
-            using (var btnColors = ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.541f, 0.341f, 0.127f, 1f))
-                                         .Push(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.441f, 0.227f, 1f)))
-            {
-                if (selectedCount > 0)
-                {
-                    if (ImGui.Button(autoDiscardButtonText, new Vector2(autoDiscardButtonWidth, 0)))
-                    {
-                        _module.AddSelectedToAutoDiscard();
-                    }
-                }
-                else
-                {
-                    using (var disabled = ImRaii.Disabled())
-                    {
-                        ImGui.Button(autoDiscardButtonText, new Vector2(autoDiscardButtonWidth, 0));
-                    }
-                }
-            }
-
-            ImGui.SameLine();
-
-            using (var btnColors = ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.7f, 0.2f, 0.2f, 1f))
-                                         .Push(ImGuiCol.ButtonHovered, new Vector4(0.8f, 0.3f, 0.3f, 1f)))
-            {
-                bool hasAutoDiscardItems = _module.AutoDiscardItems.Count > 0;
-
-                if (hasAutoDiscardItems)
-                {
-                    if (ImGui.Button(executeAutoDiscardText, new Vector2(executeAutoDiscardWidth, 0)))
-                    {
-                        _module.ExecuteAutoDiscard();
-                    }
-
-                    if (ImGui.IsItemHovered())
-                    {
-                        ImGui.SetTooltip("Execute auto-discard for configured items");
-                    }
-                }
-                else
-                {
-                    using (var disabled = ImRaii.Disabled())
-                    {
-                        ImGui.Button(executeAutoDiscardText, new Vector2(executeAutoDiscardWidth, 0));
-                    }
-
-                    if (ImGui.IsItemHovered())
-                    {
-                        ImGui.SetTooltip("No items configured for auto-discard");
-                    }
-                }
-            }
+            // Right-side: blacklist + auto-discard counts
+            var rightText = $"Blacklist {_module.BlacklistedItems.Count} · Auto-discard {_module.AutoDiscardItems.Count}";
+            var rightWidth = ImGui.CalcTextSize(rightText).X;
+            ImGui.SameLine(ImGui.GetWindowContentRegionMax().X - rightWidth - 4);
+            ImGui.TextColored(Theme.ColorSubdued, rightText);
         }
     }
 }

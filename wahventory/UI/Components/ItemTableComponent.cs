@@ -282,7 +282,10 @@ public class ItemTableComponent
         {
             ImGui.Text(item.Name ?? string.Empty);
         }
-        
+
+        // Capture hover BEFORE same-line tags so the name itself is the right-click target.
+        bool nameHovered = config.OnDrawContextMenu != null && ImGui.IsItemHovered();
+
         // Item tags
         if (item.IsHQ)
         {
@@ -307,13 +310,18 @@ public class ItemTableComponent
             config.DrawItemTags(item);
         }
 
-        // Right-click context menu — attached to the name area
+        // Right-click context menu — open when right-clicking on the item name.
         if (config.OnDrawContextMenu != null)
         {
-            using var popup = ImRaii.ContextPopupItem($"ctx_{item.GetUniqueKey()}");
-            if (popup)
+            var popupId = $"ctx_{item.GetUniqueKey()}";
+            if (nameHovered && ImGui.IsMouseClicked(ImGuiMouseButton.Right))
+            {
+                ImGui.OpenPopup(popupId);
+            }
+            if (ImGui.BeginPopup(popupId))
             {
                 config.OnDrawContextMenu(item);
+                ImGui.EndPopup();
             }
         }
     }

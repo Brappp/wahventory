@@ -209,18 +209,26 @@ internal sealed class InventoryState
         }
     }
 
-    /// <summary>Sums MarketPrice × Quantity over every item in _allItems whose ItemId is currently selected.</summary>
+    /// <summary>
+    /// Sums MarketPrice × Quantity over every categorized item whose ItemId is selected.
+    /// Reads from _categories (not _allItems) because per-row price fetches in
+    /// the table mutate the categorized item objects — the _allItems references
+    /// have stale prices.
+    /// </summary>
     public long SumValueForSelected()
     {
         lock (_lock)
         {
             long total = 0;
-            foreach (var item in _allItems)
+            foreach (var category in _categories)
             {
-                if (!_selectedItems.Contains(item.ItemId)) continue;
-                if (!item.MarketPrice.HasValue) continue;
-                if (item.MarketPrice.Value <= 0) continue;
-                total += item.MarketPrice.Value * item.Quantity;
+                foreach (var item in category.Items)
+                {
+                    if (!_selectedItems.Contains(item.ItemId)) continue;
+                    if (!item.MarketPrice.HasValue) continue;
+                    if (item.MarketPrice.Value <= 0) continue;
+                    total += item.MarketPrice.Value * item.Quantity;
+                }
             }
             return total;
         }

@@ -312,8 +312,18 @@ public class ItemTableComponent
         {
             config.DrawItemTags(item);
         }
+
+        // Right-click context menu — attached to the name area
+        if (config.OnDrawContextMenu != null)
+        {
+            using var popup = ImRaii.ContextPopupItem($"ctx_{item.GetUniqueKey()}");
+            if (popup)
+            {
+                config.OnDrawContextMenu(item);
+            }
+        }
     }
-    
+
     private void DrawItemPrice(InventoryItemInfo item, ItemTableConfig config)
     {
         if (!item.CanBeTraded)
@@ -430,5 +440,6 @@ public class ItemTableConfig
     public Action<InventoryItemInfo>? DrawItemTags { get; set; }
     public Func<uint, bool>? IsFetchingPrice { get; set; }
     public Action<InventoryItemInfo>? OnPriceFetchRequested { get; set; }
+    public Action<InventoryItemInfo>? OnDrawContextMenu { get; set; }
 }
 

@@ -402,34 +402,7 @@ internal sealed class InventoryUIRenderer
 
     private void DrawCategoryItems(CategoryGroup category)
     {
-        var settings = _module.Settings;
-        var config = new ItemTableConfig
-        {
-            TableId = $"CategoryTable_{category.CategoryId}",
-            ShowCheckbox = true,
-            ShowItemLevel = true,
-            ShowLocation = true,
-            ShowMarketPrices = settings.ShowMarketPrices,
-            ShowTotalValue = settings.ShowMarketPrices,
-            SearchFilter = _module._searchFilter,
-            IsItemSelected = (item) => _module._state.IsSelected(item.ItemId),
-            IsItemBlacklisted = (item) => _module.BlacklistedItems.Contains(item.ItemId),
-            OnItemSelectionChanged = (item, selected) =>
-            {
-                if (selected) _module._state.Select(item);
-                else _module._state.Deselect(item);
-            },
-            IsFetchingPrice = (itemId) => _priceService.IsFetchingPrice(itemId),
-            OnPriceFetchRequested = (item) => _ = _priceService.FetchPrice(item).ContinueWith(task =>
-            {
-                if (task.IsCompletedSuccessfully && task.Result.HasValue)
-                {
-                    _module._state.SetItemPrice(item, task.Result.Value, DateTime.Now);
-                }
-            })
-        };
-
-        _itemTable.DrawTable(category.Items, config);
+        _itemTable.DrawTable(category.Items, BuildItemTableConfig($"CategoryTable_{category.CategoryId}", scrollable: false, showCategory: false));
     }
 
     private void DrawCategoryControls(CategoryGroup category)
@@ -467,16 +440,22 @@ internal sealed class InventoryUIRenderer
             return;
         }
 
+        _itemTable.DrawTable(allMatchingItems, BuildItemTableConfig("SearchResultsTable", scrollable: true, showCategory: true));
+    }
+
+    private ItemTableConfig BuildItemTableConfig(string tableId, bool scrollable, bool showCategory)
+    {
         var settings = _module.Settings;
-        var config = new ItemTableConfig
+        return new ItemTableConfig
         {
-            TableId = "SearchResultsTable",
+            TableId = tableId,
             ShowCheckbox = true,
             ShowItemLevel = true,
             ShowLocation = true,
-            ShowCategory = true,
+            ShowCategory = showCategory,
             ShowMarketPrices = settings.ShowMarketPrices,
-            Scrollable = true,
+            ShowTotalValue = settings.ShowMarketPrices && !showCategory,
+            Scrollable = scrollable,
             SearchFilter = _module._searchFilter,
             IsItemSelected = (item) => _module._state.IsSelected(item.ItemId),
             IsItemBlacklisted = (item) => _module.BlacklistedItems.Contains(item.ItemId),
@@ -492,10 +471,67 @@ internal sealed class InventoryUIRenderer
                 {
                     _module._state.SetItemPrice(item, task.Result.Value, DateTime.Now);
                 }
-            })
+            }),
+            OnDrawContextMenu = DrawItemContextMenu,
         };
+    }
 
-        _itemTable.DrawTable(allMatchingItems, config);
+    private void DrawItemContextMenu(InventoryItemInfo item)
+    {
+        ImGui.TextColored(Theme.ColorInfo, item.Name);
+        ImGui.Separator();
+
+        var isSelected = _module._state.IsSelected(item.ItemId);
+        if (ImGui.MenuItem(isSelected ? "Deselect" : "Select"))
+        {
+            if (isSelected) _module._state.Deselect(item);
+            else _module._state.Select(item);
+        }
+
+        ImGui.Separator();
+
+        var isBlacklisted = _module.BlacklistedItems.Contains(item.ItemId);
+        if (ImGui.MenuItem(isBlacklisted ? "Remove from blacklist" : "Add to blacklist"))
+        {
+            if (isBlacklisted)
+            {
+                _module.BlacklistedItems.Remove(item.ItemId);
+            }
+            else
+            {
+                _module.BlacklistedItems.Add(item.ItemId);
+            }
+            _module.SaveBlacklist();
+            _module.RefreshInventory();
+        }
+
+        var isAutoDiscard = _module.AutoDiscardItems.Contains(item.ItemId);
+        if (ImGui.MenuItem(isAutoDiscard ? "Remove from auto-discard" : "Add to auto-discard"))
+        {
+            if (isAutoDiscard)
+            {
+                _module.AutoDiscardItems.Remove(item.ItemId);
+            }
+            else
+            {
+                _module.AutoDiscardItems.Add(item.ItemId);
+            }
+            _module.SaveAutoDiscard();
+            _module.RefreshInventory();
+        }
+
+        ImGui.Separator();
+
+        using (ImRaii.PushColor(ImGuiCol.Text, Theme.ColorError))
+        {
+            if (ImGui.MenuItem($"Discard {item.Quantity}×"))
+            {
+                _module.DiscardService.PrepareDiscard(
+                    new List<uint> { item.ItemId },
+                    _module._state.SnapshotOriginalItems(),
+                    _module.BlacklistedItems);
+            }
+        }
     }
 
     // ─────────────────────────────────────────────────────────────

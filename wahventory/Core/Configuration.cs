@@ -39,7 +39,6 @@ public class InventorySettings
 public class SafetyFilters
 {
     public bool FilterUltimateTokens { get; set; } = true;
-    public bool FilterCurrencyItems { get; set; } = true;
     public bool FilterCrystalsAndShards { get; set; } = true;
     public bool FilterGearsetItems { get; set; } = true;
     public bool FilterIndisposableItems { get; set; } = true;
@@ -47,10 +46,8 @@ public class SafetyFilters
     public bool FilterUniqueUntradeable { get; set; } = true;
     public bool FilterHQItems { get; set; } = false;
     public bool FilterCollectables { get; set; } = false;
-    public bool FilterSpiritbondedItems { get; set; } = true;
 
     public uint MaxGearItemLevel { get; set; } = 600;
-    public int MinSpiritbondToFilter { get; set; } = 1;
 }
 
 [Serializable]

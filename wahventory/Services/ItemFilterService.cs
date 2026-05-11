@@ -10,7 +10,6 @@ namespace wahventory.Services;
 public class FilterHiddenCounts
 {
     public int UltimateSpecial;
-    public int Currency;
     public int CrystalsAndShards;
     public int InGearset;
     public int Indisposable;
@@ -18,7 +17,6 @@ public class FilterHiddenCounts
     public int Collectables;
     public int UniqueUntradeable;
     public int HighLevelGear;
-    public int Spiritbonded;
 }
 
 public class ItemFilterService
@@ -37,112 +35,103 @@ public class ItemFilterService
             filtered = filtered.Where(i => i.Name.Contains(searchFilter, StringComparison.OrdinalIgnoreCase));
         }
         
-        // Apply safety filters
+        // Currency items are always hidden — they can't be discarded anyway,
+        // and surfacing them in the inventory list is just noise.
+        filtered = filtered.Where(i => !ItemSafetyData.CurrencyRange.Contains(i.ItemId));
+
         if (filters.FilterUltimateTokens)
             filtered = filtered.Where(i => !ItemSafetyData.HardcodedBlacklist.Contains(i.ItemId));
-        
-        if (filters.FilterCurrencyItems)
-            filtered = filtered.Where(i => !ItemSafetyData.CurrencyRange.Contains(i.ItemId));
-        
+
         if (filters.FilterCrystalsAndShards)
             filtered = filtered.Where(i => !(ItemSafetyData.CrystalAndShardCategoryIds.Contains(i.ItemUICategory)));
-        
+
         if (filters.FilterGearsetItems)
             filtered = filtered.Where(i => !InventoryHelpers.IsInGearset(i.ItemId));
-        
+
         if (filters.FilterIndisposableItems)
             filtered = filtered.Where(i => !i.IsIndisposable);
-        
+
         if (filters.FilterHighLevelGear)
             filtered = filtered.Where(i => !(i.EquipSlotCategory > 0 && i.ItemLevel >= filters.MaxGearItemLevel));
-        
+
         if (filters.FilterUniqueUntradeable)
             filtered = filtered.Where(i => !(i.IsUnique && i.IsUntradable));
-        
+
         if (filters.FilterHQItems)
             filtered = filtered.Where(i => !i.IsHQ);
-        
+
         if (filters.FilterCollectables)
             filtered = filtered.Where(i => !i.IsCollectable);
-        
-        if (filters.FilterSpiritbondedItems)
-            filtered = filtered.Where(i => i.SpiritBond < filters.MinSpiritbondToFilter);
-        
+
         return filtered;
     }
-    
+
     public bool IsItemFiltered(
         InventoryItemInfo item,
         SafetyFilters filters,
         HashSet<uint> blacklistedItems)
     {
+        if (ItemSafetyData.CurrencyRange.Contains(item.ItemId))
+            return true;
+
         if (filters.FilterUltimateTokens && ItemSafetyData.HardcodedBlacklist.Contains(item.ItemId))
             return true;
-        
-        if (filters.FilterCurrencyItems && ItemSafetyData.CurrencyRange.Contains(item.ItemId))
-            return true;
-        
+
         if (filters.FilterCrystalsAndShards && (ItemSafetyData.CrystalAndShardCategoryIds.Contains(item.ItemUICategory)))
             return true;
-        
+
         if (filters.FilterGearsetItems && InventoryHelpers.IsInGearset(item.ItemId))
             return true;
-        
+
         if (filters.FilterIndisposableItems && item.IsIndisposable)
             return true;
-        
+
         if (filters.FilterHighLevelGear && item.EquipSlotCategory > 0 && item.ItemLevel >= filters.MaxGearItemLevel)
             return true;
-        
+
         if (filters.FilterUniqueUntradeable && item.IsUnique && item.IsUntradable)
             return true;
-        
+
         if (filters.FilterHQItems && item.IsHQ)
             return true;
-        
+
         if (filters.FilterCollectables && item.IsCollectable)
             return true;
-        
-        if (filters.FilterSpiritbondedItems && item.SpiritBond >= filters.MinSpiritbondToFilter)
-            return true;
-        
+
         return false;
     }
-    
+
     public string GetFilterReason(
         InventoryItemInfo item,
         SafetyFilters filters)
     {
+        if (ItemSafetyData.CurrencyRange.Contains(item.ItemId))
+            return "Currency";
+
         if (filters.FilterUltimateTokens && ItemSafetyData.HardcodedBlacklist.Contains(item.ItemId))
             return "Ultimate/Special";
-        
-        if (filters.FilterCurrencyItems && ItemSafetyData.CurrencyRange.Contains(item.ItemId))
-            return "Currency";
-        
+
         if (filters.FilterCrystalsAndShards && (ItemSafetyData.CrystalAndShardCategoryIds.Contains(item.ItemUICategory)))
             return "Crystal/Shard";
-        
+
         if (filters.FilterGearsetItems && InventoryHelpers.IsInGearset(item.ItemId))
             return "In Gearset";
-        
+
         if (filters.FilterIndisposableItems && item.IsIndisposable)
             return "Indisposable";
-        
+
         if (filters.FilterHighLevelGear && item.EquipSlotCategory > 0 && item.ItemLevel >= filters.MaxGearItemLevel)
             return $"High Level (i{item.ItemLevel})";
-        
+
         if (filters.FilterUniqueUntradeable && item.IsUnique && item.IsUntradable)
             return "Unique & Untradeable";
-        
+
         if (filters.FilterHQItems && item.IsHQ)
             return "High Quality";
-        
+
         if (filters.FilterCollectables && item.IsCollectable)
             return "Collectable";
-        
-        if (filters.FilterSpiritbondedItems && item.SpiritBond >= filters.MinSpiritbondToFilter)
-            return $"Spiritbond {item.SpiritBond}%";
-        
+
         return "Protected";
     }
     
@@ -177,7 +166,6 @@ public class ItemFilterService
         foreach (var item in items)
         {
             if (ItemSafetyData.HardcodedBlacklist.Contains(item.ItemId)) counts.UltimateSpecial++;
-            if (ItemSafetyData.CurrencyRange.Contains(item.ItemId)) counts.Currency++;
             if (ItemSafetyData.CrystalAndShardCategoryIds.Contains(item.ItemUICategory)) counts.CrystalsAndShards++;
             if (InventoryHelpers.IsInGearset(item.ItemId)) counts.InGearset++;
             if (item.IsIndisposable) counts.Indisposable++;
@@ -185,7 +173,6 @@ public class ItemFilterService
             if (item.IsCollectable) counts.Collectables++;
             if (item.IsUnique && item.IsUntradable) counts.UniqueUntradeable++;
             if (item.EquipSlotCategory > 0 && item.ItemLevel >= filters.MaxGearItemLevel) counts.HighLevelGear++;
-            if (item.SpiritBond >= filters.MinSpiritbondToFilter) counts.Spiritbonded++;
         }
         return counts;
     }

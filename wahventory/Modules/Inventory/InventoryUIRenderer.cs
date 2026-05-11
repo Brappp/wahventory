@@ -248,7 +248,6 @@ internal sealed class InventoryUIRenderer
         if (ImGui.Button("All on", new Vector2(halfW, 0)))
         {
             var f = settings.SafetyFilters;
-            f.FilterCurrencyItems = true;
             f.FilterCrystalsAndShards = true;
             f.FilterGearsetItems = true;
             f.FilterIndisposableItems = true;
@@ -257,7 +256,6 @@ internal sealed class InventoryUIRenderer
             f.FilterCollectables = true;
             f.FilterUniqueUntradeable = true;
             f.FilterHighLevelGear = true;
-            f.FilterSpiritbondedItems = true;
             changed = true;
             _module.UpdateCategories();
         }

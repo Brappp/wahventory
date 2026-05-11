@@ -229,13 +229,7 @@ public unsafe class InventoryHelpers
             if (assessment.FlagColor < SafetyFlagColor.Info)
                 assessment.FlagColor = SafetyFlagColor.Info;
         }
-        if (item.SpiritBond >= settings.SafetyFilters.MinSpiritbondToFilter)
-        {
-            assessment.SafetyFlags.Add($"Spiritbond {item.SpiritBond}%");
-            if (assessment.FlagColor < SafetyFlagColor.Info)
-                assessment.FlagColor = SafetyFlagColor.Info;
-        }
-        
+
         return assessment;
     }
     

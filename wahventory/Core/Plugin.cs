@@ -7,7 +7,6 @@ using Dalamud.Plugin.Services;
 using wahventory.Services.Helpers;
 using wahventory.UI.Windows;
 using wahventory.Modules.Inventory;
-using wahventory.Modules.Search;
 using Dalamud.Game;
 using ECommons;
 
@@ -38,9 +37,8 @@ public sealed class Plugin : IDalamudPlugin
     public readonly WindowSystem WindowSystem = new("wahventory");
     private MainWindow MainWindow { get; init; }
     private DiscardConfirmationWindow DiscardConfirmationWindow { get; init; }
-    
+
     private InventoryManagementModule InventoryModule { get; init; }
-    private SearchModule SearchModule { get; init; }
 
     public Plugin()
     {
@@ -65,14 +63,7 @@ public sealed class Plugin : IDalamudPlugin
         ConfigManager = new ConfigurationManager(Services);
 
         InventoryModule = new InventoryManagementModule(this, Services);
-        SearchModule = new SearchModule(
-            Services.GameGui,
-            Services.DataManager,
-            Services.ObjectTable,
-            Services.KeyState,
-            Configuration.SearchBarSettings,
-            WindowSystem);
-        MainWindow = new MainWindow(this, InventoryModule, SearchModule);
+        MainWindow = new MainWindow(this, InventoryModule);
 
         // Create discard confirmation window with icon cache from module
         var iconCache = new IconCache(Services.TextureProvider);
@@ -88,7 +79,7 @@ public sealed class Plugin : IDalamudPlugin
 
         Services.CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
-            HelpMessage = "Open the wahventory window\n/wahventory auto - Execute auto-discard for configured items\n/wahventory search - Open search bar settings"
+            HelpMessage = "Open the wahventory window\n/wahventory auto - Execute auto-discard for configured items"
         });
 
         Services.PluginInterface.UiBuilder.Draw += DrawUI;
@@ -104,7 +95,6 @@ public sealed class Plugin : IDalamudPlugin
         WindowSystem.RemoveAllWindows();
 
         InventoryModule.Dispose();
-        SearchModule.Dispose();
 
         Services.CommandManager.RemoveHandler(CommandName);
         ECommonsMain.Dispose();
@@ -113,7 +103,6 @@ public sealed class Plugin : IDalamudPlugin
     private void OnFrameworkUpdate(IFramework framework)
     {
         InventoryModule.Update();
-        SearchModule.Update();
     }
 
     private void OnCommand(string command, string args)
@@ -124,10 +113,6 @@ public sealed class Plugin : IDalamudPlugin
         {
             InventoryModule.ExecuteAutoDiscard();
         }
-        else if (trimmedArgs == "search")
-        {
-            SearchModule.OpenSettings();
-        }
         else
         {
             ToggleMainUI();
@@ -137,7 +122,6 @@ public sealed class Plugin : IDalamudPlugin
     private void DrawUI()
     {
         WindowSystem.Draw();
-        SearchModule.Draw();
     }
 
     public void ToggleConfigUI() => InventoryModule.SettingsWindow.Toggle();

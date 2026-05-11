@@ -36,7 +36,6 @@ public sealed class Plugin : IDalamudPlugin
     public ConfigurationManager ConfigManager { get; }
     public Configuration Configuration => ConfigManager.Configuration;
     public readonly WindowSystem WindowSystem = new("wahventory");
-    private ConfigWindow ConfigWindow { get; init; }
     private MainWindow MainWindow { get; init; }
     private DiscardConfirmationWindow DiscardConfirmationWindow { get; init; }
     
@@ -65,7 +64,6 @@ public sealed class Plugin : IDalamudPlugin
 
         ConfigManager = new ConfigurationManager(Services);
 
-        ConfigWindow = new ConfigWindow(this);
         InventoryModule = new InventoryManagementModule(this, Services);
         SearchModule = new SearchModule(
             Services.GameGui,
@@ -82,7 +80,6 @@ public sealed class Plugin : IDalamudPlugin
             InventoryModule.DiscardService,
             iconCache);
         
-        WindowSystem.AddWindow(ConfigWindow);
         WindowSystem.AddWindow(MainWindow);
         WindowSystem.AddWindow(DiscardConfirmationWindow);
         WindowSystem.AddWindow(InventoryModule.ListsWindow);
@@ -142,6 +139,6 @@ public sealed class Plugin : IDalamudPlugin
         SearchModule.Draw();
     }
 
-    public void ToggleConfigUI() => ConfigWindow.Toggle();
+    public void ToggleConfigUI() => InventoryModule.SettingsWindow.Toggle();
     public void ToggleMainUI() => MainWindow.Toggle();
 }

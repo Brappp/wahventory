@@ -55,18 +55,14 @@ internal sealed class InventoryUIRenderer
 
     public void Draw()
     {
-        // Top: toolbar
         DrawToolbar();
 
-        // Reserve space for the status bar at the bottom. Account for
-        // ImGui's ItemSpacing.Y between the body and the status bar so the
-        // parent window never has to scroll.
+        // Account for ItemSpacing.Y between body and status bar so the parent window never has to scroll.
         var spacing = ImGui.GetStyle().ItemSpacing.Y;
         var statusBarHeight = 22f + spacing;
         var bodyHeight = ImGui.GetContentRegionAvail().Y - statusBarHeight;
         if (bodyHeight < 100) bodyHeight = 100;
 
-        // Body: sidebar + main pane
         using (ImRaii.Child("Body", new Vector2(0, bodyHeight), false))
         {
             using (ImRaii.Child("Sidebar", new Vector2(210, 0), true))
@@ -80,13 +76,8 @@ internal sealed class InventoryUIRenderer
             }
         }
 
-        // Bottom: status bar
         DrawStatusBar();
     }
-
-    // ─────────────────────────────────────────────────────────────
-    // Toolbar
-    // ─────────────────────────────────────────────────────────────
 
     private void DrawToolbar()
     {
@@ -97,7 +88,6 @@ internal sealed class InventoryUIRenderer
         {
             ImGui.SetCursorPosY(ImGui.GetCursorPosY() + 2);
 
-            // Search
             using (ImRaii.PushFont(UiBuilder.IconFont))
             {
                 ImGui.Text(FontAwesomeIcon.Search.ToIconString());
@@ -132,7 +122,6 @@ internal sealed class InventoryUIRenderer
             ImGui.TextColored(new Vector4(0.3f, 0.3f, 0.3f, 1f), "|");
             ImGui.SameLine();
 
-            // World combo (only when prices on)
             if (_module.Settings.ShowMarketPrices)
             {
                 ImGui.TextColored(Theme.ColorSubdued, "World:");
@@ -160,7 +149,6 @@ internal sealed class InventoryUIRenderer
                 ImGui.SameLine();
             }
 
-            // Lists button
             using (ImRaii.PushFont(UiBuilder.IconFont))
             {
                 if (ImGui.Button($"{FontAwesomeIcon.ClipboardList.ToIconString()}##Lists", new Vector2(30, 0)))
@@ -172,7 +160,6 @@ internal sealed class InventoryUIRenderer
 
             ImGui.SameLine();
 
-            // Settings button
             using (ImRaii.PushFont(UiBuilder.IconFont))
             {
                 if (ImGui.Button($"{FontAwesomeIcon.Cog.ToIconString()}##Settings", new Vector2(30, 0)))
@@ -182,7 +169,6 @@ internal sealed class InventoryUIRenderer
             }
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("Settings (passive discard, prices)");
 
-            // Total gil — right-aligned
             var totalValue = _module._state.TotalCategoryValue;
             var totalText = $"{totalValue:N0} gil";
             var textWidth = ImGui.CalcTextSize(totalText).X;
@@ -196,10 +182,6 @@ internal sealed class InventoryUIRenderer
             ImGui.TextColored(Theme.ColorPrice, totalText);
         }
     }
-
-    // ─────────────────────────────────────────────────────────────
-    // Sidebar
-    // ─────────────────────────────────────────────────────────────
 
     private void DrawSidebar()
     {
@@ -227,13 +209,11 @@ internal sealed class InventoryUIRenderer
         ImGui.Spacing();
         ImGui.Spacing();
 
-        // Filters — handled by FilterPanelComponent.DrawSidebar
         var counts = _filterService.CountHiddenPerFilter(
             _module._state.SnapshotOriginalItems(),
             settings.SafetyFilters);
         _filterPanel.DrawSidebar(settings, counts);
 
-        // Footer: Reset / All on
         var bottomY = ImGui.GetWindowHeight() - 32;
         if (ImGui.GetCursorPosY() < bottomY) ImGui.SetCursorPosY(bottomY);
         ImGui.Separator();
@@ -265,19 +245,13 @@ internal sealed class InventoryUIRenderer
         }
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // Main pane
-    // ─────────────────────────────────────────────────────────────
-
     private void DrawMainPane()
     {
-        // Selection bar — only when items are selected
         if (_module._state.SelectedCount > 0)
         {
             DrawSelectionBar();
         }
 
-        // Scrollable categories
         using (ImRaii.Child("Categories", new Vector2(0, 0), false))
         {
             DrawCategoriesAndItems();
@@ -303,8 +277,6 @@ internal sealed class InventoryUIRenderer
             var selectedValue = _module._state.SumValueForSelected();
             ImGui.TextColored(Theme.ColorPrice, $"{selectedValue:N0} gil");
 
-            // Right-aligned action buttons. Labels lead with the verb so it's
-            // clear these add to lists vs. trigger the discard.
             const float clearW = 60, blW = 130, adW = 150, discW = 90, gap = 4;
             var totalBtnWidth = clearW + blW + adW + discW + gap * 3 + 6;
             ImGui.SameLine(ImGui.GetWindowContentRegionMax().X - totalBtnWidth);
@@ -531,10 +503,6 @@ internal sealed class InventoryUIRenderer
         }
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // Status bar
-    // ─────────────────────────────────────────────────────────────
-
     private void DrawStatusBar()
     {
         using var color = ImRaii.PushColor(ImGuiCol.ChildBg, new Vector4(0.1f, 0.1f, 0.1f, 1f));
@@ -566,7 +534,6 @@ internal sealed class InventoryUIRenderer
                 ImGui.Text(statusInfo.label);
             }
 
-            // Right-side: blacklist + auto-discard counts
             var rightText = $"Blacklist {_module.BlacklistedItems.Count} · Auto-discard {_module.AutoDiscardItems.Count}";
             var rightWidth = ImGui.CalcTextSize(rightText).X;
             ImGui.SameLine(ImGui.GetWindowContentRegionMax().X - rightWidth - 4);

@@ -98,40 +98,6 @@ public class ItemFilterService
         return false;
     }
 
-    public string GetFilterReason(
-        InventoryItemInfo item,
-        SafetyFilters filters)
-    {
-        if (ItemSafetyData.CurrencyRange.Contains(item.ItemId))
-            return "Currency";
-
-        if (ItemSafetyData.CrystalAndShardCategoryIds.Contains(item.ItemUICategory))
-            return "Crystal/Shard";
-
-        if (filters.FilterUltimateTokens && ItemSafetyData.HardcodedBlacklist.Contains(item.ItemId))
-            return "Ultimate/Special";
-
-        if (filters.FilterGearsetItems && InventoryHelpers.IsInGearset(item.ItemId))
-            return "In Gearset";
-
-        if (filters.FilterIndisposableItems && item.IsIndisposable)
-            return "Indisposable";
-
-        if (filters.FilterHighLevelGear && item.EquipSlotCategory > 0 && item.ItemLevel >= filters.MaxGearItemLevel)
-            return $"High Level (i{item.ItemLevel})";
-
-        if (filters.FilterUniqueUntradeable && item.IsUnique && item.IsUntradable)
-            return "Unique & Untradeable";
-
-        if (filters.FilterHQItems && item.IsHQ)
-            return "High Quality";
-
-        if (filters.FilterCollectables && item.IsCollectable)
-            return "Collectable";
-
-        return "Protected";
-    }
-    
     public List<InventoryItemInfo> GetProtectedItems(
         IEnumerable<InventoryItemInfo> allItems,
         SafetyFilters filters,
@@ -151,9 +117,8 @@ public class ItemFilterService
     }
     
     /// <summary>
-    /// Counts how many items in the source set each filter would individually match —
-    /// independent of whether the filter is currently enabled, and independent of other
-    /// filters. Used for the per-filter "(N)" indicators in the sidebar.
+    /// Counts how many items each filter would individually match — independent of whether
+    /// the filter is currently enabled, and independent of other filters.
     /// </summary>
     public FilterHiddenCounts CountHiddenPerFilter(
         IEnumerable<InventoryItemInfo> items,

@@ -11,8 +11,6 @@ public class Configuration : IPluginConfiguration
 {
     public int Version { get; set; } = 0;
 
-    public bool IsConfigWindowMovable { get; set; } = true;
-
     public InventorySettings InventorySettings { get; set; } = new();
 
     public SearchBarSettings SearchBarSettings { get; set; } = new();

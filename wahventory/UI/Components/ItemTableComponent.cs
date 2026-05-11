@@ -89,22 +89,7 @@ public class ItemTableComponent
                 ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed, totalWidth);
             }
         }
-        else if (config.ShowStatus)
-        {
-            float statusWidth = ImGui.CalcTextSize("Not Discardable").X + 8;
-            ImGui.TableSetupColumn("Status", ImGuiTableColumnFlags.WidthFixed, statusWidth);
-        }
-        else if (config.ShowReason)
-        {
-            float reasonWidth = ImGui.CalcTextSize("Unique & Untradeable").X + 8;
-            ImGui.TableSetupColumn("Reason", ImGuiTableColumnFlags.WidthFixed, reasonWidth);
-        }
-        else if (config.ShowActions)
-        {
-            float actionsWidth = ImGui.CalcTextSize("Remove").X + 16;
-            ImGui.TableSetupColumn("Actions", ImGuiTableColumnFlags.WidthFixed, actionsWidth);
-        }
-        
+
         if (config.Scrollable)
         {
             ImGui.TableSetupScrollFreeze(0, 1);
@@ -133,7 +118,6 @@ public class ItemTableComponent
             DrawCheckbox(item, config);
         }
 
-        // Item column (icon + name + tags)
         ImGui.TableNextColumn();
         DrawItemName(item, config);
         
@@ -179,25 +163,6 @@ public class ItemTableComponent
             {
                 ImGui.TableNextColumn();
                 DrawTotalValue(item);
-            }
-        }
-        // Status/Reason/Actions column
-        else if (config.ShowStatus)
-        {
-            ImGui.TableNextColumn();
-            DrawItemStatus(item, config);
-        }
-        else if (config.ShowReason && config.GetFilterReason != null)
-        {
-            ImGui.TableNextColumn();
-            ImGui.TextColored(Theme.ColorWarning, config.GetFilterReason(item));
-        }
-        else if (config.ShowActions && config.OnRemoveItem != null)
-        {
-            ImGui.TableNextColumn();
-            if (ImGui.SmallButton($"Remove##{item.ItemId}"))
-            {
-                config.OnRemoveItem(item);
             }
         }
     }
@@ -305,12 +270,6 @@ public class ItemTableComponent
             ImGui.TextColored(Theme.ColorNotTradeable, "[Not Tradeable]");
         }
         
-        if (config.DrawItemTags != null)
-        {
-            config.DrawItemTags(item);
-        }
-
-        // Right-click context menu — open when right-clicking on the item name.
         if (config.OnDrawContextMenu != null)
         {
             var popupId = $"ctx_{item.GetUniqueKey()}";
@@ -374,27 +333,6 @@ public class ItemTableComponent
         }
     }
     
-    private void DrawItemStatus(InventoryItemInfo item, ItemTableConfig config)
-    {
-        if (config.ShowMarketPrices && item.MarketPrice.HasValue && item.CanBeTraded && 
-            (config.IsItemBlacklisted == null || !config.IsItemBlacklisted(item)))
-        {
-            ImGui.TextColored(Theme.ColorPrice, $"{item.MarketPrice.Value:N0}");
-        }
-        else if (!item.CanBeDiscarded)
-        {
-            ImGui.TextColored(Theme.ColorError, "Not Discardable");
-        }
-        else if (item.IsCollectable)
-        {
-            ImGui.TextColored(Theme.ColorWarning, "Collectable");
-        }
-        else if (item.SpiritBond >= 100)
-        {
-            ImGui.TextColored(new Vector4(0.2f, 0.8f, 0.2f, 1f), "Spiritbonded");
-        }
-    }
-    
     private string GetLocationName(InventoryType container)
     {
         return container switch
@@ -428,18 +366,12 @@ public class ItemTableConfig
     public bool ShowCategory { get; set; } = false;
     public bool ShowMarketPrices { get; set; } = false;
     public bool ShowTotalValue { get; set; } = false;
-    public bool ShowStatus { get; set; } = false;
-    public bool ShowReason { get; set; } = false;
-    public bool ShowActions { get; set; } = false;
     public bool Scrollable { get; set; } = false;
     public string SearchFilter { get; set; } = string.Empty;
     
     public Func<InventoryItemInfo, bool>? IsItemSelected { get; set; }
     public Func<InventoryItemInfo, bool>? IsItemBlacklisted { get; set; }
     public Action<InventoryItemInfo, bool>? OnItemSelectionChanged { get; set; }
-    public Action<InventoryItemInfo>? OnRemoveItem { get; set; }
-    public Func<InventoryItemInfo, string>? GetFilterReason { get; set; }
-    public Action<InventoryItemInfo>? DrawItemTags { get; set; }
     public Func<uint, bool>? IsFetchingPrice { get; set; }
     public Action<InventoryItemInfo>? OnPriceFetchRequested { get; set; }
     public Action<InventoryItemInfo>? OnDrawContextMenu { get; set; }

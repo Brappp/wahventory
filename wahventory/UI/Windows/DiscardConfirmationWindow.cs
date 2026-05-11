@@ -62,9 +62,8 @@ public class DiscardConfirmationWindow : Window, IDisposable
 
         ImGui.Spacing();
 
-        // Items table — fills the space between the header/summary and the buttons.
-        var reservedBottom = 64f; // buttons + spacing
-        if (_discardService.DiscardProgress > 0) reservedBottom += 28; // progress bar
+        var reservedBottom = 64f;
+        if (_discardService.DiscardProgress > 0) reservedBottom += 28;
         if (!string.IsNullOrEmpty(_discardService.DiscardError)) reservedBottom += 28;
         var tableHeight = ImGui.GetContentRegionAvail().Y - reservedBottom;
         if (tableHeight < 100) tableHeight = 100;
@@ -77,13 +76,11 @@ public class DiscardConfirmationWindow : Window, IDisposable
             }
         }
 
-        // Error
         if (!string.IsNullOrEmpty(_discardService.DiscardError))
         {
             ImGui.TextColored(Theme.ColorError, _discardService.DiscardError);
         }
 
-        // Progress
         if (_discardService.DiscardProgress > 0)
         {
             var progress = (float)_discardService.DiscardProgress / _discardService.TotalItems;
@@ -194,12 +191,10 @@ public class DiscardConfirmationWindow : Window, IDisposable
 
         var rowWidth = primaryWidth + cancelWidth + spacing;
         var avail = ImGui.GetContentRegionAvail().X;
-        // Right-align the button pair
         ImGui.SetCursorPosX(ImGui.GetCursorPosX() + Math.Max(0, avail - rowWidth));
 
         if (_discardService.DiscardProgress == 0)
         {
-            // Cancel first (ghost), then primary danger button on the right
             using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(0, 0, 0, 0))
                                   .Push(ImGuiCol.ButtonHovered, new Vector4(0.3f, 0.3f, 0.3f, 0.5f))
                                   .Push(ImGuiCol.Text, Theme.ColorSubdued))

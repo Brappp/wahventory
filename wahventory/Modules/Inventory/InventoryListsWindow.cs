@@ -74,7 +74,6 @@ internal class InventoryListsWindow : Window, IDisposable
         ImGui.Separator();
         ImGui.Spacing();
 
-        // Reserve space for footer (button + hint = ~52px)
         var listHeight = ImGui.GetContentRegionAvail().Y - 52;
         if (listHeight < 60) listHeight = 60;
 
@@ -160,7 +159,6 @@ internal class InventoryListsWindow : Window, IDisposable
     private void DrawSearchAdd(ColumnState col, string idSuffix, HashSet<uint> targetList, Action<uint> onAdd)
     {
         var availW = ImGui.GetContentRegionAvail().X;
-        // Reserve space for the + button (28px) and gap
         ImGui.SetNextItemWidth(availW - 36);
 
         var search = col.SearchText;
@@ -220,7 +218,6 @@ internal class InventoryListsWindow : Window, IDisposable
 
     private void TryAddFromInput(ColumnState col, HashSet<uint> targetList, Action<uint> onAdd)
     {
-        // If the input is digits, treat as item ID. Otherwise, add the first search result.
         var text = col.SearchText.Trim();
         if (uint.TryParse(text, out var id) && id > 0)
         {
@@ -266,7 +263,6 @@ internal class InventoryListsWindow : Window, IDisposable
         {
             using var pushId = ImRaii.PushId($"item_{id}");
 
-            // Look up item info: prefer current inventory state, fall back to game data
             var inv = _state.FindAllItem(id);
             ushort iconId = 0;
             string name;
@@ -297,7 +293,6 @@ internal class InventoryListsWindow : Window, IDisposable
 
             ImGui.TableNextRow();
 
-            // Item column: icon + name + optional [in inventory] tag
             ImGui.TableNextColumn();
             if (iconId > 0)
             {
@@ -326,11 +321,9 @@ internal class InventoryListsWindow : Window, IDisposable
                 ImGui.TextColored(Theme.ColorWarning, "[in inventory]");
             }
 
-            // iLvl column
             ImGui.TableNextColumn();
             ImGui.TextColored(Theme.ColorSubdued, ilvlText);
 
-            // Remove column
             ImGui.TableNextColumn();
             using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(0, 0, 0, 0))
                                   .Push(ImGuiCol.ButtonHovered, new Vector4(0.45f, 0.20f, 0.20f, 0.6f))

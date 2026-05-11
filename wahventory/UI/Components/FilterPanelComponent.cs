@@ -52,7 +52,6 @@ public class FilterPanelComponent
         }
         ImGui.Separator();
 
-        // High-level gear filter + threshold input
         var high = filters.FilterHighLevelGear;
         if (ImGui.Checkbox("##HighLvlGear", ref high))
         {
@@ -79,7 +78,6 @@ public class FilterPanelComponent
 
     private static int CountActiveFilters(SafetyFilters filters)
     {
-        // Mirrors the sidebar. Currency and Crystals/Shards are always-on and not toggles.
         var count = 0;
         if (filters.FilterUltimateTokens) count++;
         if (filters.FilterGearsetItems) count++;

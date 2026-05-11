@@ -248,7 +248,6 @@ internal sealed class InventoryUIRenderer
         if (ImGui.Button("All on", new Vector2(halfW, 0)))
         {
             var f = settings.SafetyFilters;
-            f.FilterCrystalsAndShards = true;
             f.FilterGearsetItems = true;
             f.FilterIndisposableItems = true;
             f.FilterUltimateTokens = true;

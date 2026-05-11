@@ -30,7 +30,6 @@ public class FilterPanelComponent
 
         bool changed = false;
 
-        changed |= SidebarCheckbox("Crystals & Shards",   () => filters.FilterCrystalsAndShards, v => filters.FilterCrystalsAndShards = v, "Aether crystals, shards, clusters",    counts?.CrystalsAndShards);
         changed |= SidebarCheckbox("In Gearset",          () => filters.FilterGearsetItems,     v => filters.FilterGearsetItems = v,     "Equipment in any saved gearset",        counts?.InGearset);
         changed |= SidebarCheckbox("Indisposable",        () => filters.FilterIndisposableItems, v => filters.FilterIndisposableItems = v, "Items the game won't let you discard", counts?.Indisposable);
         changed |= SidebarCheckbox("Ultimate / Special",  () => filters.FilterUltimateTokens,   v => filters.FilterUltimateTokens = v,   "Raid tokens, retired tomestones",       counts?.UltimateSpecial);
@@ -80,10 +79,9 @@ public class FilterPanelComponent
 
     private static int CountActiveFilters(SafetyFilters filters)
     {
-        // Mirrors what the sidebar shows. Currency is always-on and not a toggle.
+        // Mirrors the sidebar. Currency and Crystals/Shards are always-on and not toggles.
         var count = 0;
         if (filters.FilterUltimateTokens) count++;
-        if (filters.FilterCrystalsAndShards) count++;
         if (filters.FilterGearsetItems) count++;
         if (filters.FilterIndisposableItems) count++;
         if (filters.FilterHighLevelGear) count++;

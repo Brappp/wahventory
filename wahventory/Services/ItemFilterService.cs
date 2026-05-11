@@ -10,7 +10,6 @@ namespace wahventory.Services;
 public class FilterHiddenCounts
 {
     public int UltimateSpecial;
-    public int CrystalsAndShards;
     public int InGearset;
     public int Indisposable;
     public int HQ;
@@ -35,15 +34,13 @@ public class ItemFilterService
             filtered = filtered.Where(i => i.Name.Contains(searchFilter, StringComparison.OrdinalIgnoreCase));
         }
         
-        // Currency items are always hidden — they can't be discarded anyway,
-        // and surfacing them in the inventory list is just noise.
+        // Currency items, crystals, and shards are always hidden — they can't
+        // be discarded anyway, and surfacing them is just noise.
         filtered = filtered.Where(i => !ItemSafetyData.CurrencyRange.Contains(i.ItemId));
+        filtered = filtered.Where(i => !ItemSafetyData.CrystalAndShardCategoryIds.Contains(i.ItemUICategory));
 
         if (filters.FilterUltimateTokens)
             filtered = filtered.Where(i => !ItemSafetyData.HardcodedBlacklist.Contains(i.ItemId));
-
-        if (filters.FilterCrystalsAndShards)
-            filtered = filtered.Where(i => !(ItemSafetyData.CrystalAndShardCategoryIds.Contains(i.ItemUICategory)));
 
         if (filters.FilterGearsetItems)
             filtered = filtered.Where(i => !InventoryHelpers.IsInGearset(i.ItemId));
@@ -74,10 +71,10 @@ public class ItemFilterService
         if (ItemSafetyData.CurrencyRange.Contains(item.ItemId))
             return true;
 
-        if (filters.FilterUltimateTokens && ItemSafetyData.HardcodedBlacklist.Contains(item.ItemId))
+        if (ItemSafetyData.CrystalAndShardCategoryIds.Contains(item.ItemUICategory))
             return true;
 
-        if (filters.FilterCrystalsAndShards && (ItemSafetyData.CrystalAndShardCategoryIds.Contains(item.ItemUICategory)))
+        if (filters.FilterUltimateTokens && ItemSafetyData.HardcodedBlacklist.Contains(item.ItemId))
             return true;
 
         if (filters.FilterGearsetItems && InventoryHelpers.IsInGearset(item.ItemId))
@@ -108,11 +105,11 @@ public class ItemFilterService
         if (ItemSafetyData.CurrencyRange.Contains(item.ItemId))
             return "Currency";
 
+        if (ItemSafetyData.CrystalAndShardCategoryIds.Contains(item.ItemUICategory))
+            return "Crystal/Shard";
+
         if (filters.FilterUltimateTokens && ItemSafetyData.HardcodedBlacklist.Contains(item.ItemId))
             return "Ultimate/Special";
-
-        if (filters.FilterCrystalsAndShards && (ItemSafetyData.CrystalAndShardCategoryIds.Contains(item.ItemUICategory)))
-            return "Crystal/Shard";
 
         if (filters.FilterGearsetItems && InventoryHelpers.IsInGearset(item.ItemId))
             return "In Gearset";
@@ -166,7 +163,6 @@ public class ItemFilterService
         foreach (var item in items)
         {
             if (ItemSafetyData.HardcodedBlacklist.Contains(item.ItemId)) counts.UltimateSpecial++;
-            if (ItemSafetyData.CrystalAndShardCategoryIds.Contains(item.ItemUICategory)) counts.CrystalsAndShards++;
             if (InventoryHelpers.IsInGearset(item.ItemId)) counts.InGearset++;
             if (item.IsIndisposable) counts.Indisposable++;
             if (item.IsHQ) counts.HQ++;

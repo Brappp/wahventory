@@ -39,7 +39,6 @@ public class InventorySettings
 public class SafetyFilters
 {
     public bool FilterUltimateTokens { get; set; } = true;
-    public bool FilterCrystalsAndShards { get; set; } = true;
     public bool FilterGearsetItems { get; set; } = true;
     public bool FilterIndisposableItems { get; set; } = true;
     public bool FilterHighLevelGear { get; set; } = true;

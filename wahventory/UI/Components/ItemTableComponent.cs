@@ -218,7 +218,10 @@ public class ItemTableComponent
             ImGui.SameLine(0, 5);
         }
         
-        // Highlight search term if provided
+        // Group so hover/click rect covers all name pieces (including search highlight),
+        // not just the last one rendered. Tags below remain outside the group so they
+        // don't get the hover treatment.
+        ImGui.BeginGroup();
         if (!string.IsNullOrWhiteSpace(config.SearchFilter) && !string.IsNullOrEmpty(item.Name))
         {
             var matchIndex = item.Name.IndexOf(config.SearchFilter, StringComparison.OrdinalIgnoreCase);
@@ -229,10 +232,10 @@ public class ItemTableComponent
                     ImGui.Text(item.Name.Substring(0, matchIndex));
                     ImGui.SameLine(0, 0);
                 }
-                
+
                 ImGui.TextColored(Theme.ColorWarning, item.Name.Substring(matchIndex, config.SearchFilter.Length));
                 ImGui.SameLine(0, 0);
-                
+
                 if (matchIndex + config.SearchFilter.Length < item.Name.Length)
                 {
                     ImGui.Text(item.Name.Substring(matchIndex + config.SearchFilter.Length));
@@ -247,9 +250,17 @@ public class ItemTableComponent
         {
             ImGui.Text(item.Name ?? string.Empty);
         }
+        ImGui.EndGroup();
 
-        // Capture hover BEFORE same-line tags so the name itself is the right-click target.
         bool nameHovered = config.OnDrawContextMenu != null && ImGui.IsItemHovered();
+        if (nameHovered)
+        {
+            var drawList = ImGui.GetWindowDrawList();
+            var min = ImGui.GetItemRectMin();
+            var max = ImGui.GetItemRectMax();
+            drawList.AddLine(new Vector2(min.X, max.Y), new Vector2(max.X, max.Y), ImGui.GetColorU32(Theme.ColorBlue));
+            ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
+        }
 
         // Item tags
         if (item.IsHQ)
@@ -329,7 +340,7 @@ public class ItemTableComponent
         }
         else
         {
-            ImGui.TextColored(Theme.ColorNotTradeable, "---");
+            ImGui.TextColored(Theme.ColorSubdued, "—");
         }
     }
     

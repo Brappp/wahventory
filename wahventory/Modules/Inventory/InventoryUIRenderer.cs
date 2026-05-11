@@ -65,7 +65,7 @@ internal sealed class InventoryUIRenderer
 
         using (ImRaii.Child("Body", new Vector2(0, bodyHeight), false))
         {
-            using (ImRaii.Child("Sidebar", new Vector2(210, 0), true))
+            using (ImRaii.Child("Sidebar", new Vector2(210, 0), true, ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse))
             {
                 DrawSidebar();
             }

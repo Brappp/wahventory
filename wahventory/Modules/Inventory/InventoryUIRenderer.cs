@@ -306,38 +306,43 @@ internal sealed class InventoryUIRenderer
             var selectedValue = _module._state.SumValueForSelected();
             ImGui.TextColored(Theme.ColorPrice, $"{selectedValue:N0} gil");
 
-            // Right-aligned action buttons
-            var totalBtnWidth = 70 + 80 + 100 + 90 + 24;
+            // Right-aligned action buttons. Labels lead with the verb so it's
+            // clear these add to lists vs. trigger the discard.
+            const float clearW = 60, blW = 130, adW = 150, discW = 90, gap = 4;
+            var totalBtnWidth = clearW + blW + adW + discW + gap * 3 + 6;
             ImGui.SameLine(ImGui.GetWindowContentRegionMax().X - totalBtnWidth);
 
             using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(0, 0, 0, 0))
                                   .Push(ImGuiCol.ButtonHovered, new Vector4(0.3f, 0.3f, 0.3f, 0.4f))
                                   .Push(ImGuiCol.Text, Theme.ColorSubdued))
             {
-                if (ImGui.Button("Clear", new Vector2(60, 0))) _module._state.ClearSelectionAndReset();
+                if (ImGui.Button("Clear", new Vector2(clearW, 0))) _module._state.ClearSelectionAndReset();
             }
             ImGui.SameLine();
             using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.227f, 0.227f, 0.541f, 1f))
                                   .Push(ImGuiCol.ButtonHovered, new Vector4(0.327f, 0.327f, 0.641f, 1f)))
             {
-                if (ImGui.Button("Blacklist", new Vector2(78, 0))) _module.AddSelectedToBlacklist();
+                if (ImGui.Button("Add to blacklist", new Vector2(blW, 0))) _module.AddSelectedToBlacklist();
             }
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Add selected items to the blacklist (they'll never be discarded).");
             ImGui.SameLine();
             using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.541f, 0.341f, 0.127f, 1f))
                                   .Push(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.441f, 0.227f, 1f)))
             {
-                if (ImGui.Button("Auto-discard", new Vector2(96, 0))) _module.AddSelectedToAutoDiscard();
+                if (ImGui.Button("Add to auto-discard", new Vector2(adW, 0))) _module.AddSelectedToAutoDiscard();
             }
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Add selected items to the auto-discard list (discarded by /wahventory auto and passive discard).");
             ImGui.SameLine();
             using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.541f, 0.227f, 0.227f, 1f))
                                   .Push(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.327f, 0.327f, 1f)))
             {
-                if (ImGui.Button("Discard", new Vector2(80, 0)))
+                if (ImGui.Button("Discard", new Vector2(discW, 0)))
                 {
                     var ids = _module._state.SnapshotSelectedIds();
                     _module.DiscardService.PrepareDiscard(ids, _module._state.SnapshotOriginalItems(), _module.BlacklistedItems);
                 }
             }
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Discard the selected items now (with confirmation).");
         }
     }
 

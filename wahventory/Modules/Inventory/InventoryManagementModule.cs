@@ -297,7 +297,7 @@ public class InventoryManagementModule : IDisposable
     {
         if (AutoDiscardItems.Count == 0)
         {
-            _services.ChatGui.PrintError("No items configured for auto-discard. Add items in the Auto Discard tab.");
+            _services.ChatGui.PrintError("[wahventory] Auto-discard list is empty. Open Lists (toolbar) to add items.");
             return;
         }
 
@@ -305,7 +305,7 @@ public class InventoryManagementModule : IDisposable
 
         if (!itemsToDiscard.Any())
         {
-            _services.ChatGui.PrintError("No auto-discard items found in inventory.");
+            _services.ChatGui.PrintError("[wahventory] No items on the auto-discard list are currently in inventory.");
             return;
         }
 
@@ -316,16 +316,22 @@ public class InventoryManagementModule : IDisposable
 
     internal void AddSelectedToBlacklist()
     {
+        var count = _state.SelectedCount;
+        if (count == 0) return;
         _state.TransferSelectionTo(BlacklistedItems);
         SaveBlacklist();
         RefreshInventory();
+        _services.ChatGui.Print($"[wahventory] Added {count} item{(count == 1 ? "" : "s")} to blacklist.");
     }
 
     internal void AddSelectedToAutoDiscard()
     {
+        var count = _state.SelectedCount;
+        if (count == 0) return;
         _state.TransferSelectionTo(AutoDiscardItems);
         SaveAutoDiscard();
         RefreshInventory();
+        _services.ChatGui.Print($"[wahventory] Added {count} item{(count == 1 ? "" : "s")} to auto-discard list.");
     }
 
     public void Dispose()

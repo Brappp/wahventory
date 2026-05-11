@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game;
@@ -14,6 +15,7 @@ namespace wahventory.Services;
 public class PassiveDiscardService
 {
     private readonly IClientState _clientState;
+    private readonly IObjectTable _objectTable;
     private readonly ICondition _condition;
     private readonly IGameGui _gameGui;
     private readonly IPluginLog _log;
@@ -26,6 +28,15 @@ public class PassiveDiscardService
     private DateTime _lastItemCheckTime = DateTime.MinValue;
     private bool _hasItemsToDiscardCache = false;
     private readonly TimeSpan _itemCheckInterval = TimeSpan.FromSeconds(5);
+
+    // Movement tracking — player counts as "busy" while moving so the idle
+    // timer resets every time they walk. Sampled at ~200ms so per-frame
+    // float jitter doesn't trip the threshold.
+    private Vector3 _lastSampledPosition = Vector3.Zero;
+    private DateTime _lastMovementSample = DateTime.MinValue;
+    private bool _isMoving = false;
+    private readonly TimeSpan _movementSampleInterval = TimeSpan.FromMilliseconds(200);
+    private const float MovementThresholdSq = 0.01f; // ~0.1 yalm
     
     private readonly HashSet<uint> _passiveDiscardZones = new()
     {
@@ -40,12 +51,14 @@ public class PassiveDiscardService
     
     public PassiveDiscardService(
         IClientState clientState,
+        IObjectTable objectTable,
         ICondition condition,
         IGameGui gameGui,
         IPluginLog log,
         InventorySettings settings)
     {
         _clientState = clientState;
+        _objectTable = objectTable;
         _condition = condition;
         _gameGui = gameGui;
         _log = log;
@@ -97,8 +110,36 @@ public class PassiveDiscardService
         _lastAutoDiscardTime = DateTime.Now;
     }
     
+    private void SampleMovement()
+    {
+        var now = DateTime.Now;
+        if (now - _lastMovementSample < _movementSampleInterval) return;
+
+        var player = _objectTable.LocalPlayer;
+        if (player == null)
+        {
+            _isMoving = false;
+            _lastMovementSample = now;
+            return;
+        }
+
+        var pos = player.Position;
+        if (_lastMovementSample != DateTime.MinValue)
+        {
+            var dx = pos.X - _lastSampledPosition.X;
+            var dy = pos.Y - _lastSampledPosition.Y;
+            var dz = pos.Z - _lastSampledPosition.Z;
+            _isMoving = (dx * dx + dy * dy + dz * dz) > MovementThresholdSq;
+        }
+        _lastSampledPosition = pos;
+        _lastMovementSample = now;
+    }
+
     public bool IsPlayerBusy()
     {
+        SampleMovement();
+        if (_isMoving) return true;
+
         if (_condition[ConditionFlag.InCombat])
             return true;
         

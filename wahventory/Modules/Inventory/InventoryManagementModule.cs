@@ -67,6 +67,7 @@ public class InventoryManagementModule : IDisposable
             _services.GameGui);
         _passiveDiscardService = new PassiveDiscardService(
             _services.ClientState,
+            _services.ObjectTable,
             _services.Condition,
             _services.GameGui,
             _services.Log,

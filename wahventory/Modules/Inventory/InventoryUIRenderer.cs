@@ -228,7 +228,10 @@ internal sealed class InventoryUIRenderer
         ImGui.Spacing();
 
         // Filters — handled by FilterPanelComponent.DrawSidebar
-        _filterPanel.DrawSidebar(settings);
+        var counts = _filterService.CountHiddenPerFilter(
+            _module._state.SnapshotOriginalItems(),
+            settings.SafetyFilters);
+        _filterPanel.DrawSidebar(settings, counts);
 
         // Footer: Reset / All on
         var bottomY = ImGui.GetWindowHeight() - 32;

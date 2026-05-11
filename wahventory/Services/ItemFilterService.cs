@@ -7,6 +7,20 @@ using wahventory.Services.Helpers;
 
 namespace wahventory.Services;
 
+public class FilterHiddenCounts
+{
+    public int UltimateSpecial;
+    public int Currency;
+    public int CrystalsAndShards;
+    public int InGearset;
+    public int Indisposable;
+    public int HQ;
+    public int Collectables;
+    public int UniqueUntradeable;
+    public int HighLevelGear;
+    public int Spiritbonded;
+}
+
 public class ItemFilterService
 {
     public IEnumerable<InventoryItemInfo> ApplyFilters(
@@ -150,6 +164,32 @@ public class ItemFilterService
         return protectedItems;
     }
     
+    /// <summary>
+    /// Counts how many items in the source set each filter would individually match —
+    /// independent of whether the filter is currently enabled, and independent of other
+    /// filters. Used for the per-filter "(N)" indicators in the sidebar.
+    /// </summary>
+    public FilterHiddenCounts CountHiddenPerFilter(
+        IEnumerable<InventoryItemInfo> items,
+        SafetyFilters filters)
+    {
+        var counts = new FilterHiddenCounts();
+        foreach (var item in items)
+        {
+            if (ItemSafetyData.HardcodedBlacklist.Contains(item.ItemId)) counts.UltimateSpecial++;
+            if (ItemSafetyData.CurrencyRange.Contains(item.ItemId)) counts.Currency++;
+            if (ItemSafetyData.CrystalAndShardCategoryIds.Contains(item.ItemUICategory)) counts.CrystalsAndShards++;
+            if (InventoryHelpers.IsInGearset(item.ItemId)) counts.InGearset++;
+            if (item.IsIndisposable) counts.Indisposable++;
+            if (item.IsHQ) counts.HQ++;
+            if (item.IsCollectable) counts.Collectables++;
+            if (item.IsUnique && item.IsUntradable) counts.UniqueUntradeable++;
+            if (item.EquipSlotCategory > 0 && item.ItemLevel >= filters.MaxGearItemLevel) counts.HighLevelGear++;
+            if (item.SpiritBond >= filters.MinSpiritbondToFilter) counts.Spiritbonded++;
+        }
+        return counts;
+    }
+
     public List<CategoryGroup> GroupIntoCategories(
         IEnumerable<InventoryItemInfo> items)
     {

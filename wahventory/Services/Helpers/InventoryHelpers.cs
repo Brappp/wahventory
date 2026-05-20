@@ -14,15 +14,15 @@ public unsafe class InventoryHelpers
     private readonly IDataManager _dataManager;
     private readonly IPluginLog _log;
 
-    private static readonly InventoryType[] MainInventories =
+    public static readonly InventoryType[] MainInventories =
     {
         InventoryType.Inventory1,
-        InventoryType.Inventory2, 
+        InventoryType.Inventory2,
         InventoryType.Inventory3,
         InventoryType.Inventory4
     };
-    
-    private static readonly InventoryType[] ArmoryInventories = 
+
+    public static readonly InventoryType[] ArmoryInventories =
     {
         InventoryType.ArmoryMainHand,
         InventoryType.ArmoryOffHand,
@@ -36,6 +36,8 @@ public unsafe class InventoryHelpers
         InventoryType.ArmoryWrist,
         InventoryType.ArmoryRings
     };
+
+    public static bool IsArmoryContainer(InventoryType type) => Array.IndexOf(ArmoryInventories, type) >= 0;
     
     private static readonly InventoryType[] SaddlebagInventories = 
     {
@@ -148,11 +150,19 @@ public unsafe class InventoryHelpers
         };
     }
     
+    // GearsetItem.ItemId stores HQ as +1,000,000 and collectible as +500,000; InventoryItem.ItemId is the raw base id.
+    private static uint NormalizeGearsetItemId(uint raw)
+    {
+        if (raw >= 1_000_000) return raw - 1_000_000;
+        if (raw >= 500_000) return raw - 500_000;
+        return raw;
+    }
+
     public static bool IsInGearset(uint itemId)
     {
         var gearsetModule = RaptureGearsetModule.Instance();
         if (gearsetModule == null) return false;
-        
+
         for (var i = 0; i < 100; i++) // Max 100 gearsets
         {
             var gearset = gearsetModule->GetGearset(i);
@@ -160,11 +170,11 @@ public unsafe class InventoryHelpers
                 continue;
             for (var j = 0; j < gearset->Items.Length; j++)
             {
-                if (gearset->Items[j].ItemId == itemId)
+                if (NormalizeGearsetItemId(gearset->Items[j].ItemId) == itemId)
                     return true;
             }
         }
-        
+
         return false;
     }
     

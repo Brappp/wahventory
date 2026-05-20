@@ -20,6 +20,7 @@ public class InventoryManagementModule : IDisposable
     private readonly ItemSearchService _searchService;
     private readonly PriceService _priceService;
     public readonly DiscardService DiscardService;
+    public readonly ArmoryMoveService MoveService;
     private readonly PassiveDiscardService _passiveDiscardService;
 
     // UI
@@ -66,6 +67,9 @@ public class InventoryManagementModule : IDisposable
             _services.Log,
             _services.ChatGui,
             _services.GameGui);
+        DiscardService.OnDiscardCompleted += OnInventoryMutated;
+        MoveService = new ArmoryMoveService(_services.Log, _services.ChatGui);
+        MoveService.OnMoveCompleted += (_, _) => OnInventoryMutated();
         _passiveDiscardService = new PassiveDiscardService(
             _services.ClientState,
             _services.ObjectTable,
@@ -251,6 +255,12 @@ public class InventoryManagementModule : IDisposable
         _ui.Draw();
     }
 
+    private void OnInventoryMutated()
+    {
+        _state.ClearSelectionAndReset();
+        RefreshInventory();
+    }
+
     internal void RefreshInventory()
     {
         var newItems = _inventoryHelpers.GetAllItems(_showArmory, false);
@@ -326,6 +336,33 @@ public class InventoryManagementModule : IDisposable
         _services.ChatGui.Print($"[wahventory] Added {count} item{(count == 1 ? "" : "s")} to blacklist.");
     }
 
+    internal int CountSelectedArmoryItems()
+    {
+        var selectedIds = _state.SnapshotSelectedIds();
+        if (selectedIds.Count == 0) return 0;
+        var ids = new HashSet<uint>(selectedIds);
+        return _state.SnapshotOriginalItems()
+            .Count(i => ids.Contains(i.ItemId) && InventoryHelpers.IsArmoryContainer(i.Container));
+    }
+
+    internal void MoveSelectedArmoryToInventory()
+    {
+        var selectedIds = _state.SnapshotSelectedIds();
+        if (selectedIds.Count == 0) return;
+        var ids = new HashSet<uint>(selectedIds);
+        var armoryItems = _state.SnapshotOriginalItems()
+            .Where(i => ids.Contains(i.ItemId) && InventoryHelpers.IsArmoryContainer(i.Container))
+            .ToList();
+
+        if (armoryItems.Count == 0)
+        {
+            _services.ChatGui.PrintError("[wahventory] No selected items live in the armory.");
+            return;
+        }
+
+        MoveService.StartMove(armoryItems);
+    }
+
     internal void AddSelectedToAutoDiscard()
     {
         var count = _state.SelectedCount;
@@ -346,8 +383,13 @@ public class InventoryManagementModule : IDisposable
         ListsWindow?.Dispose();
         SettingsWindow?.Dispose();
         FilteredItemsWindow?.Dispose();
+        if (DiscardService != null)
+        {
+            DiscardService.OnDiscardCompleted -= OnInventoryMutated;
+        }
         _priceService?.Dispose();
         DiscardService?.Dispose();
+        MoveService?.Dispose();
         _iconCache?.Dispose();
     }
 }

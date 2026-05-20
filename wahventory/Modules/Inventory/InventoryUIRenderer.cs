@@ -298,8 +298,13 @@ internal sealed class InventoryUIRenderer
             var selectedValue = _module._state.SumValueForSelected();
             ImGui.TextColored(Theme.ColorPrice, $"{selectedValue:N0} gil");
 
-            const float clearW = 60, blW = 130, adW = 150, discW = 90, gap = 4;
-            var totalBtnWidth = clearW + blW + adW + discW + gap * 3 + 6;
+            var armorySelected = _module.CountSelectedArmoryItems();
+            var freeSlots = _module.MoveService.CountAvailableInventorySlots();
+            var canMove = armorySelected > 0 && !_module.MoveService.IsMoving;
+            var moveOverflow = armorySelected > freeSlots;
+
+            const float clearW = 60, blW = 130, adW = 150, moveW = 140, discW = 90, gap = 4;
+            var totalBtnWidth = clearW + blW + adW + moveW + discW + gap * 4 + 6;
             ImGui.SameLine(ImGui.GetWindowContentRegionMax().X - totalBtnWidth);
 
             using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(0, 0, 0, 0))
@@ -323,6 +328,8 @@ internal sealed class InventoryUIRenderer
             }
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("Add selected items to the auto-discard list (discarded by /wahventory auto and passive discard).");
             ImGui.SameLine();
+            DrawMoveButton(canMove, moveOverflow, armorySelected, freeSlots, moveW);
+            ImGui.SameLine();
             using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.541f, 0.227f, 0.227f, 1f))
                                   .Push(ImGuiCol.ButtonHovered, new Vector4(0.641f, 0.327f, 0.327f, 1f)))
             {
@@ -333,6 +340,42 @@ internal sealed class InventoryUIRenderer
                 }
             }
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("Discard the selected items now (with confirmation).");
+        }
+    }
+
+    private void DrawMoveButton(bool canMove, bool overflow, int armorySelected, int freeSlots, float width)
+    {
+        var idle = new Vector4(0.227f, 0.451f, 0.300f, 1f);
+        var hover = new Vector4(0.327f, 0.551f, 0.400f, 1f);
+        if (overflow)
+        {
+            idle = new Vector4(0.541f, 0.227f, 0.227f, 1f);
+            hover = new Vector4(0.641f, 0.327f, 0.327f, 1f);
+        }
+
+        using (ImRaii.PushColor(ImGuiCol.Button, idle).Push(ImGuiCol.ButtonHovered, hover))
+        using (ImRaii.Disabled(!canMove))
+        {
+            if (ImGui.Button("Move to inventory", new Vector2(width, 0)))
+            {
+                _module.MoveSelectedArmoryToInventory();
+            }
+        }
+
+        if (ImGui.IsItemHovered())
+        {
+            if (armorySelected == 0)
+            {
+                ImGui.SetTooltip("Select items from the armory (enable \"Include armory\" in the sidebar) to move them into your main inventory.");
+            }
+            else if (overflow)
+            {
+                ImGui.SetTooltip($"{armorySelected} armory item{(armorySelected == 1 ? "" : "s")} selected · only {freeSlots} inventory slot{(freeSlots == 1 ? "" : "s")} free.\nWill move the first {freeSlots} and skip the rest.");
+            }
+            else
+            {
+                ImGui.SetTooltip($"Move {armorySelected} armory item{(armorySelected == 1 ? "" : "s")} → main inventory ({freeSlots} slot{(freeSlots == 1 ? "" : "s")} free).");
+            }
         }
     }
 

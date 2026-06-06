@@ -62,9 +62,13 @@ public class DiscardConfirmationWindow : Window, IDisposable
 
         ImGui.Spacing();
 
-        var reservedBottom = 64f;
-        if (_discardService.DiscardProgress > 0) reservedBottom += 28;
-        if (!string.IsNullOrEmpty(_discardService.DiscardError)) reservedBottom += 28;
+        var spacing = ImGui.GetStyle().ItemSpacing.Y;
+        const float buttonHeight = 28f;
+        const float progressHeight = 20f;
+
+        var reservedBottom = buttonHeight + spacing + progressHeight + spacing;
+        var hasError = !string.IsNullOrEmpty(_discardService.DiscardError);
+        if (hasError) reservedBottom += ImGui.GetTextLineHeight() + spacing;
         var tableHeight = ImGui.GetContentRegionAvail().Y - reservedBottom;
         if (tableHeight < 100) tableHeight = 100;
 
@@ -76,7 +80,7 @@ public class DiscardConfirmationWindow : Window, IDisposable
             }
         }
 
-        if (!string.IsNullOrEmpty(_discardService.DiscardError))
+        if (hasError)
         {
             ImGui.TextColored(Theme.ColorError, _discardService.DiscardError);
         }
@@ -86,9 +90,13 @@ public class DiscardConfirmationWindow : Window, IDisposable
             var progress = (float)_discardService.DiscardProgress / _discardService.TotalItems;
             using (var color = ImRaii.PushColor(ImGuiCol.PlotHistogram, Theme.ColorSuccess))
             {
-                ImGui.ProgressBar(progress, new Vector2(-1, 20),
+                ImGui.ProgressBar(progress, new Vector2(-1, progressHeight),
                     $"Discarding {_discardService.DiscardProgress} / {_discardService.TotalItems}");
             }
+        }
+        else
+        {
+            ImGui.Dummy(new Vector2(0, progressHeight));
         }
 
         ImGui.Spacing();

@@ -21,6 +21,7 @@ public class InventorySettings
     public SafetyFilters SafetyFilters { get; set; } = new();
 
     public bool ShowMarketPrices { get; set; } = false;
+    public bool EquippablesOnly { get; set; } = false;
     public int PriceCacheDurationMinutes { get; set; } = 30;
     public bool AutoRefreshPrices { get; set; } = true;
 

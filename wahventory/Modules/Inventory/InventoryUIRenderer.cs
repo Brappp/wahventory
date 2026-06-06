@@ -97,7 +97,7 @@ internal sealed class InventoryUIRenderer
             }
             ImGui.SameLine();
             ImGui.SetNextItemWidth(200);
-            if (ImGui.InputTextWithHint("##Search", "Search items…", ref _module._searchFilter, 100))
+            if (ImGui.InputTextWithHint("##Search", "Search items", ref _module._searchFilter, 100))
             {
                 _module.UpdateCategories();
             }
@@ -120,6 +120,26 @@ internal sealed class InventoryUIRenderer
                 }
             }
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("Refresh inventory");
+
+            ImGui.SameLine();
+            var equipOnly = _module.Settings.EquippablesOnly;
+            using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.227f, 0.227f, 0.541f, 1f), equipOnly)
+                                  .Push(ImGuiCol.ButtonHovered, new Vector4(0.327f, 0.327f, 0.641f, 1f), equipOnly))
+            using (ImRaii.PushFont(UiBuilder.IconFont))
+            {
+                if (ImGui.Button($"{FontAwesomeIcon.Tshirt.ToIconString()}##EquipOnly", new Vector2(30, 0)))
+                {
+                    _module.Settings.EquippablesOnly = !equipOnly;
+                    _module.SaveConfig();
+                    _module.UpdateCategories();
+                }
+            }
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip(equipOnly
+                    ? "Equippables only: ON — showing gear, weapons, and accessories only.\nClick to show all items."
+                    : "Equippables only: OFF — showing all items.\nClick to show only gear, weapons, and accessories.");
+            }
 
             ImGui.SameLine();
             ImGui.TextColored(new Vector4(0.3f, 0.3f, 0.3f, 1f), "|");
@@ -213,6 +233,19 @@ internal sealed class InventoryUIRenderer
         {
             _module.RefreshInventory();
         }
+
+        var equippablesOnly = settings.EquippablesOnly;
+        if (ImGui.Checkbox("Equippables only", ref equippablesOnly))
+        {
+            settings.EquippablesOnly = equippablesOnly;
+            changed = true;
+            _module.UpdateCategories();
+        }
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.SetTooltip("Show only equipment-slot items (weapons, armor, accessories) — hides potions,\nmaterials, and other non-gear. Pair with \"Include armory\" to organize the armory chest.");
+        }
+
         var showPrices = settings.ShowMarketPrices;
         if (ImGui.Checkbox("Show market prices", ref showPrices))
         {

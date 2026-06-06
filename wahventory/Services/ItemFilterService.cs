@@ -23,16 +23,22 @@ public class ItemFilterService
         IEnumerable<InventoryItemInfo> items,
         SafetyFilters filters,
         HashSet<uint> blacklistedItems,
-        string? searchFilter = null)
+        string? searchFilter = null,
+        bool equippablesOnly = false)
     {
         var filtered = items.AsEnumerable();
-        
+
         // Apply search filter first
         if (!string.IsNullOrWhiteSpace(searchFilter))
         {
             filtered = filtered.Where(i => i.Name.Contains(searchFilter, StringComparison.OrdinalIgnoreCase));
         }
-        
+
+        if (equippablesOnly)
+        {
+            filtered = filtered.Where(i => i.IsEquippable);
+        }
+
         // Always hidden — losing these is catastrophic, no user toggle.
         filtered = filtered.Where(i => !ItemSafetyData.CurrencyRange.Contains(i.ItemId));
         filtered = filtered.Where(i => !ItemSafetyData.CrystalAndShardCategoryIds.Contains(i.ItemUICategory));

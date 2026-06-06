@@ -35,7 +35,9 @@ public class InventoryItemInfo
     public DateTime? MarketPriceFetchTime { get; set; }
     
     public bool IsGear => ItemUICategory >= 35 && ItemUICategory <= 44;
-    
+
+    public bool IsEquippable => EquipSlotCategory > 0 && ItemUICategory != 62;
+
     public string GetUniqueKey() => $"{Container}_{Slot}";
     
     public string GetFormattedPrice()

@@ -272,21 +272,21 @@ public class InventoryManagementModule : IDisposable
                 item.SafetyAssessment = InventoryHelpers.AssessItemSafety(item, Settings, BlacklistedItems);
                 _priceService.UpdateItemPrice(item);
             },
-            applyFilters: items => _filterService.ApplyFilters(items, Settings.SafetyFilters, BlacklistedItems, _searchFilter),
+            applyFilters: items => _filterService.ApplyFilters(items, Settings.SafetyFilters, BlacklistedItems, _searchFilter, Settings.EquippablesOnly),
             categorize: items => _filterService.GroupIntoCategories(items));
     }
 
     internal void UpdateCategories()
     {
         _state.Recategorize(
-            applyFilters: items => _filterService.ApplyFilters(items, Settings.SafetyFilters, BlacklistedItems, _searchFilter),
+            applyFilters: items => _filterService.ApplyFilters(items, Settings.SafetyFilters, BlacklistedItems, _searchFilter, Settings.EquippablesOnly),
             categorize: items => _filterService.GroupIntoCategories(items));
     }
 
     private List<InventoryItemInfo> GetVisibleItems()
     {
         return _state.ApplyFiltersToOriginal(
-            items => _filterService.ApplyFilters(items, Settings.SafetyFilters, BlacklistedItems, _searchFilter));
+            items => _filterService.ApplyFilters(items, Settings.SafetyFilters, BlacklistedItems, _searchFilter, Settings.EquippablesOnly));
     }
 
     internal List<InventoryItemInfo> GetProtectedItems()
